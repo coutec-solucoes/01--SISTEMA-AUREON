@@ -1,0 +1,11 @@
+[package]
+name    = "aureon-sync"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+aureon-core = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+chrono      = { workspace = true }
+uuid        = { workspace = true }

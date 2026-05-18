@@ -1,0 +1,13 @@
+[package]
+name    = "aureon-infra"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+aureon-core   = { workspace = true }
+aureon-domain = { workspace = true }
+rusqlite      = { workspace = true }
+tracing       = { workspace = true }
+chrono        = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }

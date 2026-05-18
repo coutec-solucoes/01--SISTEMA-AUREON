@@ -1,0 +1,32 @@
+@inherits LayoutComponentBase
+
+<div class="layout-principal">
+
+    <!-- Cabeçalho -->
+    <header class="cabecalho">
+        <div class="cabecalho-logo">⚡ AUREON PDV</div>
+        <div class="cabecalho-status">
+            <span class="dot-status @(_sistemaOk ? "" : "erro")"></span>
+            <span>@_statusTexto</span>
+        </div>
+    </header>
+
+    <!-- Conteúdo da página -->
+    <main class="conteudo">
+        @Body
+    </main>
+
+</div>
+
+@code {
+    private bool _sistemaOk = true;
+    private string _statusTexto = "Sistema iniciando...";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Aguarda um breve momento para o Tauri inicializar
+        await Task.Delay(300);
+        _statusTexto = "Operacional";
+        _sistemaOk   = true;
+    }
+}

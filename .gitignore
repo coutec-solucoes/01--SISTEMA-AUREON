@@ -1,0 +1,51 @@
+# ============================================================
+# .gitignore — Aureon Sistema Inteligente
+# ============================================================
+
+# Rust / Cargo
+target/
+Cargo.lock          # não versionar em aplicações (opcional para libs)
+**/*.rs.bk
+
+# .NET / Blazor
+**/bin/
+**/obj/
+*.user
+.vs/
+.vscode/settings.json
+
+# Tauri
+**/src-tauri/target/
+WixTools/
+
+# Banco de dados local (nunca versionar dados reais)
+*.db
+*.db-shm
+*.db-wal
+aureon-data/
+
+# Configurações sensíveis
+.env
+.env.local
+.env.production
+*.config.enc
+.keystore
+C:/Aureon/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.idea/
+*.suo
+*.ncrunch*
+
+# Node (build tools Tauri)
+node_modules/
+dist/

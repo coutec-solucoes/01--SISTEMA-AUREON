@@ -1,0 +1,165 @@
+@page "/"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<PageTitle>Dashboard — Aureon PDV</PageTitle>
+
+<div class="fade-in">
+
+    <h1 style="font-size:20px; font-weight:700; margin-bottom:4px;">
+        Dashboard
+    </h1>
+    <p style="color: var(--cor-texto-sub); margin-bottom: 24px; font-size:13px;">
+        Fase 0 — Fundação Técnica
+    </p>
+
+    <!-- Cards de status -->
+    <div class="grade-3" style="margin-bottom: 24px;">
+
+        <div class="card">
+            <div class="card-titulo">Versão do Sistema</div>
+            <div class="card-valor">0.0.1</div>
+            <div style="margin-top:8px;">
+                <span class="badge badge-info">Fase 0</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-titulo">SQLite Local</div>
+            <div class="card-valor" style="font-size:16px; margin-top:4px;">
+                @(_sqliteStatus ?? "—")
+            </div>
+            <div style="margin-top:8px;">
+                <span class="badge @(_sqliteOk ? "badge-ok" : "badge-erro")">
+                    @(_sqliteOk ? "Conectado" : "Erro")
+                </span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-titulo">Terminal ID</div>
+            <div class="card-valor" style="font-size:13px; word-break:break-all; margin-top:4px;">
+                @(_terminalId ?? "—")
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Testes de Commands Tauri -->
+    <div class="card">
+        <div class="card-titulo">🔧 Testes de Commands Tauri</div>
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+            <button class="btn btn-primario" @onclick="TestarStatus" disabled="@_carregando">
+                @(_carregando ? "⏳ Aguarde..." : "▶ obter_status_local")
+            </button>
+            <button class="btn btn-primario" @onclick="TestarSqlite" disabled="@_carregando">
+                @(_carregando ? "⏳ Aguarde..." : "▶ testar_sqlite")
+            </button>
+            <button class="btn btn-primario" @onclick="GravarLog" disabled="@_carregando">
+                @(_carregando ? "⏳ Aguarde..." : "▶ gravar_log_local")
+            </button>
+        </div>
+
+        <!-- Console de resultados -->
+        <div class="console-log">
+            @if (_logs.Count == 0)
+            {
+                <span class="log-info">Aguardando execução dos commands...</span>
+            }
+            @foreach (var log in _logs)
+            {
+                <div class="@log.Classe">@log.Texto</div>
+            }
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private bool   _carregando   = false;
+    private bool   _sqliteOk     = false;
+    private string? _sqliteStatus = null;
+    private string? _terminalId   = null;
+
+    private record LogEntry(string Texto, string Classe);
+    private List<LogEntry> _logs = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await TestarStatus();
+    }
+
+    private async Task TestarStatus()
+    {
+        _carregando = true;
+        AdicionarLog("[INFO] Chamando obter_status_local...", "log-info");
+
+        var resposta = await Tauri.InvocarAsync<RespostaBase<StatusLocalDto>>(
+            "obter_status_local"
+        );
+
+        if (resposta?.Sucesso == true && resposta.Dados != null)
+        {
+            _sqliteOk     = resposta.Dados.SqliteStatus == "ok";
+            _sqliteStatus = resposta.Dados.SqliteStatus;
+            _terminalId   = resposta.Dados.TerminalId;
+            AdicionarLog($"[OK] Versão: {resposta.Dados.AppVersao} | SQLite: {resposta.Dados.SqliteStatus} | Terminal: {resposta.Dados.TerminalId}", "");
+        }
+        else
+        {
+            AdicionarLog($"[ERRO] {resposta?.Mensagem ?? "Sem resposta"}", "log-erro");
+        }
+
+        _carregando = false;
+    }
+
+    private async Task TestarSqlite()
+    {
+        _carregando = true;
+        AdicionarLog("[INFO] Chamando testar_sqlite...", "log-info");
+
+        var resposta = await Tauri.InvocarAsync<RespostaBase<ConexaoDto>>("testar_sqlite");
+
+        if (resposta?.Sucesso == true)
+            AdicionarLog($"[OK] {resposta.Dados?.Mensagem}", "");
+        else
+            AdicionarLog($"[ERRO] {resposta?.Mensagem}", "log-erro");
+
+        _carregando = false;
+    }
+
+    private async Task GravarLog()
+    {
+        _carregando = true;
+        AdicionarLog("[INFO] Chamando gravar_log_local...", "log-info");
+
+        var resposta = await Tauri.InvocarAsync<RespostaBase<object>>(
+            "gravar_log_local",
+            new { nivel = "INFO", componente = "ui-blazor", mensagem = "Teste de log da UI Blazor" }
+        );
+
+        if (resposta?.Sucesso == true)
+            AdicionarLog("[OK] Log gravado no SQLite com sucesso.", "");
+        else
+            AdicionarLog($"[ERRO] {resposta?.Mensagem}", "log-erro");
+
+        _carregando = false;
+    }
+
+    private void AdicionarLog(string texto, string classe)
+    {
+        _logs.Insert(0, new LogEntry($"[{DateTime.Now:HH:mm:ss}] {texto}", classe));
+        if (_logs.Count > 50) _logs.RemoveAt(_logs.Count - 1);
+    }
+
+    // DTOs espelho do Rust
+    private record StatusLocalDto(
+        string AppVersao,
+        string SqliteStatus,
+        string TerminalId,
+        DateTime Horario
+    );
+
+    private record ConexaoDto(bool SqliteOk, string Mensagem);
+}

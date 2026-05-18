@@ -1,0 +1,9 @@
+[package]
+name    = "aureon-domain"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+aureon-core = { workspace = true }
+serde       = { workspace = true }
+chrono      = { workspace = true }

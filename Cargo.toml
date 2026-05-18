@@ -1,0 +1,68 @@
+[workspace]
+members = [
+    "crates/aureon-core",
+    "crates/aureon-shared",
+    "crates/aureon-domain",
+    "crates/aureon-infra",
+    "crates/aureon-sync",
+    "apps/aureon-pdv/src-tauri",
+    "services/aureon-api-local",
+]
+resolver = "2"
+
+[workspace.package]
+version     = "0.0.1"
+edition     = "2021"
+authors     = ["Aureon Team"]
+license     = "UNLICENSED"
+
+[workspace.dependencies]
+# Serialização
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async
+tokio      = { version = "1", features = ["full"] }
+
+# Erros
+thiserror  = "2"
+anyhow     = "1"
+
+# Logs
+tracing              = "0.1"
+tracing-subscriber   = { version = "0.3", features = ["env-filter"] }
+
+# Data/hora
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# SQLite (bundled = sem dependência externa)
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# PostgreSQL async
+sqlx = { version = "0.8", features = [
+    "postgres",
+    "runtime-tokio-native-tls",
+    "uuid",
+    "chrono",
+    "migrate",
+] }
+
+# HTTP API
+axum   = { version = "0.7", features = ["json"] }
+tower  = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Criptografia
+aes-gcm = "0.10"
+rand    = "0.8"
+base64  = "0.22"
+
+# Crates internas
+aureon-core   = { path = "crates/aureon-core" }
+aureon-shared = { path = "crates/aureon-shared" }
+aureon-domain = { path = "crates/aureon-domain" }
+aureon-infra  = { path = "crates/aureon-infra" }
+aureon-sync   = { path = "crates/aureon-sync" }
