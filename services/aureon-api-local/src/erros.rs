@@ -2,7 +2,6 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use aureon_core::RespostaBase;
-use serde_json::json;
 
 /// Erro tipado da API para conversão automática em resposta HTTP
 #[derive(Debug)]

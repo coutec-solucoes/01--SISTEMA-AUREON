@@ -6,11 +6,7 @@ use aureon_core::{dtos::*, RespostaBase};
 use aureon_infra::sqlite::repositories::{
     ConfiguracaoSqliteRepository, LogSqliteRepository,
 };
-use aureon_domain::{
-    repositories::{ConfiguracaoRepository, LogRepository},
-    services::{ConfiguracaoService, LogService},
-};
-use aureon_shared::crypto::{criptografar, chave_de_base64};
+use aureon_domain::services::{ConfiguracaoService, LogService};
 use crate::estado::EstadoApp;
 
 // ================================================================
