@@ -23,14 +23,15 @@ window.aureon.isTauri = function () {
  * @param {object} args    - Argumentos do command (objeto JSON)
  * @returns {Promise<any>}
  */
-window.aureon.invocar = async function (comando, args) {
+window.aureon.invocar_json = async function (comando, jsonStr) {
     if (window.aureon.isTauri()) {
         try {
-            // Tauri 2.0: window.__TAURI__.core.invoke
-            return await window.__TAURI__.core.invoke(comando, args || {});
+            const parsedArgs = JSON.parse(jsonStr);
+            return await window.__TAURI__.core.invoke(comando, parsedArgs);
         } catch (erro) {
             console.error('[Aureon] Falha ao invocar command:', comando, erro);
-            throw erro;
+            // Tauri errors can be strings, throw a JS Error to bubble up cleanly
+            throw new Error(typeof erro === 'string' ? erro : JSON.stringify(erro));
         }
     } else {
         // Fora do Tauri: retorna resposta simulada para desenvolvimento

@@ -133,10 +133,9 @@ pub async fn criar_banco_empresa(
         .unwrap_or((false,));
 
     if existe.0 {
-        return Ok(RespostaBase::falha_manual(
-            "Banco já existe",
-            "ERRO_BANCO_EXISTENTE",
-            format!("O banco '{}' já existe no PostgreSQL. Não iremos sobrescrever.", db_name),
+        return Ok(RespostaBase::ok(
+            format!("O banco '{}' já existe. Utilizando o banco existente.", db_name),
+            db_name
         ));
     }
 
@@ -197,21 +196,30 @@ pub async fn finalizar_instalacao(
     let mut conn = sqlx::PgConnection::connect_with(&options).await
         .map_err(|_| AureonError::ConexaoPostgres(format!("Não foi possível conectar ao banco recém-criado: {}", db_name)))?;
 
-    // 1. Criar tabela de controle de migrations
-    sqlx::query("CREATE TABLE IF NOT EXISTS schema_migrations (version VARCHAR(255) PRIMARY KEY, applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)")
+    // Limpa a tabela conflitante criada incorretamente por versões de build anteriores
+    sqlx::query("DROP TABLE IF EXISTS schema_migrations")
+        .execute(&mut conn).await.ok();
+
+    // 1. Criar tabela de controle de migrations interna do Rust para o Postgres
+    sqlx::query("CREATE TABLE IF NOT EXISTS schema_migrations_pg (version VARCHAR(255) PRIMARY KEY, applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)")
         .execute(&mut conn).await.map_err(|e| AureonError::Migracao(e.to_string()))?;
 
     // 2. Rodar migrations idempotentes
     for (versao, sql) in MIGRATIONS_PG.iter() {
-        let aplicada: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)")
+        let aplicada: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM schema_migrations_pg WHERE version = $1)")
             .bind(versao)
             .fetch_one(&mut conn).await.unwrap_or((false,));
 
         if !aplicada.0 {
-            sqlx::query(sql).execute(&mut conn).await
-                .map_err(|e| AureonError::Migracao(format!("Falha na migration {}: {}", versao, e)))?;
+            for statement in sql.split(';') {
+                let stmt = statement.trim();
+                if !stmt.is_empty() {
+                    sqlx::query(stmt).execute(&mut conn).await
+                        .map_err(|e| AureonError::Migracao(format!("Falha na migration {}: {}", versao, e)))?;
+                }
+            }
             
-            sqlx::query("INSERT INTO schema_migrations (version) VALUES ($1)")
+            sqlx::query("INSERT INTO schema_migrations_pg (version) VALUES ($1)")
                 .bind(versao)
                 .execute(&mut conn).await.unwrap();
         }

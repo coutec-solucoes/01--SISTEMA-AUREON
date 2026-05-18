@@ -22,23 +22,16 @@ public class TauriService
     /// </summary>
     public async Task<T?> InvocarAsync<T>(string comando, object? args = null)
     {
-        try
-        {
-            var resultado = await _js.InvokeAsync<JsonElement>(
-                "aureon.invocar",
-                comando,
-                args
-            );
-            return JsonSerializer.Deserialize<T>(
-                resultado.GetRawText(),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-            );
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"[TauriService] Falha ao invocar '{comando}': {ex.Message}");
-            return default;
-        }
+        var jsonStr = args != null ? JsonSerializer.Serialize(args) : "{}";
+        var resultado = await _js.InvokeAsync<JsonElement>(
+            "aureon.invocar_json",
+            comando,
+            jsonStr
+        );
+        return JsonSerializer.Deserialize<T>(
+            resultado.GetRawText(),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
     }
 
     /// <summary>Verifica se o app está rodando dentro do Tauri</summary>

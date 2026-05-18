@@ -3,12 +3,10 @@
   "version": "0.0.1",
   "identifier": "com.aureon.config",
   "build": {
-    "frontendDist": "../ui-blazor/bin/Release/net8.0/browser-wasm/AppBundle",
-    "devUrl": "http://localhost:5172",
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "dotnet publish ../ui-blazor/aureon-config-ui.csproj -c Release"
+    "frontendDist": "../ui-blazor/bin/Release/net8.0/publish/wwwroot"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "AUREON Config",
