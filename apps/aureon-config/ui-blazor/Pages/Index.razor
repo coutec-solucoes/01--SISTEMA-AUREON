@@ -1,68 +1,253 @@
 @page "/"
 @using aureon_config_ui.Services
+@using System.ComponentModel.DataAnnotations
 
-<div class="status-panel">
-    <h1>AUREON Setup Técnico</h1>
-    <p>Bem-vindo à inicialização técnica do terminal.</p>
+<div class="wizard-container">
+    <div class="wizard-header">
+        <h1>AUREON - Assistente de Instalação</h1>
+        <p>Configuração Técnica do Servidor e Banco de Dados</p>
+    </div>
+
+    <div class="wizard-steps">
+        <div class="step @(currentStep == 1 ? "active" : "") @(currentStep > 1 ? "completed" : "")">1. Banco de Dados</div>
+        <div class="step @(currentStep == 2 ? "active" : "") @(currentStep > 2 ? "completed" : "")">2. Empresa</div>
+        <div class="step @(currentStep == 3 ? "active" : "") @(currentStep > 3 ? "completed" : "")">3. Administrador</div>
+        <div class="step @(currentStep == 4 ? "active" : "") @(currentStep > 4 ? "completed" : "")">4. Criptografia</div>
+        <div class="step @(currentStep == 5 ? "active" : "")">5. Concluir</div>
+    </div>
+
+    <div class="wizard-content">
+        @if (currentStep == 1)
+        {
+            <h3>Conexão PostgreSQL Local</h3>
+            <p>Informe as credenciais do administrador (postgres) para configurar o ambiente.</p>
+            
+            <div class="form-group">
+                <label>Host</label>
+                <input type="text" class="form-control" @bind="host" placeholder="localhost" />
+            </div>
+            <div class="form-group">
+                <label>Porta</label>
+                <input type="number" class="form-control" @bind="porta" />
+            </div>
+            <div class="form-group">
+                <label>Usuário Administrador (com permissão CREATEDB)</label>
+                <input type="text" class="form-control" @bind="usuario_pg" placeholder="postgres" />
+            </div>
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" class="form-control" @bind="senha_pg" />
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-primary" @onclick="TestarPostgres" disabled="@isLoading">
+                    @if(isLoading) { <span>Testando...</span> } else { <span>Testar e Continuar</span> }
+                </button>
+            </div>
+        }
+        else if (currentStep == 2)
+        {
+            <h3>Dados da Empresa</h3>
+            <p>Qual o nome da empresa? O sistema criará um banco isolado e padronizado automaticamente.</p>
+            
+            <div class="form-group">
+                <label>Nome Fantasia</label>
+                <input type="text" class="form-control" @bind="nome_empresa" placeholder="Ex: Padaria São João" />
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-secondary" @onclick="Voltar" disabled="@isLoading">Voltar</button>
+                <button class="btn btn-primary" @onclick="CriarBanco" disabled="@isLoading">
+                    @if(isLoading) { <span>Criando...</span> } else { <span>Criar Banco e Continuar</span> }
+                </button>
+            </div>
+        }
+        else if (currentStep == 3)
+        {
+            <h3>Administrador Inicial</h3>
+            <p>Crie o usuário de acesso Root do AUREON. Guarde esta senha em segurança.</p>
+            
+            <div class="form-group">
+                <label>Nome do Administrador</label>
+                <input type="text" class="form-control" @bind="admin_nome" placeholder="Ex: Admin Sistema" />
+            </div>
+            <div class="form-group">
+                <label>E-mail (Login)</label>
+                <input type="email" class="form-control" @bind="admin_email" placeholder="admin@empresa.com" />
+            </div>
+            <div class="form-group">
+                <label>Senha de Acesso</label>
+                <input type="password" class="form-control" @bind="admin_senha" />
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-secondary" @onclick="Voltar" disabled="@isLoading">Voltar</button>
+                <button class="btn btn-primary" @onclick="AvancarAdmin">Continuar</button>
+            </div>
+        }
+        else if (currentStep == 4)
+        {
+            <h3>Keystore e Criptografia</h3>
+            <p>O sistema vai gerar um cofre local de chaves (AES-256-GCM) para proteger dados sensíveis. O arquivo será criado em <strong>C:/Aureon/config/.keystore</strong>.</p>
+            
+            <div class="actions">
+                <button class="btn btn-secondary" @onclick="Voltar" disabled="@isLoading">Voltar</button>
+                <button class="btn btn-primary" @onclick="GerarKeystore" disabled="@isLoading">
+                    @if(isLoading) { <span>Gerando...</span> } else { <span>Inicializar Keystore</span> }
+                </button>
+            </div>
+        }
+        else if (currentStep == 5)
+        {
+            <h3>Pronto para Instalar</h3>
+            <p>Todas as informações foram coletadas. Clique em Instalar para aplicar a estrutura base (migrations, moedas, perfis) e finalizar o setup.</p>
+            
+            <div class="actions">
+                <button class="btn btn-secondary" @onclick="Voltar" disabled="@isLoading">Voltar</button>
+                <button class="btn btn-success" @onclick="FinalizarSetup" disabled="@isLoading">
+                    @if(isLoading) { <span>Finalizando...</span> } else { <span>Concluir Instalação</span> }
+                </button>
+            </div>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-3">@errorMessage</div>
+    }
     
-    <div class="action-card">
-        <h3>1. Segurança Local</h3>
-        <p>Gera o .keystore seguro em C:/Aureon/config/.keystore para criptografia local AES-256-GCM.</p>
-        <button class="btn btn-primary" @onclick="GerarKeystore">Inicializar Keystore</button>
-        @if (resultadoKeystore != null) {
-            <div class="result-box mt-2">@resultadoKeystore</div>
-        }
-    </div>
-
-    <div class="action-card mt-3">
-        <h3>2. Conexão PostgreSQL</h3>
-        <p>Configuração da conexão raiz para criação do banco da empresa.</p>
-        <input type="text" @bind="host" placeholder="Host (ex: localhost)" class="form-control mb-2" />
-        <input type="text" @bind="porta" placeholder="Porta (ex: 5432)" class="form-control mb-2" />
-        <input type="text" @bind="usuario" placeholder="Usuário (ex: postgres)" class="form-control mb-2" />
-        <input type="password" @bind="senha" placeholder="Senha" class="form-control mb-2" />
-        
-        <button class="btn btn-secondary" @onclick="TestarConexao">Testar PostgreSQL</button>
-        @if (resultadoConexao != null) {
-            <div class="result-box mt-2 @(sucessoConexao ? "success" : "error")">@resultadoConexao</div>
-        }
-    </div>
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success mt-3">@successMessage</div>
+    }
 </div>
 
 @code {
-    private string? resultadoKeystore;
-    private string host = "localhost";
-    private string porta = "5432";
-    private string usuario = "postgres";
-    private string senha = "";
-    private string? resultadoConexao;
-    private bool sucessoConexao = false;
+    private int currentStep = 1;
+    private bool isLoading = false;
+    private string errorMessage = "";
+    private string successMessage = "";
 
-    private async Task GerarKeystore()
+    // DTO State
+    private string host = "localhost";
+    private int porta = 5432;
+    private string usuario_pg = "postgres";
+    private string senha_pg = "";
+    private string nome_empresa = "";
+    private string admin_nome = "";
+    private string admin_email = "";
+    private string admin_senha = "";
+
+    private async Task TestarPostgres()
     {
+        errorMessage = "";
+        successMessage = "";
+        isLoading = true;
         try {
-            var res = await TauriService.InvocarAsync<dynamic>("inicializar_keystore", new {});
-            resultadoKeystore = "Keystore validado/criado com sucesso em C:/Aureon/config/.keystore!";
+            var dados = new { host = host, porta = porta, usuario = usuario_pg, senha_plana = senha_pg };
+            var res = await TauriService.InvocarAsync<dynamic>("testar_postgres", new { dados = dados });
+            
+            if (res != null && (bool)res.sucesso) {
+                currentStep = 2;
+            } else {
+                errorMessage = res?.erro?.detalhe ?? "Erro de conexão genérico.";
+            }
         } catch (Exception ex) {
-            resultadoKeystore = $"Erro: {ex.Message}";
+            errorMessage = $"Falha crítica: {ex.Message}";
+        } finally {
+            isLoading = false;
         }
     }
 
-    private async Task TestarConexao()
+    private async Task CriarBanco()
     {
+        if (string.IsNullOrWhiteSpace(nome_empresa)) {
+            errorMessage = "O nome da empresa é obrigatório.";
+            return;
+        }
+        
+        errorMessage = "";
+        successMessage = "";
+        isLoading = true;
         try {
-            var dados = new { host = host, porta = int.Parse(porta), usuario = usuario, senha_plana = senha };
-            var res = await TauriService.InvocarAsync<dynamic>("testar_postgres", new { dados = dados });
+            var dados = new { host = host, porta = porta, usuario = usuario_pg, senha_plana = senha_pg };
+            var res = await TauriService.InvocarAsync<dynamic>("criar_banco_empresa", new { dados = dados, nome_empresa = nome_empresa });
             
-            sucessoConexao = res?.sucesso ?? false;
-            if (sucessoConexao) {
-                resultadoConexao = "Conexão OK! Banco respondendo.";
+            if (res != null && (bool)res.sucesso) {
+                currentStep = 3;
             } else {
-                resultadoConexao = res?.erro?.detalhe ?? "Erro de conexão genérico.";
+                errorMessage = res?.erro?.detalhe ?? "Erro ao criar banco.";
             }
         } catch (Exception ex) {
-            sucessoConexao = false;
-            resultadoConexao = $"Falha crítica: {ex.Message}";
+            errorMessage = $"Falha crítica: {ex.Message}";
+        } finally {
+            isLoading = false;
         }
+    }
+
+    private void AvancarAdmin()
+    {
+        if (string.IsNullOrWhiteSpace(admin_nome) || string.IsNullOrWhiteSpace(admin_email) || string.IsNullOrWhiteSpace(admin_senha)) {
+            errorMessage = "Preencha todos os campos do administrador.";
+            return;
+        }
+        errorMessage = "";
+        currentStep = 4;
+    }
+
+    private async Task GerarKeystore()
+    {
+        errorMessage = "";
+        isLoading = true;
+        try {
+            var res = await TauriService.InvocarAsync<dynamic>("inicializar_keystore", new {});
+            if (res != null && (bool)res.sucesso) {
+                currentStep = 5;
+            } else {
+                errorMessage = res?.erro?.detalhe ?? "Erro ao criar keystore.";
+            }
+        } catch (Exception ex) {
+            errorMessage = $"Falha crítica: {ex.Message}";
+        } finally {
+            isLoading = false;
+        }
+    }
+
+    private async Task FinalizarSetup()
+    {
+        errorMessage = "";
+        successMessage = "";
+        isLoading = true;
+        try {
+            var dbDto = new { host = host, porta = porta, usuario = usuario_pg, senha_plana = senha_pg };
+            var payload = new {
+                db = dbDto,
+                nome_empresa = nome_empresa,
+                admin_nome = admin_nome,
+                admin_email = admin_email,
+                admin_senha_plana = admin_senha
+            };
+            
+            var res = await TauriService.InvocarAsync<dynamic>("finalizar_instalacao", new { dados = payload });
+            
+            if (res != null && (bool)res.sucesso) {
+                successMessage = "Instalação concluída com sucesso! O PDV já pode ser iniciado.";
+                senha_pg = ""; // Limpa memória local
+                admin_senha = ""; 
+            } else {
+                errorMessage = res?.erro?.detalhe ?? "Erro na finalização.";
+            }
+        } catch (Exception ex) {
+            errorMessage = $"Falha crítica: {ex.Message}";
+        } finally {
+            isLoading = false;
+        }
+    }
+
+    private void Voltar()
+    {
+        errorMessage = "";
+        successMessage = "";
+        if (currentStep > 1) currentStep--;
     }
 }
