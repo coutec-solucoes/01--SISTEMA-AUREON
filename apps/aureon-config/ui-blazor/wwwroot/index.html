@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Aureon PDV — Sistema Inteligente de Ponto de Venda" />
+    <title>Aureon PDV</title>
+    <base href="/" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="aureon-config-ui.styles.css" />
+</head>
+<body>
+    <div id="app">
+        <!-- Splash screen exibida enquanto o Blazor carrega -->
+        <div id="splash-screen">
+            <div class="splash-logo">
+                <div class="splash-icon">⚡</div>
+                <div class="splash-titulo">AUREON PDV</div>
+                <div class="splash-subtitulo">Carregando sistema...</div>
+                <div class="splash-barra">
+                    <div class="splash-progresso"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        <span>Ocorreu um erro crítico no Aureon PDV.</span>
+        <a href="" class="reload">Recarregar</a>
+        <a class="dismiss">✕</a>
+    </div>
+
+    <!-- Interoperabilidade com Tauri 2.0 -->
+    <script src="js/tauri-interop.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+</html>

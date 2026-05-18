@@ -1,0 +1,255 @@
+/* ============================================================
+   AUREON PDV — CSS Base (Fase 0)
+   Design: dark mode profissional, preparado para expansão
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --cor-fundo:       #0f1117;
+    --cor-fundo-card:  #1a1d27;
+    --cor-borda:       #2a2d3a;
+    --cor-primaria:    #6366f1;
+    --cor-primaria-h:  #818cf8;
+    --cor-sucesso:     #22c55e;
+    --cor-erro:        #ef4444;
+    --cor-aviso:       #f59e0b;
+    --cor-texto:       #e2e8f0;
+    --cor-texto-sub:   #94a3b8;
+    --raio:            8px;
+    --raio-lg:         12px;
+    --sombra:          0 4px 24px rgba(0,0,0,0.4);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    height: 100%;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+    font-size: 14px;
+}
+
+/* ---- Splash Screen ---- */
+#splash-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: var(--cor-fundo);
+}
+
+.splash-logo {
+    text-align: center;
+    animation: fadeIn .6s ease;
+}
+
+.splash-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    animation: pulse 1.4s ease-in-out infinite;
+}
+
+.splash-titulo {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--cor-primaria-h);
+    margin-bottom: 6px;
+}
+
+.splash-subtitulo {
+    color: var(--cor-texto-sub);
+    font-size: 13px;
+    margin-bottom: 24px;
+}
+
+.splash-barra {
+    width: 220px;
+    height: 3px;
+    background: var(--cor-borda);
+    border-radius: 99px;
+    margin: 0 auto;
+    overflow: hidden;
+}
+
+.splash-progresso {
+    height: 100%;
+    background: var(--cor-primaria);
+    border-radius: 99px;
+    animation: carregando 1.8s ease-in-out infinite;
+}
+
+/* ---- Layout Principal ---- */
+.layout-principal {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* ---- Cabeçalho ---- */
+.cabecalho {
+    background: var(--cor-fundo-card);
+    border-bottom: 1px solid var(--cor-borda);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: var(--sombra);
+}
+
+.cabecalho-logo {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--cor-primaria-h);
+    letter-spacing: 2px;
+}
+
+.cabecalho-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--cor-texto-sub);
+}
+
+.dot-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--cor-sucesso);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.dot-status.erro { background: var(--cor-erro); animation: none; }
+
+/* ---- Conteúdo ---- */
+.conteudo {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+}
+
+/* ---- Cards ---- */
+.card {
+    background: var(--cor-fundo-card);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-lg);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    box-shadow: var(--sombra);
+}
+
+.card-titulo {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--cor-texto-sub);
+    margin-bottom: 16px;
+}
+
+.card-valor {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--cor-texto);
+}
+
+/* ---- Badge de status ---- */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.badge-ok    { background: rgba(34,197,94,.15);  color: var(--cor-sucesso); }
+.badge-erro  { background: rgba(239,68,68,.15);  color: var(--cor-erro);   }
+.badge-info  { background: rgba(99,102,241,.15); color: var(--cor-primaria-h); }
+
+/* ---- Botão ---- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: var(--raio);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all .2s ease;
+}
+
+.btn-primario {
+    background: var(--cor-primaria);
+    color: #fff;
+}
+
+.btn-primario:hover { background: var(--cor-primaria-h); transform: translateY(-1px); }
+.btn-primario:active { transform: translateY(0); }
+.btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* ---- Grid ---- */
+.grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grade-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+/* ---- Log Console ---- */
+.console-log {
+    background: #0a0c12;
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio);
+    padding: 12px 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--cor-sucesso);
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.6;
+}
+
+.console-log .log-erro  { color: var(--cor-erro); }
+.console-log .log-aviso { color: var(--cor-aviso); }
+.console-log .log-info  { color: var(--cor-texto-sub); }
+
+/* ---- Error UI do Blazor ---- */
+#blazor-error-ui {
+    background: rgba(239,68,68,.9);
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0,0,0,.2);
+    display: none;
+    left: 0;
+    padding: 8px 16px;
+    position: fixed;
+    width: 100%;
+    z-index: 9999;
+    color: #fff;
+    font-size: 13px;
+}
+
+#blazor-error-ui .reload  { color: #fff; font-weight: 600; margin-left: 12px; }
+#blazor-error-ui .dismiss { cursor: pointer; float: right; }
+
+/* ---- Animações ---- */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .5; }
+}
+
+@keyframes carregando {
+    0%   { width: 0%; margin-left: 0; }
+    50%  { width: 70%; margin-left: 15%; }
+    100% { width: 0%; margin-left: 100%; }
+}
+
+.fade-in { animation: fadeIn .4s ease; }

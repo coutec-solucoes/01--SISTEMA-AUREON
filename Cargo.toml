@@ -5,7 +5,7 @@ members = [
     "crates/aureon-domain",
     "crates/aureon-infra",
     "crates/aureon-sync",
-    "apps/aureon-pdv/src-tauri",
+    "apps/aureon-pdv/src-tauri", "apps/aureon-config/src-tauri",
     "services/aureon-api-local",
 ]
 resolver = "2"

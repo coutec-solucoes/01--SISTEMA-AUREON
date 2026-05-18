@@ -1,0 +1,18 @@
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Shared.MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Página não encontrada — Aureon PDV</PageTitle>
+        <LayoutView Layout="@typeof(Shared.MainLayout)">
+            <div class="card fade-in" style="text-align:center; padding: 48px;">
+                <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
+                <h2>Página não encontrada</h2>
+                <p style="color: var(--cor-texto-sub); margin-top: 8px;">
+                    A rota solicitada não existe nesta versão do sistema.
+                </p>
+            </div>
+        </LayoutView>
+    </NotFound>
+</Router>

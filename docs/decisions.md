@@ -81,3 +81,21 @@
 **Decisão:** Um único `Cargo.toml` de workspace na raiz engloba todas as crates e binários.  
 **Motivo:** Compilação unificada, versões compartilhadas de dependências, IDE com visão completa do projeto.  
 **Consequência:** `cargo build` na raiz compila tudo. Dependências duplicadas são eliminadas automaticamente.
+
+---
+
+## DT-010 — Keystore Local com AES-256-GCM
+
+**Data:** 2026-05-18  
+**Decisão:** Utilização de um arquivo restrito (`C:/Aureon/config/.keystore`) que contém uma chave AES-256 randômica gerada na instalação, codificada em Base64. A criptografia dos dados utiliza AES-GCM (autenticado) gerando um `nonce`/`iv` único e aleatório para cada operação de gravação.  
+**Motivo:** Base64 não é segurança, é apenas codificação. A segurança real vem da entropia da chave gerada via `rand::OsRng`, combinada com as restrições de permissão do sistema operacional (ACL) sobre o arquivo. Não sobrescrevemos o keystore automaticamente se ele já existir, para prevenir perda acidental de acesso às configurações.  
+**Evolução futura:** Uso do Windows DPAPI para envelopar o conteúdo do `.keystore` tornando a chave atrelada ao usuário atual.
+
+---
+
+## DT-011 — AUREON Config como App Isolado
+
+**Data:** 2026-05-18  
+**Decisão:** O setup técnico (banco de dados, API, migrações) é executado por um binário Tauri separado (`apps/aureon-config`), e não pelo PDV (`apps/aureon-pdv`).  
+**Motivo:** Arquitetura limpa e separação de privilégios. O PDV não deve conter dependências lógicas de instanciar bancos ou gerenciar chaves-mestre. O PDV apenas exibe "Terminal não configurado" se o `.keystore` e o `server.config.enc` não existirem.  
+**Consequência:** Mantém o PDV seguro e enxuto. O AUREON Config é responsável por gerar os arquivos `.enc` e preencher os *seeds* base.

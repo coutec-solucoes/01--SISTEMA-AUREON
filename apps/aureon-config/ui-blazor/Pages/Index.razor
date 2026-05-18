@@ -1,0 +1,68 @@
+@page "/"
+@using aureon_config_ui.Services
+
+<div class="status-panel">
+    <h1>AUREON Setup Técnico</h1>
+    <p>Bem-vindo à inicialização técnica do terminal.</p>
+    
+    <div class="action-card">
+        <h3>1. Segurança Local</h3>
+        <p>Gera o .keystore seguro em C:/Aureon/config/.keystore para criptografia local AES-256-GCM.</p>
+        <button class="btn btn-primary" @onclick="GerarKeystore">Inicializar Keystore</button>
+        @if (resultadoKeystore != null) {
+            <div class="result-box mt-2">@resultadoKeystore</div>
+        }
+    </div>
+
+    <div class="action-card mt-3">
+        <h3>2. Conexão PostgreSQL</h3>
+        <p>Configuração da conexão raiz para criação do banco da empresa.</p>
+        <input type="text" @bind="host" placeholder="Host (ex: localhost)" class="form-control mb-2" />
+        <input type="text" @bind="porta" placeholder="Porta (ex: 5432)" class="form-control mb-2" />
+        <input type="text" @bind="usuario" placeholder="Usuário (ex: postgres)" class="form-control mb-2" />
+        <input type="password" @bind="senha" placeholder="Senha" class="form-control mb-2" />
+        
+        <button class="btn btn-secondary" @onclick="TestarConexao">Testar PostgreSQL</button>
+        @if (resultadoConexao != null) {
+            <div class="result-box mt-2 @(sucessoConexao ? "success" : "error")">@resultadoConexao</div>
+        }
+    </div>
+</div>
+
+@code {
+    private string? resultadoKeystore;
+    private string host = "localhost";
+    private string porta = "5432";
+    private string usuario = "postgres";
+    private string senha = "";
+    private string? resultadoConexao;
+    private bool sucessoConexao = false;
+
+    private async Task GerarKeystore()
+    {
+        try {
+            var res = await TauriService.InvocarAsync<dynamic>("inicializar_keystore", new {});
+            resultadoKeystore = "Keystore validado/criado com sucesso em C:/Aureon/config/.keystore!";
+        } catch (Exception ex) {
+            resultadoKeystore = $"Erro: {ex.Message}";
+        }
+    }
+
+    private async Task TestarConexao()
+    {
+        try {
+            var dados = new { host = host, porta = int.Parse(porta), usuario = usuario, senha_plana = senha };
+            var res = await TauriService.InvocarAsync<dynamic>("testar_postgres", new { dados = dados });
+            
+            sucessoConexao = res?.sucesso ?? false;
+            if (sucessoConexao) {
+                resultadoConexao = "Conexão OK! Banco respondendo.";
+            } else {
+                resultadoConexao = res?.erro?.detalhe ?? "Erro de conexão genérico.";
+            }
+        } catch (Exception ex) {
+            sucessoConexao = false;
+            resultadoConexao = $"Falha crítica: {ex.Message}";
+        }
+    }
+}

@@ -99,3 +99,56 @@ pub fn descriptografar(valor_enc: &str, chave: &[u8]) -> Result<String, AureonEr
     String::from_utf8(plaintext)
         .map_err(|e| AureonError::Criptografia(e.to_string()))
 }
+
+// =============================================================
+// GESTÃO DO .KEYSTORE NO DISCO
+// =============================================================
+
+use std::fs::{self, OpenOptions};
+use std::io::{Read, Write};
+use std::path::Path;
+
+/// Gera uma nova chave AES-256 aleatória e salva no arquivo informado (.keystore)
+pub fn gerar_e_salvar_keystore(caminho: &Path) -> Result<(), AureonError> {
+    if caminho.exists() {
+        return Err(AureonError::Criptografia("Keystore já existe. Não podemos sobrescrever.".to_string()));
+    }
+
+    if let Some(parent) = caminho.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| AureonError::Criptografia(format!("Erro ao criar diretório do keystore: {}", e)))?;
+    }
+
+    let chave = gerar_chave();
+    let chave_b64 = chave_para_base64(&chave);
+
+    // Salva com permissões de criador (no Windows usa acl padrão do usuário executando)
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(caminho)
+        .map_err(|e| AureonError::Criptografia(format!("Falha ao criar keystore: {}", e)))?;
+
+    // Gravamos a string em Base64 no keystore para ficar legível em backups gerenciais 
+    // mas ainda seguro como um arquivo restrito do sistema.
+    file.write_all(chave_b64.as_bytes())
+        .map_err(|e| AureonError::Criptografia(format!("Erro ao gravar keystore: {}", e)))?;
+    
+    Ok(())
+}
+
+/// Carrega a chave AES-256 do arquivo informado (.keystore)
+pub fn carregar_keystore(caminho: &Path) -> Result<Vec<u8>, AureonError> {
+    if !caminho.exists() {
+        return Err(AureonError::Criptografia("Keystore não encontrado".to_string()));
+    }
+
+    let mut file = fs::File::open(caminho)
+        .map_err(|e| AureonError::Criptografia(format!("Falha ao abrir keystore: {}", e)))?;
+
+    let mut buffer = String::new();
+    file.read_to_string(&mut buffer)
+        .map_err(|e| AureonError::Criptografia(format!("Falha ao ler keystore: {}", e)))?;
+
+    chave_de_base64(buffer.trim())
+}

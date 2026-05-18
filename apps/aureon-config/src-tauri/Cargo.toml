@@ -1,0 +1,32 @@
+[package]
+name    = "aureon-config"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name       = "aureon_pdv_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+tauri             = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-fs   = "2"
+serde             = { workspace = true }
+serde_json        = { workspace = true }
+tokio             = { workspace = true }
+tracing           = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono            = { workspace = true }
+uuid              = { workspace = true }
+
+# Crates internas Aureon
+aureon-core   = { workspace = true }
+aureon-shared = { workspace = true }
+aureon-domain = { workspace = true }
+aureon-infra  = { workspace = true }
+rusqlite      = { workspace = true }
+sqlx          = { workspace = true }
+bcrypt = "0.19.1"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
