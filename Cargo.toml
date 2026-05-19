@@ -55,6 +55,7 @@ sqlx = { version = "0.8", features = [
 axum   = { version = "0.7", features = ["json"] }
 tower  = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
 # Criptografia
 aes-gcm = "0.10"

@@ -18,6 +18,7 @@ tracing           = { workspace = true }
 tracing-subscriber = { workspace = true }
 chrono            = { workspace = true }
 uuid              = { workspace = true }
+reqwest           = { workspace = true }
 
 # Crates internas Aureon
 aureon-core   = { workspace = true }
