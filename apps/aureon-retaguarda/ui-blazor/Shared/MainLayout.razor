@@ -1,0 +1,50 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+<div class="layout-principal">
+
+    <!-- Sidebar de Navegação Premium -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <span>⚡</span> AUREON GESTOR
+        </div>
+
+        <ul class="sidebar-menu">
+            <li class="sidebar-item @(IsActive("/") ? "ativo" : "")">
+                <a href="/">
+                    <span>📊</span> Dashboard
+                </a>
+            </li>
+            <li class="sidebar-item @(IsActive("/configuracoes/empresa") ? "ativo" : "")">
+                <a href="/configuracoes/empresa">
+                    <span>⚙️</span> Empresa & Moedas
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <p>Aureon Gestor © 2026</p>
+            <p style="font-size: 10px; margin-top: 4px; color: var(--cor-texto-disabled);">Versão 1.0.0 (Fase 2)</p>
+        </div>
+    </aside>
+
+    <!-- Área Principal de Conteúdo -->
+    <main class="conteudo-principal">
+        @Body
+    </main>
+
+</div>
+
+@code {
+    private bool IsActive(string rota)
+    {
+        var uri = Navigation.ToBaseRelativePath(Navigation.Uri);
+        
+        if (rota == "/")
+        {
+            return string.IsNullOrEmpty(uri);
+        }
+        
+        return uri.StartsWith(rota.TrimStart('/'), StringComparison.OrdinalIgnoreCase);
+    }
+}

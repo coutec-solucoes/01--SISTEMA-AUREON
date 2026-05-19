@@ -1,0 +1,1280 @@
+@page "/configuracoes/empresa"
+@inject HttpClient Http
+@using System.Text.Json
+
+<PageTitle>Configurações da Empresa — Aureon Gestor</PageTitle>
+
+<div class="cabecalho-pagina">
+    <div class="cabecalho-titulo">
+        <h1>Configurações da Empresa</h1>
+        <p>Gerencie o cadastro, as moedas, as políticas fiscais, as regras operacionais e audite as alterações.</p>
+    </div>
+    
+    <div>
+        <button class="btn-premium" @onclick="SalvarTudo" disabled="@_salvando">
+            @if (_salvando)
+            {
+                <span>⏳ Salvando...</span>
+            }
+            else
+            {
+                <span>💾 Salvar Configurações</span>
+            }
+        </button>
+    </div>
+</div>
+
+@if (_mensagemSucesso != null)
+{
+    <div class="alerta-container sucesso">
+        <span>✅ @_mensagemSucesso</span>
+    </div>
+}
+
+@if (_mensagemErro != null)
+{
+    <div class="alerta-container erro">
+        <span>⚠️ @_mensagemErro</span>
+    </div>
+}
+
+<!-- Barra de Abas Horizontal Premium (Fase 2 - 13 Blocos Reorganizados por Área) -->
+<div class="abas-container">
+    <button class="aba-botao @(AbaAtiva(1) ? "ativa" : "")" @onclick="() => MudarAba(1)">
+        <span class="aba-numero">1</span> Identificação Geral
+    </button>
+    <button class="aba-botao @(AbaAtiva(2) ? "ativa" : "")" @onclick="() => MudarAba(2)">
+        <span class="aba-numero">2</span> Contatos & Endereço
+    </button>
+    <button class="aba-botao @(AbaAtiva(3) ? "ativa" : "")" @onclick="() => MudarAba(3)">
+        <span class="aba-numero">3</span> Moedas & Multimoeda
+    </button>
+    <button class="aba-botao @(AbaAtiva(4) ? "ativa" : "")" @onclick="() => MudarAba(4)">
+        <span class="aba-numero">4</span> Cotações do Dia
+    </button>
+    <button class="aba-botao @(AbaAtiva(5) ? "ativa" : "")" @onclick="() => MudarAba(5)">
+        <span class="aba-numero">5</span> Regime Tributário
+    </button>
+    <button class="aba-botao @(AbaAtiva(6) ? "ativa" : "")" @onclick="() => MudarAba(6)">
+        <span class="aba-numero">6</span> Documentos Fiscais
+    </button>
+    <button class="aba-botao @(AbaAtiva(7) ? "ativa" : "")" @onclick="() => MudarAba(7)">
+        <span class="aba-numero">7</span> Regras Tributárias Base
+    </button>
+    <button class="aba-botao @(AbaAtiva(8) ? "ativa" : "")" @onclick="() => MudarAba(8)">
+        <span class="aba-numero">8</span> Ambiente Fiscal
+    </button>
+    <button class="aba-botao @(AbaAtiva(9) ? "ativa" : "")" @onclick="() => MudarAba(9)">
+        <span class="aba-numero">9</span> Provedores Fiscais
+    </button>
+    <button class="aba-botao @(AbaAtiva(10) ? "ativa" : "")" @onclick="() => MudarAba(10)">
+        <span class="aba-numero">10</span> Controle de Estoque
+    </button>
+    <button class="aba-botao @(AbaAtiva(11) ? "ativa" : "")" @onclick="() => MudarAba(11)">
+        <span class="aba-numero">11</span> Parâmetros do PDV
+    </button>
+    <button class="aba-botao @(AbaAtiva(12) ? "ativa" : "")" @onclick="() => MudarAba(12)">
+        <span class="aba-numero">12</span> Crédito & Offline
+    </button>
+    <button class="aba-botao @(AbaAtiva(13) ? "ativa" : "")" @onclick="() => MudarAba(13)">
+        <span class="aba-numero">13</span> Histórico de Auditoria
+    </button>
+</div>
+
+<!-- CONTEÚDO DAS ABAS -->
+<div class="card-glass">
+
+    @if (_carregando)
+    {
+        <div style="text-align: center; padding: 48px;">
+            <div class="splash-icon">⏳</div>
+            <p style="color: var(--cor-texto-sub); margin-top: 16px;">Carregando dados da API Local...</p>
+        </div>
+    }
+    else
+    {
+        <!-- ABA 1: Identificação Geral -->
+        @if (_abaAtiva == 1)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 1: Identificação Geral do Estabelecimento</h3>
+            <div class="form-grid">
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <label>Nome Fantasia (Obrigatório)</label>
+                    <input type="text" class="form-control" @bind="_config.nome_fantasia" placeholder="Ex: Aureon Store" />
+                </div>
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <label>Razão Social (Obrigatório)</label>
+                    <input type="text" class="form-control" @bind="_config.razao_social" placeholder="Ex: Aureon Comércio Inteligente Ltda" />
+                </div>
+                
+                <div class="form-grupo col-4" style="grid-column: span 4; margin-top: 16px;">
+                    <label>Tipo de Pessoa</label>
+                    <select class="form-control" @bind="_config.tipo_pessoa">
+                        <option value="JURIDICA">Pessoa Jurídica</option>
+                        <option value="FISICA">Pessoa Física</option>
+                    </select>
+                </div>
+                <div class="form-grupo col-4" style="grid-column: span 4; margin-top: 16px;">
+                    <label>Status Operacional</label>
+                    <select class="form-control" @bind="_config.status_empresa">
+                        <option value="EM_CONFIGURACAO">Em Configuração (Bloqueia Caixa)</option>
+                        <option value="ATIVA">Ativa (Libera Caixa/Vendas)</option>
+                        <option value="SUSPENSA">Suspensa</option>
+                    </select>
+                </div>
+                <div class="form-grupo col-4" style="grid-column: span 4; margin-top: 16px;">
+                    <label>Código da Empresa</label>
+                    <input type="text" class="form-control" @bind="_config.codigo" disabled />
+                </div>
+
+                <div class="form-grupo col-12" style="grid-column: span 12; margin-top: 16px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                    <h4 style="color: var(--primaria); margin-bottom: 8px;">Documentação Fiscal Base</h4>
+                    <p style="color: var(--cor-texto-sub); font-size: 13px;">Preencha os documentos fiscais base do seu país.</p>
+                </div>
+
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>CNPJ (Brasil)</label>
+                    <input type="text" class="form-control" @bind="_config.cnpj" placeholder="00.000.000/0000-00" />
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Inscrição Estadual (IE)</label>
+                    <input type="text" class="form-control" @bind="_config.inscricao_estadual" placeholder="IE do Estado" />
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Inscrição Municipal (IM)</label>
+                    <input type="text" class="form-control" @bind="_config.inscricao_municipal" placeholder="IM do Município" />
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>CPF (Brasil - Pessoa Física)</label>
+                    <input type="text" class="form-control" @bind="_config.cpf" placeholder="000.000.000-00" />
+                </div>
+
+                <div class="form-grupo col-3" style="grid-column: span 3; margin-top: 16px;">
+                    <label>RUC (Paraguai)</label>
+                    <input type="text" class="form-control" @bind="_config.ruc" placeholder="Ex: 80012345-6" />
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3; margin-top: 16px;">
+                    <label>Cédula de Identidade (CI)</label>
+                    <input type="text" class="form-control" @bind="_config.ci" placeholder="Ex: 1234567" />
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3; margin-top: 16px;">
+                    <label>Registro Geral (RG)</label>
+                    <input type="text" class="form-control" @bind="_config.rg" placeholder="Registro geral de identidade" />
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3; margin-top: 16px;">
+                    <label>Observações Internas</label>
+                    <input type="text" class="form-control" @bind="_config.observacoes" placeholder="Notas sobre a empresa" />
+                </div>
+            </div>
+        }
+
+        <!-- ABA 2: Contatos & Endereço -->
+        @if (_abaAtiva == 2)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 2: Contatos, Localização & Idioma</h3>
+            <div class="form-grid">
+                <div class="form-grupo col-4" style="grid-column: span 4;">
+                    <label>Telefone Principal</label>
+                    <input type="text" class="form-control" @bind="_config.telefone_principal" placeholder="Ex: 45 3522-0000" />
+                </div>
+                <div class="form-grupo col-4" style="grid-column: span 4;">
+                    <label>WhatsApp (Notificações)</label>
+                    <input type="text" class="form-control" @bind="_config.whatsapp" placeholder="Ex: 45 99999-9999" />
+                </div>
+                <div class="form-grupo col-4" style="grid-column: span 4;">
+                    <label>E-mail de Contato</label>
+                    <input type="email" class="form-control" @bind="_config.email" placeholder="financeiro@aureon.com" />
+                </div>
+
+                <div class="form-grupo col-4" style="grid-column: span 4; margin-top: 16px;">
+                    <label>Responsável Legal</label>
+                    <input type="text" class="form-control" @bind="_config.responsavel" placeholder="Ex: Administrador Principal" />
+                </div>
+                <div class="form-grupo col-4" style="grid-column: span 4; margin-top: 16px;">
+                    <label>Site Oficial</label>
+                    <input type="text" class="form-control" @bind="_config.site" placeholder="https://aureon.com.br" />
+                </div>
+                <div class="form-grupo col-4" style="grid-column: span 4; margin-top: 16px;">
+                    <label>País Operacional</label>
+                    <select class="form-control" @bind="_config.pais">
+                        <option value="BR">Brasil</option>
+                        <option value="PY">Paraguai</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo col-12" style="grid-column: span 12; margin-top: 16px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                    <h4 style="color: var(--primaria); margin-bottom: 8px;">Endereço Físico</h4>
+                </div>
+
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>CEP / Código Postal</label>
+                    <input type="text" class="form-control" @bind="_config.cep" placeholder="85851-000" />
+                </div>
+                <div class="form-grupo col-2" style="grid-column: span 2;">
+                    <label>Estado / Departamento</label>
+                    <input type="text" class="form-control" @bind="_config.estado" placeholder="PR, Alto Paraná..." />
+                </div>
+                <div class="form-grupo col-4" style="grid-column: span 4;">
+                    <label>Cidade</label>
+                    <input type="text" class="form-control" @bind="_config.cidade" placeholder="Foz do Iguaçu, Ciudad del Este..." />
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Bairro</label>
+                    <input type="text" class="form-control" @bind="_config.bairro" placeholder="Centro, Boquerón..." />
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; margin-top: 16px;">
+                    <label>Logradouro / Rua</label>
+                    <input type="text" class="form-control" @bind="_config.logradouro" placeholder="Avenida Brasil" />
+                </div>
+                <div class="form-grupo col-2" style="grid-column: span 2; margin-top: 16px;">
+                    <label>Número</label>
+                    <input type="text" class="form-control" @bind="_config.numero" placeholder="123" />
+                </div>
+                <div class="form-grupo col-4" style="grid-column: span 4; margin-top: 16px;">
+                    <label>Complemento</label>
+                    <input type="text" class="form-control" @bind="_config.complemento" placeholder="Sala 402, Bloco A" />
+                </div>
+
+                <div class="form-grupo col-12" style="grid-column: span 12; margin-top: 24px; border-top: 1px solid var(--cor-borda); padding-top: 24px;">
+                    <h4 style="color: var(--primaria); margin-bottom: 16px;">Configuração de Idiomas do Sistema</h4>
+                </div>
+
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Idioma Principal Painel</label>
+                    <select class="form-control" @bind="_config.idioma_padrao">
+                        <option value="pt-BR">Português (Brasil)</option>
+                        <option value="es-PY">Espanhol (Paraguai)</option>
+                        <option value="en-US">Inglês</option>
+                    </select>
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Idioma Comprovantes (PDV)</label>
+                    <select class="form-control" @bind="_config.idioma_comprovantes">
+                        <option value="pt-BR">Português (Brasil)</option>
+                        <option value="es-PY">Espanhol (Paraguai)</option>
+                    </select>
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Idioma Autoatendimento</label>
+                    <select class="form-control" @bind="_config.idioma_autoatendimento">
+                        <option value="pt-BR">Português (Brasil)</option>
+                        <option value="es-PY">Espanhol (Paraguai)</option>
+                        <option value="en-US">Inglês</option>
+                    </select>
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3; display: flex; flex-direction: row; align-items: center; gap: 12px; margin-top: 24px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_config.permitir_idioma_usuario" />
+                        <span class="slider"></span>
+                    </label>
+                    <span style="font-size: 13px; font-weight: 600; color: var(--cor-texto-sub);">Permitir alterar idioma por usuário</span>
+                </div>
+            </div>
+        }
+
+        <!-- ABA 3: Moedas & Multimoeda -->
+        @if (_abaAtiva == 3)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 3: Moedas Operacionais & Multimoeda</h3>
+            
+            <div style="background: rgba(0, 198, 255, 0.03); border: 1px solid var(--cor-borda-glow); padding: 20px; border-radius: 12px; margin-bottom: 32px;">
+                <h4 style="color: var(--primaria); margin-bottom: 8px;">Modelo Multimoeda Aureon</h4>
+                <p style="color: var(--cor-texto-sub); font-size: 14px; line-height: 1.6;">
+                    Defina abaixo a sua <strong>Moeda Principal</strong> (na qual o estoque e os relatórios fiscais são totalizados) e selecione as
+                    <strong>Moedas Secundárias</strong> ativas no estabelecimento. O sistema fará a conversão automática nas vendas e caixas.
+                </p>
+            </div>
+
+            <div class="form-grid" style="margin-bottom: 32px;">
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_moedasConfig.permitir_pagamento_multiplo" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-size: 14px; font-weight: bold; color: #fff; display: block;">Permitir Pagamento em Múltiplas Moedas</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Permite receber parte do valor em Real e parte em Dólar/Guarani numa mesma venda.</span>
+                    </div>
+                </div>
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_moedasConfig.permitir_troco_diferente" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-size: 14px; font-weight: bold; color: #fff; display: block;">Permitir Troco em Moeda Diferente</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Permite devolver o troco em Real mesmo que a moeda principal de pagamento tenha sido Dólar.</span>
+                    </div>
+                </div>
+            </div>
+
+            <h4 style="color: #fff; margin-bottom: 16px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 8px;">Moedas Habilitadas</h4>
+            <div class="tabela-container">
+                <table class="tabela-premium">
+                    <thead>
+                        <tr>
+                            <th>Habilitar</th>
+                            <th>Código</th>
+                            <th>Nome da Moeda</th>
+                            <th>Símbolo</th>
+                            <th>Tipo / Função</th>
+                            <th>Ordem Exibição</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in _moedasDisponiveis)
+                        {
+                            <tr>
+                                <td>
+                                    <input type="checkbox" checked="@EstaMoedaHabilitada(m.moeda_id)" 
+                                           @onchange="(e) => ToggleMoeda(m, e)" 
+                                           disabled="@(m.tipo_moeda == "PRINCIPAL")" 
+                                           style="width: 18px; height: 18px;" />
+                                </td>
+                                <td style="font-weight: bold; color: var(--primaria);">@m.codigo</td>
+                                <td>@m.nome</td>
+                                <td style="font-weight: bold;">@m.simbolo</td>
+                                <td>
+                                    <select class="form-control" style="padding: 6px 12px; font-size: 13px;"
+                                            value="@m.tipo_moeda"
+                                            @onchange="(e) => AlterarTipoMoeda(m, e)">
+                                        <option value="PRINCIPAL">PRINCIPAL</option>
+                                        <option value="SECUNDARIA">SECUNDÁRIA</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control" style="width: 80px; padding: 6px 12px;" 
+                                           @bind="m.ordem_exibicao" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <!-- ABA 4: Cotações do Dia -->
+        @if (_abaAtiva == 4)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 4: Taxas de Câmbio / Cotações do Dia</h3>
+            
+            <div class="form-grid" style="margin-bottom: 32px; background: rgba(255,255,255,0.02); padding: 24px; border-radius: 12px; border: 1px solid var(--cor-borda);">
+                <div class="form-grupo col-12" style="grid-column: span 12; margin-bottom: 12px;">
+                    <h4 style="color: var(--primaria);">Lançar Nova Taxa Diária</h4>
+                    <p style="color: var(--cor-texto-sub); font-size: 13px;">As taxas são usadas para conversão no PDV offline-first.</p>
+                </div>
+
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Moeda Origem</label>
+                    <select class="form-control" @bind="_novaCotacao.moeda_origem_codigo">
+                        <option value="USD">USD - Dólar Americano</option>
+                        <option value="BRL">BRL - Real Brasileiro</option>
+                        <option value="PYG">PYG - Guarani Paraguaio</option>
+                    </select>
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Moeda Destino (Converter Para)</label>
+                    <select class="form-control" @bind="_novaCotacao.moeda_destino_codigo">
+                        <option value="BRL">BRL - Real Brasileiro</option>
+                        <option value="PYG">PYG - Guarani Paraguaio</option>
+                        <option value="USD">USD - Dólar Americano</option>
+                    </select>
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Taxa Direta (Multiplicador)</label>
+                    <input type="number" step="any" class="form-control" 
+                           value="@_novaCotacao.taxa_direta" 
+                           @oninput="OnTaxaDiretaChanged" 
+                           placeholder="Ex: 5.25" />
+                </div>
+                <div class="form-grupo col-3" style="grid-column: span 3;">
+                    <label>Taxa Inversa (Calculada)</label>
+                    <input type="text" class="form-control" value="@_taxaInversaCalculada" disabled style="background: rgba(0,0,0,0.2);" />
+                </div>
+
+                <div class="form-grupo col-8" style="grid-column: span 8; margin-top: 16px;">
+                    <label>Observação / Fonte da Taxa</label>
+                    <input type="text" class="form-control" @bind="_novaCotacao.observacao" placeholder="Ex: Cotação Banco Central Paraguai - BCP" />
+                </div>
+
+                <div class="form-grupo col-4" style="grid-column: span 4; margin-top: 32px; display: flex; justify-content: flex-end;">
+                    <button class="btn-premium" @onclick="GravarCotacao" style="width: 100%; box-shadow: none;">
+                        ⚡ Inserir Taxa Oficial
+                    </button>
+                </div>
+            </div>
+
+            <h4 style="color: #fff; margin-bottom: 16px;">Histórico das Últimas Taxas Operacionais</h4>
+            <div class="tabela-container">
+                <table class="tabela-premium">
+                    <thead>
+                        <tr>
+                            <th>Data Cotação</th>
+                            <th>De / Origem</th>
+                            <th>Para / Destino</th>
+                            <th>Taxa Direta</th>
+                            <th>Taxa Inversa</th>
+                            <th>Status</th>
+                            <th>Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_cotacoes.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: var(--cor-texto-disabled);">Nenhuma cotação manual lançada ainda para hoje.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var c in _cotacoes)
+                            {
+                                <tr>
+                                    <td>@c.data_cotacao.ToString("dd/MM/yyyy")</td>
+                                    <td style="font-weight: bold; color: var(--primaria);">@c.moeda_origem_codigo</td>
+                                    <td style="font-weight: bold; color: var(--primaria);">@c.moeda_destino_codigo</td>
+                                    <td style="font-weight: bold; color: #fff;">@c.taxa_direta</td>
+                                    <td style="color: var(--cor-texto-sub);">@c.taxa_inversa</td>
+                                    <td>
+                                        <span class="tag-badge" style="background: @(c.status == "ATIVA" ? "rgba(56, 239, 125, 0.15)" : "rgba(255, 255, 255, 0.05)"); color: @(c.status == "ATIVA" ? "#38ef7d" : "var(--cor-texto-sub)")">
+                                            @c.status
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (c.status == "ATIVA")
+                                        {
+                                            <button class="btn-secundario" style="padding: 6px 12px; font-size: 11px;" @onclick="() => CancelarCotacao(c.id)">
+                                                Cancelar
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span style="color: var(--cor-texto-disabled); font-size: 11px;">Inalterável</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <!-- ABA 5: Regime Tributário -->
+        @if (_abaAtiva == 5)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 5: Regime Tributário & Fiscal Base</h3>
+            
+            <div class="form-grid">
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <h4 style="color: #fff; border-bottom: 1px solid var(--cor-borda); padding-bottom: 8px; margin-bottom: 16px;">Brasil (NF-e/NFC-e)</h4>
+                    
+                    <div class="form-grupo" style="margin-bottom: 16px;">
+                        <label>Regime de Tributação (CRT)</label>
+                        <select class="form-control" @bind="_fiscal.brasil.regime_tributario">
+                            <option value="SIMPLES_NACIONAL">1 - Simples Nacional</option>
+                            <option value="SIMPLES_NACIONAL_EXCESSO">2 - Simples Nacional - Excesso de Sublimite</option>
+                            <option value="REGIME_NORMAL">3 - Regime Normal (Lucro Presumido/Real)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <h4 style="color: #fff; border-bottom: 1px solid var(--cor-borda); padding-bottom: 8px; margin-bottom: 16px;">Paraguai (Sifen)</h4>
+                    
+                    <div class="form-grupo">
+                        <label>Regime Tributário SET</label>
+                        <select class="form-control" @bind="_fiscal.paraguai.regime_tributario">
+                            <option value="REGIME_GERAL">Regime Geral (IVA 10%)</option>
+                            <option value="IRE_SIMPLIFICADO">IRE Simplificado</option>
+                            <option value="RESIMPLE">RESIMPLE (Tributação Fixa)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ABA 6: Documentos Fiscais -->
+        @if (_abaAtiva == 6)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 6: Documentos Fiscais Habilitados</h3>
+            
+            <div class="form-grid">
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: column; gap: 16px;">
+                    <h4 style="color: #fff; border-bottom: 1px solid var(--cor-borda); padding-bottom: 8px; margin-bottom: 16px;">Brasil</h4>
+                    
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" @bind="_fiscal.brasil.preparar_nfce" />
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-weight: 600;">Habilitar NFC-e (Cupom Fiscal)</span>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" @bind="_fiscal.brasil.preparar_nfe" />
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-weight: 600;">Habilitar NF-e (Nota de Entrada/Saída)</span>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" @bind="_fiscal.brasil.preparar_nfse" />
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-weight: 600;">Habilitar NFS-e (Serviços)</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: column; gap: 16px;">
+                    <h4 style="color: #fff; border-bottom: 1px solid var(--cor-borda); padding-bottom: 8px; margin-bottom: 16px;">Paraguai</h4>
+                    
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" @bind="_fiscal.paraguai.preparar_sifen" />
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-weight: 600;">Habilitar Factura Electrónica (SIFEN)</span>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ABA 7: Regras Tributárias Base -->
+        @if (_abaAtiva == 7)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 7: Regras Tributárias Base (Venda Inicial)</h3>
+            
+            <div class="form-grid">
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <label>Regra Tributária Padrão (Brasil)</label>
+                    <select class="form-control" @bind="_fiscal.brasil.regra_tributaria_base">
+                        <option value="REVENDA_SIMPLES_NACIONAL">102 - Revenda Simples Nacional (Sem Crédito)</option>
+                        <option value="REVENDA_SUBSTITUICAO">500 - ICMS Cobrado por Substituição Tributária</option>
+                        <option value="TRIBUTADO_INTEGRAL">00 - Tributado Integralmente (Regime Normal)</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <label>Regra Fiscal Base (Paraguai)</label>
+                    <select class="form-control" @bind="_fiscal.paraguai.regra_tributaria_base">
+                        <option value="IVA_10">IVA 10% - Gravada en 10% (Tasa General)</option>
+                        <option value="IVA_5">IVA 5% - Gravada en 5% (Alimentos, Canasta Básica)</option>
+                        <option value="EXENTA">EXENTA - Exenta de Impuestos</option>
+                    </select>
+                </div>
+            </div>
+        }
+
+        <!-- ABA 8: Configuração de Ambiente -->
+        @if (_abaAtiva == 8)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 8: Ambiente Fiscal Operacional</h3>
+            
+            <div class="form-grid">
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <label>Ambiente de Emissão (Brasil)</label>
+                    <select class="form-control" @bind="_fiscal.brasil.ambiente">
+                        <option value="HOMOLOGACAO">Homologação (Sem Valor Fiscal - Teste)</option>
+                        <option value="PRODUCAO">Produção (Nota Real com Valor Fiscal)</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <label>Ambiente Tributário (Paraguai)</label>
+                    <select class="form-control" @bind="_fiscal.paraguai.ambiente">
+                        <option value="TESTE">Ambiente de Pruebas (Homologación SET)</option>
+                        <option value="PRODUCCION">Producción Oficial</option>
+                    </select>
+                </div>
+            </div>
+        }
+
+        <!-- ABA 9: Provedores Fiscais -->
+        @if (_abaAtiva == 9)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 9: Mapeamento de Provedores Fiscais Locais</h3>
+            
+            <div class="form-grid">
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <label>Provedor de Emissão (Brasil)</label>
+                    <select class="form-control" @bind="_fiscal.brasil.provedor_fiscal">
+                        <option value="EMISSOR_INTERNO">Aureon Emissor Local Integrado (Recomendado)</option>
+                        <option value="FOCUS_NFE">API Terceirizada (Focus NFe)</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6;">
+                    <label>Provedor Eletrônico (Paraguai)</label>
+                    <select class="form-control" @bind="_fiscal.paraguai.provedor_fiscal">
+                        <option value="SIFEN_DIRECT">Conexão Direta SET (API Aureon)</option>
+                        <option value="EFACTURA_PY">Integradora Certificada</option>
+                    </select>
+                </div>
+            </div>
+        }
+
+        <!-- ABA 10: Controle de Estoque -->
+        @if (_abaAtiva == 10)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 10: Parâmetros Operacionais de Controle de Estoque</h3>
+            
+            <div class="form-grid">
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.permitir_estoque_negativo" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Permitir Estoque Negativo</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Permite faturar produtos mesmo que a quantidade local seja igual ou menor que zero.</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.bloquear_produto_vencido" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Bloquear Venda de Produto Vencido</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Impeça que produtos cuja data de validade tenha expirado sejam registrados no PDV.</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px; margin-top: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.alertar_produto_vencendo" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Alertar Validade Próxima no Caixa</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Exibe um aviso ao operador se o produto estiver perto de vencer.</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; margin-top: 16px;">
+                    <label>Dias de Antecedência para Alerta de Vencimento</label>
+                    <input type="number" class="form-control" @bind="_param.dias_alerta_vencimento" />
+                </div>
+            </div>
+        }
+
+        <!-- ABA 11: Parâmetros do PDV -->
+        @if (_abaAtiva == 11)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 11: Políticas e Segurança do Ponto de Venda (PDV)</h3>
+            
+            <div class="form-grid">
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.permitir_alterar_preco_pdv" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Permitir Alterar Preço Unitário</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Permite ao operador modificar o valor cobrado diretamente na tela de vendas.</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.permitir_desconto_pdv" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Habilitar Desconto nos Itens</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Habilita o botão de desconto em percentual ou valor no PDV.</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px; margin-top: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.exigir_supervisor_desconto" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Exigir Supervisor para Descontos</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Solicita autenticação de perfil Supervisor ao aplicar descontos acima de 10%.</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px; margin-top: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.exigir_supervisor_cancelamento" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Exigir Supervisor para Cancelar Itens/Vendas</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Previne fraudes exigindo senha de gerente/supervisor para remover produtos do carrinho.</span>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ABA 12: Crédito & Offline -->
+        @if (_abaAtiva == 12)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 12: Regras de Crédito (Crediário) & Limite Offline</h3>
+            
+            <div class="form-grid">
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.permitir_venda_prazo" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Habilitar Vendas a Prazo (Crediário/Fiado)</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Habilita a modalidade de pagamento em conta cliente.</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.exigir_cliente_completo_crediario" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Exigir Cadastro Completo para Crediário</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Bloqueia vendas a prazo para clientes sem endereço e telefone informados.</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; display: flex; flex-direction: row; align-items: center; gap: 16px; margin-top: 16px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="_param.permitir_venda_offline" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-weight: bold; color: #fff; display: block;">Permitir Funcionamento Totalmente Offline</span>
+                        <span style="font-size: 12px; color: var(--cor-texto-sub);">Habilita a gravação de vendas localmente no SQLite/Tauri sem conexão com o servidor.</span>
+                    </div>
+                </div>
+
+                <div class="form-grupo col-6" style="grid-column: span 6; margin-top: 16px;">
+                    <label>Limite Máximo de Dias em Modo Offline</label>
+                    <input type="number" class="form-control" @bind="_param.dias_maximos_offline" />
+                </div>
+            </div>
+        }
+
+        <!-- ABA 13: Histórico de Auditoria -->
+        @if (_abaAtiva == 13)
+        {
+            <h3 style="color: #fff; margin-bottom: 24px;">Bloco 13: Log de Auditoria & Eventos de Segurança</h3>
+            <p style="color: var(--cor-texto-sub); margin-bottom: 24px; font-size: 14px;">
+                Exibição em tempo real dos últimos 100 eventos críticos que alteraram as configurações deste estabelecimento.
+            </p>
+
+            <div class="tabela-container">
+                <table class="tabela-premium">
+                    <thead>
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Ação</th>
+                            <th>Módulo/Tabela</th>
+                            <th>Entidade ID</th>
+                            <th>Motivo / Histórico</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_auditoriaEventos.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: var(--cor-texto-disabled);">Nenhum evento registrado no log de auditoria.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var ev in _auditoriaEventos)
+                            {
+                                <tr>
+                                    <td style="white-space: nowrap; color: #fff;">@ev.criado_em.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                                    <td>
+                                        <span class="tag-badge @ev.acao.ToLower()">@ev.acao</span>
+                                    </td>
+                                    <td style="font-family: monospace;">@ev.entidade</td>
+                                    <td style="font-family: monospace; font-size: 12px; color: var(--cor-texto-sub);">@ev.entidade_id</td>
+                                    <td>@ev.motivo</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private int _abaAtiva = 1;
+    private bool _carregando = true;
+    private bool _salvando = false;
+    private string? _mensagemSucesso;
+    private string? _mensagemErro;
+
+    // Modelos locais
+    private EmpresaConfiguracaoCompleta _config = new();
+    private EmpresaMoedasCompleta _moedasConfig = new();
+    private List<MoedaConfig> _moedasDisponiveis = new();
+    private List<CotacaoExibicao> _cotacoes = new();
+    private CotacaoCadastro _novaCotacao = new() { moeda_origem_codigo = "USD", moeda_destino_codigo = "BRL" };
+    private string _taxaInversaCalculada = "0.00";
+    private FiscalBaseCompleto _fiscal = new() 
+    { 
+        brasil = new() { regime_tributario = "SIMPLES_NACIONAL", ambiente = "HOMOLOGACAO" },
+        paraguai = new() { regime_tributario = "REGIME_GERAL", ambiente = "TESTE" }
+    };
+    private ParametrosOperacionais _param = new();
+    private List<AuditoriaEvento> _auditoriaEventos = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        _carregando = true;
+        _mensagemErro = null;
+        _mensagemSucesso = null;
+
+        try
+        {
+            // 1. Carrega dados gerais da empresa (Identificação/Contatos)
+            var resEmp = await Http.GetFromJsonAsync<ResBase<EmpresaConfiguracaoCompleta>>("/empresa/configuracao");
+            if (resEmp != null && resEmp.sucesso && resEmp.dados != null)
+            {
+                _config = resEmp.dados;
+            }
+
+            // 2. Carrega moedas associadas
+            var resMoe = await Http.GetFromJsonAsync<ResBase<EmpresaMoedasCompleta>>("/empresa/moedas");
+            if (resMoe != null && resMoe.sucesso && resMoe.dados != null)
+            {
+                _moedasConfig = resMoe.dados;
+            }
+
+            // 3. Define moedas estáticas
+            _moedasDisponiveis = new List<MoedaConfig>
+            {
+                new() { moeda_id = Guid.Parse("b1111111-1111-1111-1111-111111111111"), codigo = "BRL", nome = "Real Brasileiro", simbolo = "R$", tipo_moeda = "PRINCIPAL", ordem_exibicao = 1 },
+                new() { moeda_id = Guid.Parse("b2222222-2222-2222-2222-222222222222"), codigo = "PYG", nome = "Guarani Paraguaio", simbolo = "₲", tipo_moeda = "SECUNDARIA", ordem_exibicao = 2 },
+                new() { moeda_id = Guid.Parse("b3333333-3333-3333-3333-333333333333"), codigo = "USD", nome = "Dólar Americano", simbolo = "$", tipo_moeda = "SECUNDARIA", ordem_exibicao = 3 }
+            };
+
+            // Atualiza status de principal/secundária com base no que veio do banco
+            if (_moedasConfig.moedas != null && _moedasConfig.moedas.Count == 0 == false)
+            {
+                foreach (var m in _moedasDisponiveis)
+                {
+                    var cadastrada = _moedasConfig.moedas.Find(x => x.codigo == m.codigo);
+                    if (cadastrada != null)
+                    {
+                        m.tipo_moeda = cadastrada.tipo_moeda;
+                        m.ordem_exibicao = cadastrada.ordem_exibicao;
+                    }
+                }
+            }
+
+            // 4. Carrega cotações do dia
+            var resCot = await Http.GetFromJsonAsync<ResBase<List<CotacaoExibicao>>>("/empresa/cotacoes");
+            if (resCot != null && resCot.sucesso && resCot.dados != null)
+            {
+                _cotacoes = resCot.dados;
+            }
+
+            // 5. Carrega regras fiscais
+            var resFis = await Http.GetFromJsonAsync<ResBase<FiscalBaseCompleto>>("/empresa/fiscal");
+            if (resFis != null && resFis.sucesso && resFis.dados != null)
+            {
+                _fiscal = resFis.dados;
+                if (_fiscal.brasil == null) _fiscal.brasil = new() { regime_tributario = "SIMPLES_NACIONAL", ambiente = "HOMOLOGACAO" };
+                if (_fiscal.paraguai == null) _fiscal.paraguai = new() { regime_tributario = "REGIME_GERAL", ambiente = "TESTE" };
+            }
+
+            // 6. Carrega parâmetros operacionais
+            var resPar = await Http.GetFromJsonAsync<ResBase<ParametrosOperacionais>>("/empresa/parametros-operacionais");
+            if (resPar != null && resPar.sucesso && resPar.dados != null)
+            {
+                _param = resPar.dados;
+            }
+
+            // 7. Carrega log de auditoria
+            var resAud = await Http.GetFromJsonAsync<ResBase<List<AuditoriaEvento>>>("/empresa/auditoria");
+            if (resAud != null && resAud.sucesso && resAud.dados != null)
+            {
+                _auditoriaEventos = resAud.dados;
+            }
+        }
+        catch (Exception ex)
+        {
+            _mensagemErro = $"Erro ao carregar dados da API local: {ex.Message}";
+        }
+        finally
+        {
+            _carregando = false;
+        }
+    }
+
+    private void MudarAba(int aba)
+    {
+        _abaAtiva = aba;
+        _mensagemSucesso = null;
+        _mensagemErro = null;
+    }
+
+    private bool AbaAtiva(int aba) => _abaAtiva == aba;
+
+    private bool EstaMoedaHabilitada(Guid id)
+    {
+        if (_moedasConfig.moedas == null) return false;
+        return _moedasConfig.moedas.Exists(x => x.moeda_id == id);
+    }
+
+    private void ToggleMoeda(MoedaConfig moeda, ChangeEventArgs e)
+    {
+        if (e.Value is bool checkedValue)
+        {
+            if (checkedValue)
+            {
+                if (_moedasConfig.moedas == null) _moedasConfig.moedas = new();
+                if (!_moedasConfig.moedas.Exists(x => x.moeda_id == moeda.moeda_id))
+                {
+                    _moedasConfig.moedas.Add(moeda);
+                }
+            }
+            else
+            {
+                _moedasConfig.moedas?.RemoveAll(x => x.moeda_id == moeda.moeda_id);
+            }
+        }
+    }
+
+    private void AlterarTipoMoeda(MoedaConfig moeda, ChangeEventArgs e)
+    {
+        if (e.Value is string valor)
+        {
+            moeda.tipo_moeda = valor;
+            if (valor == "PRINCIPAL")
+            {
+                // Garante que só ela é a principal
+                foreach (var m in _moedasDisponiveis)
+                {
+                    if (m.moeda_id != moeda.moeda_id)
+                    {
+                        m.tipo_moeda = "SECUNDARIA";
+                    }
+                }
+            }
+        }
+    }
+
+    private void OnTaxaDiretaChanged(ChangeEventArgs e)
+    {
+        if (e.Value is string str && decimal.TryParse(str, out var taxa) && taxa > 0)
+        {
+            _novaCotacao.taxa_direta = taxa;
+            var inv = 1m / taxa;
+            _taxaInversaCalculada = inv.ToString("N6");
+        }
+        else
+        {
+            _taxaInversaCalculada = "0.00";
+        }
+    }
+
+    private async Task GravarCotacao()
+    {
+        _mensagemErro = null;
+        _mensagemSucesso = null;
+
+        if (_novaCotacao.taxa_direta <= 0)
+        {
+            _mensagemErro = "A taxa direta de cotação deve ser maior que zero.";
+            return;
+        }
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/empresa/cotacoes", _novaCotacao);
+            var res = await response.Content.ReadFromJsonAsync<ResBase<bool>>();
+            if (res != null && res.sucesso)
+            {
+                _mensagemSucesso = "Cotação diária gravada com absoluto sucesso!";
+                // Reseta
+                _novaCotacao = new() { moeda_origem_codigo = "USD", moeda_destino_codigo = "BRL" };
+                _taxaInversaCalculada = "0.00";
+                // Recarrega cotações e auditoria
+                await CarregarDados();
+            }
+            else
+            {
+                _mensagemErro = res?.mensagem ?? "Erro ao gravar cotação.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _mensagemErro = $"Erro de rede: {ex.Message}";
+        }
+    }
+
+    private async Task CancelarCotacao(Guid id)
+    {
+        _mensagemErro = null;
+        _mensagemSucesso = null;
+
+        try
+        {
+            var response = await Http.PutAsync($"/empresa/cotacoes/{id}/cancelar", null);
+            var res = await response.Content.ReadFromJsonAsync<ResBase<bool>>();
+            if (res != null && res.sucesso)
+            {
+                _mensagemSucesso = "Cotação cancelada com absoluto sucesso!";
+                await CarregarDados();
+            }
+            else
+            {
+                _mensagemErro = res?.mensagem ?? "Erro ao cancelar cotação.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _mensagemErro = $"Erro ao cancelar: {ex.Message}";
+        }
+    }
+
+    private async Task SalvarTudo()
+    {
+        _salvando = true;
+        _mensagemErro = null;
+        _mensagemSucesso = null;
+
+        try
+        {
+            // Validações básicas
+            if (string.IsNullOrWhiteSpace(_config.nome_fantasia))
+            {
+                _mensagemErro = "O Nome Fantasia é obrigatório.";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(_config.razao_social))
+            {
+                _mensagemErro = "A Razão Social é obrigatória.";
+                return;
+            }
+
+            // 1. Salvar Configurações Gerais
+            var res1 = await Http.PostAsJsonAsync("/empresa/configuracao", _config);
+            var r1 = await res1.Content.ReadFromJsonAsync<ResBase<bool>>();
+            if (r1 == null || !r1.sucesso)
+            {
+                _mensagemErro = r1?.mensagem ?? "Erro ao salvar informações gerais da empresa.";
+                return;
+            }
+
+            // 2. Salvar Moedas Habilitadas
+            // Sincroniza lista da config com as marcadas
+            _moedasConfig.moedas = new();
+            foreach (var m in _moedasDisponiveis)
+            {
+                if (m.tipo_moeda == "PRINCIPAL" || EstaMoedaHabilitada(m.moeda_id))
+                {
+                    _moedasConfig.moedas.Add(m);
+                }
+            }
+
+            var res2 = await Http.PutAsJsonAsync("/empresa/moedas", _moedasConfig);
+            var r2 = await res2.Content.ReadFromJsonAsync<ResBase<bool>>();
+            if (r2 == null || !r2.sucesso)
+            {
+                _mensagemErro = r2?.mensagem ?? "Erro ao salvar moedas da empresa.";
+                return;
+            }
+
+            // 3. Salvar Fiscal Base
+            var res3 = await Http.PutAsJsonAsync("/empresa/fiscal", _fiscal);
+            var r3 = await res3.Content.ReadFromJsonAsync<ResBase<bool>>();
+            if (r3 == null || !r3.sucesso)
+            {
+                _mensagemErro = r3?.mensagem ?? "Erro ao salvar parâmetros fiscais.";
+                return;
+            }
+
+            // 4. Salvar Parâmetros Operacionais
+            var res4 = await Http.PutAsJsonAsync("/empresa/parametros-operacionais", _param);
+            var r4 = await res4.Content.ReadFromJsonAsync<ResBase<bool>>();
+            if (r4 == null || !r4.sucesso)
+            {
+                _mensagemErro = r4?.mensagem ?? "Erro ao salvar parâmetros operacionais.";
+                return;
+            }
+
+            _mensagemSucesso = "Todas as 13 seções de configuração da Fase 2 foram gravadas com sucesso no PostgreSQL!";
+            await CarregarDados();
+        }
+        catch (Exception ex)
+        {
+            _mensagemErro = $"Erro geral de salvamento: {ex.Message}";
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    // Classes DTOs Locais do Blazor
+    public class ResBase<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class EmpresaConfiguracaoCompleta
+    {
+        public Guid id { get; set; }
+        public string codigo { get; set; } = "";
+        public string nome_fantasia { get; set; } = "";
+        public string razao_social { get; set; } = "";
+        public string tipo_pessoa { get; set; } = "JURIDICA";
+        public string status_empresa { get; set; } = "EM_CONFIGURACAO";
+        public string? observacoes { get; set; }
+        public DateTime criado_em { get; set; }
+        
+        public string pais { get; set; } = "BR";
+        public string ambiente_fiscal { get; set; } = "HOMOLOGACAO";
+        
+        public string idioma_padrao { get; set; } = "pt-BR";
+        public string idioma_comprovantes { get; set; } = "pt-BR";
+        public bool permitir_idioma_usuario { get; set; } = true;
+        public string idioma_autoatendimento { get; set; } = "pt-BR";
+        
+        public string? cnpj { get; set; }
+        public string? inscricao_estadual { get; set; }
+        public string? inscricao_municipal { get; set; }
+        public string? cpf { get; set; }
+        public string? rg { get; set; }
+        public string? ruc { get; set; }
+        public string? ci { get; set; }
+        
+        public string telefone_principal { get; set; } = "";
+        public string? whatsapp { get; set; }
+        public string? telefone_secundario { get; set; }
+        public string? email { get; set; }
+        public string responsavel { get; set; } = "";
+        public string? site { get; set; }
+        
+        public string estado { get; set; } = "";
+        public string cidade { get; set; } = "";
+        public string? bairro { get; set; }
+        public string logradouro { get; set; } = "";
+        public string? numero { get; set; }
+        public string? complemento { get; set; }
+        public string? cep { get; set; }
+        public string? referencia { get; set; }
+        
+        public string? caminho_logo { get; set; }
+        public bool usar_comprovantes { get; set; } = true;
+        public bool usar_relatorios { get; set; } = true;
+    }
+
+    public class MoedaConfig
+    {
+        public Guid moeda_id { get; set; }
+        public string codigo { get; set; } = "";
+        public string nome { get; set; } = "";
+        public string simbolo { get; set; } = "";
+        public string tipo_moeda { get; set; } = "SECUNDARIA";
+        public int ordem_exibicao { get; set; }
+    }
+
+    public class EmpresaMoedasCompleta
+    {
+        public bool multimoeda_ativa { get; set; } = true;
+        public bool permitir_pagamento_multiplo { get; set; } = true;
+        public bool permitir_troco_diferente { get; set; } = true;
+        public List<MoedaConfig>? moedas { get; set; }
+    }
+
+    public class CotacaoCadastro
+    {
+        public string moeda_origem_codigo { get; set; } = "";
+        public string moeda_destino_codigo { get; set; } = "";
+        public decimal taxa_direta { get; set; }
+        public string? observacao { get; set; }
+    }
+
+    public class CotacaoExibicao
+    {
+        public Guid id { get; set; }
+        public DateTime data_cotacao { get; set; }
+        public Guid moeda_origem_id { get; set; }
+        public string moeda_origem_codigo { get; set; } = "";
+        public Guid moeda_destino_id { get; set; }
+        public string moeda_destino_codigo { get; set; } = "";
+        public decimal taxa_direta { get; set; }
+        public decimal taxa_inversa { get; set; }
+        public string? observacao { get; set; }
+        public string status { get; set; } = "ATIVA";
+        public DateTime criado_em { get; set; }
+    }
+
+    public class FiscalBrasil
+    {
+        public string regime_tributario { get; set; } = "SIMPLES_NACIONAL";
+        public bool preparar_nfce { get; set; } = true;
+        public bool preparar_nfe { get; set; }
+        public bool preparar_nfse { get; set; }
+        public string? regra_tributaria_base { get; set; } = "REVENDA_SIMPLES_NACIONAL";
+        public string ambiente { get; set; } = "HOMOLOGACAO";
+        public string? provedor_fiscal { get; set; } = "EMISSOR_INTERNO";
+    }
+
+    public class FiscalParaguai
+    {
+        public string regime_tributario { get; set; } = "REGIME_GERAL";
+        public bool preparar_sifen { get; set; } = true;
+        public string? regra_tributaria_base { get; set; } = "IVA_10";
+        public string ambiente { get; set; } = "TESTE";
+        public string? provedor_fiscal { get; set; } = "SIFEN_DIRECT";
+    }
+
+    public class FiscalBaseCompleto
+    {
+        public FiscalBrasil? brasil { get; set; }
+        public FiscalParaguai? paraguai { get; set; }
+    }
+
+    public class ParametrosOperacionais
+    {
+        public bool permitir_estoque_negativo { get; set; }
+        public bool bloquear_produto_vencido { get; set; } = true;
+        public bool alertar_produto_vencendo { get; set; } = true;
+        public int dias_alerta_vencimento { get; set; } = 30;
+        public bool permitir_alterar_preco_pdv { get; set; }
+        public bool permitir_desconto_pdv { get; set; } = true;
+        public bool exigir_supervisor_desconto { get; set; }
+        public bool exigir_supervisor_cancelamento { get; set; } = true;
+        public bool permitir_venda_prazo { get; set; } = true;
+        public bool exigir_cliente_completo_crediario { get; set; } = true;
+        public bool permitir_venda_offline { get; set; } = true;
+        public int dias_maximos_offline { get; set; } = 7;
+    }
+
+    public class AuditoriaEvento
+    {
+        public long id { get; set; }
+        public Guid? empresa_id { get; set; }
+        public Guid? usuario_id { get; set; }
+        public string acao { get; set; } = "";
+        public string entidade { get; set; } = "";
+        public string? entidade_id { get; set; }
+        public string? motivo { get; set; }
+        public DateTime criado_em { get; set; }
+    }
+}

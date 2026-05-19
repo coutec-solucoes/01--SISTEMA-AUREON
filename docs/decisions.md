@@ -99,3 +99,30 @@
 **Decisão:** O setup técnico (banco de dados, API, migrações) é executado por um binário Tauri separado (`apps/aureon-config`), e não pelo PDV (`apps/aureon-pdv`).  
 **Motivo:** Arquitetura limpa e separação de privilégios. O PDV não deve conter dependências lógicas de instanciar bancos ou gerenciar chaves-mestre. O PDV apenas exibe "Terminal não configurado" se o `.keystore` e o `server.config.enc` não existirem.  
 **Consequência:** Mantém o PDV seguro e enxuto. O AUREON Config é responsável por gerar os arquivos `.enc` e preencher os *seeds* base.
+
+---
+
+## DT-012 — Retaguarda/Gestor Isolada (Blazor WASM)
+
+**Data:** 2026-05-19  
+**Decisão:** A interface de Retaguarda/Gestor é estruturada como um projeto Blazor WebAssembly independente (`apps/aureon-retaguarda/ui-blazor`), separado do PDV.  
+**Motivo:** Evita o acoplamento desnecessário de rotas administrativas e operacionais (PDV/Venda). Mantém o código do PDV focado em performance offline extrema e velocidade de venda, enquanto a Retaguarda gerencia regras complexas, cadastros e fiscal base.  
+**Consequência:** Organização física limpa da workspace e carregamento sob demanda apenas dos componentes administrativos.
+
+---
+
+## DT-013 — Cotações do Dia com Taxas Inversas Reativas via rust_decimal
+
+**Data:** 2026-05-19  
+**Decisão:** Utilização do tipo de alta precisão `rust_decimal` no Rust Axum e conversão reativa em tempo real na interface da Retaguarda para cálculo da taxa inversa (`1 / taxa_direta`).  
+**Motivo:** Evita erros de arredondamento de float em operações financeiras e de conversão de troco de moedas, eliminando pequenas discrepâncias centesimais nos caixas.  
+**Consequência:** Precisão absoluta de até 28 casas decimais nas conversões financeiras entre BRL, USD e PYG.
+
+---
+
+## DT-014 — Eventos de Publicação e Sync Fiscais (Outbox no PostgreSQL)
+
+**Data:** 2026-05-19  
+**Decisão:** Persistência de alterações de moedas, cotações e parâmetros em uma tabela de outbox (`eventos_publicacao_configuracao`) e gravação detalhada na tabela `auditoria_eventos` com estado anterior/novo.  
+**Motivo:** Facilita a auditoria de alterações operacionais críticas e fornece um canal idempotente para o sincronizador offline ler e propagar alterações de cotações para os caixas locais.  
+**Consequência:** Logs de segurança completos de auditoria e conformidade de sincronização futura garantida.

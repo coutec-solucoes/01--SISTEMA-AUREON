@@ -1,0 +1,136 @@
+@page "/"
+@inject HttpClient Http
+
+<PageTitle>Dashboard — Aureon Gestor</PageTitle>
+
+<div class="cabecalho-pagina">
+    <div class="cabecalho-titulo">
+        <h1>Dashboard Gestor</h1>
+        <p>Visão geral de configurações e status do seu estabelecimento comercial.</p>
+    </div>
+</div>
+
+@if (_erroCarregamento)
+{
+    <div class="alerta-container erro">
+        <span>⚠️ Falha de comunicação com a API Local. Certifique-se de que a API local está rodando em background (porta 7070).</span>
+    </div>
+}
+
+<div class="grid-stats">
+    <!-- Status da Configuração -->
+    <div class="stat-card">
+        <div class="stat-dados">
+            <h3>Status da Empresa</h3>
+            <p>@(_status?.status ?? "Carregando...")</p>
+        </div>
+        <div class="stat-icon" style="color: @(_status != null && _status.configurada ? "#38ef7d" : "#f5af19")">
+            @(_status != null && _status.configurada ? "✅" : "⚙️")
+        </div>
+    </div>
+
+    <!-- Nome do Estabelecimento -->
+    <div class="stat-card">
+        <div class="stat-dados">
+            <h3>Nome da Empresa</h3>
+            <p style="font-size: 18px;">@(_status?.empresa_nome ?? "Carregando...")</p>
+        </div>
+        <div class="stat-icon" style="color: #00c6ff">
+            🏢
+        </div>
+    </div>
+
+    <!-- Moeda Principal -->
+    <div class="stat-card">
+        <div class="stat-dados">
+            <h3>Moeda Principal</h3>
+            <p>@(_status?.moeda_principal ?? "Carregando...")</p>
+        </div>
+        <div class="stat-icon" style="color: #7f00ff">
+            💵
+        </div>
+    </div>
+
+    <!-- País / Regime Fiscal -->
+    <div class="stat-card">
+        <div class="stat-dados">
+            <h3>País Operacional</h3>
+            <p>@(_status?.pais_fiscal ?? "Carregando...")</p>
+        </div>
+        <div class="stat-icon" style="color: #ff4b2b">
+            🌍
+        </div>
+    </div>
+</div>
+
+<div class="card-glass">
+    <h2 style="color: #fff; margin-bottom: 16px;">Bem-vindo ao Aureon Gestor</h2>
+    <p style="color: var(--cor-texto-sub); margin-bottom: 24px; line-height: 1.6;">
+        Este painel administrativo gerencia as configurações fiscais, multimoeda e parâmetros operacionais do sistema Aureon.
+        O sistema opera em modelo híbrido local e na nuvem, garantindo total conformidade fiscal e estabilidade de vendas offline.
+    </p>
+
+    @if (_status != null && !_status.configurada)
+    {
+        <div style="background: rgba(245, 175, 25, 0.05); border: 1px dashed rgba(245, 175, 25, 0.2); padding: 20px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <h4 style="color: #f5af19; margin-bottom: 4px;">Configuração Inicial Pendente</h4>
+                <p style="color: var(--cor-texto-sub); font-size: 13px;">Você precisa preencher as informações cadastrais e definir as moedas base para ativar o sistema de vendas.</p>
+            </div>
+            <a href="/configuracoes/empresa" class="btn-premium" style="padding: 10px 20px; font-size: 13px; box-shadow: none;">
+                Configurar Agora ➔
+            </a>
+        </div>
+    }
+    else
+    {
+        <div style="background: rgba(56, 239, 125, 0.05); border: 1px dashed rgba(56, 239, 125, 0.2); padding: 20px; border-radius: 12px; display: flex; align-items: center; gap: 16px;">
+            <div style="font-size: 24px;">🚀</div>
+            <div>
+                <h4 style="color: #38ef7d; margin-bottom: 4px;">Sistema Pronto para Venda</h4>
+                <p style="color: var(--cor-texto-sub); font-size: 13px;">Todas as configurações fundamentais estão preenchidas. O PDV e o Caixa estão operacionais.</p>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private StatusConfiguracao? _status;
+    private bool _erroCarregamento = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var res = await Http.GetFromJsonAsync<RespostaBase<StatusConfiguracao>>("/empresa/status-configuracao");
+            if (res != null && res.sucesso)
+            {
+                _status = res.dados;
+            }
+            else
+            {
+                _erroCarregamento = true;
+            }
+        }
+        catch
+        {
+            _erroCarregamento = true;
+        }
+    }
+
+    public class RespostaBase<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class StatusConfiguracao
+    {
+        public string empresa_nome { get; set; } = "";
+        public string pais_fiscal { get; set; } = "";
+        public string moeda_principal { get; set; } = "";
+        public string status { get; set; } = "";
+        public bool configurada { get; set; }
+    }
+}
