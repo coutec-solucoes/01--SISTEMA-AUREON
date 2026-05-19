@@ -140,10 +140,6 @@ pub struct PessoaUpdateDto {
 // Validações
 // ================================================================
 
-fn validar_email(email: &str) -> bool {
-    email.contains('@') && email.contains('.')
-}
-
 fn normalizar_doc(doc: &Option<String>) -> Option<String> {
     doc.as_ref()
         .map(|d| d.chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>())

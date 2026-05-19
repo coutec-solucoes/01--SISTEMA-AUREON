@@ -4,7 +4,7 @@ use axum::{
 };
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
-use crate::routes::{health, diagnostico, empresa, auth, cadastros::{pessoas, grupos}};
+use crate::routes::{health, diagnostico, empresa, auth, cadastros::{pessoas, grupos, produtos}};
 use crate::middleware::auth_middleware;
 
 
@@ -55,6 +55,23 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         .route("/cadastros/produtos/subgrupos/:id", put(grupos::atualizar_subgrupo))
         .route("/cadastros/produtos/marcas", get(grupos::listar_marcas).post(grupos::criar_marca))
         .route("/cadastros/produtos/marcas/:id", put(grupos::atualizar_marca))
+        
+        // Módulo de Produtos (Fase 4 - Bloco 3)
+        .route("/cadastros/produtos", get(produtos::listar_produtos).post(produtos::criar_produto))
+        .route("/cadastros/produtos/:id", get(produtos::obter_produto).put(produtos::atualizar_produto))
+        .route("/cadastros/produtos/:id/inativar", put(produtos::inativar_produto))
+        .route("/cadastros/produtos/:id/historico-precos", get(produtos::listar_historico_precos))
+        
+        .route("/cadastros/produtos/sabores-pizza", get(produtos::listar_sabores_pizza).post(produtos::criar_sabor_pizza))
+        .route("/cadastros/produtos/sabores-pizza/:id", put(produtos::atualizar_sabor_pizza))
+        
+        .route("/cadastros/produtos/combos", get(produtos::listar_combos).post(produtos::criar_combo_item))
+        
+        .route("/cadastros/produtos/adicionais", get(produtos::listar_adicionais).post(produtos::criar_adicional))
+        .route("/cadastros/produtos/adicionais/:id", put(produtos::atualizar_adicional))
+        
+        .route("/cadastros/produtos/locais-producao", get(produtos::listar_locais_producao).post(produtos::criar_local_producao))
+        .route("/cadastros/produtos/locais-producao/:id", put(produtos::atualizar_local_producao))
         
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 

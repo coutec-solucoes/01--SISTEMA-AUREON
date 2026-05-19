@@ -27,6 +27,14 @@ impl ErroApi {
             detalhe: detalhe.into(),
         }
     }
+
+    pub fn bad_request(detalhe: impl Into<String>, codigo: impl Into<String>) -> Self {
+        Self {
+            status:  StatusCode::BAD_REQUEST,
+            codigo:  codigo.into(),
+            detalhe: detalhe.into(),
+        }
+    }
 }
 
 impl IntoResponse for ErroApi {
