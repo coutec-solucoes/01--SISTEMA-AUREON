@@ -1,0 +1,37 @@
+@inject NavigationManager Navigation
+
+<div class="abas-container fade-in" style="margin-bottom: 24px;">
+    <a href="/cadastros/produtos" class="aba-botao @(IsActive("/cadastros/produtos") && !IsActive("/cadastros/produtos/") ? "ativa" : "")">
+        <span>📦</span> Produtos
+    </a>
+    <a href="/cadastros/produtos/grupos" class="aba-botao @(IsActive("/cadastros/produtos/grupos") || IsActive("/cadastros/produtos/subgrupos") ? "ativa" : "")">
+        <span>📁</span> Grupos & Subgrupos
+    </a>
+    <a href="/cadastros/produtos/marcas" class="aba-botao @(IsActive("/cadastros/produtos/marcas") ? "ativa" : "")">
+        <span>🏷️</span> Marcas
+    </a>
+    <a href="/cadastros/produtos/sabores-pizza" class="aba-botao @(IsActive("/cadastros/produtos/sabores-pizza") ? "ativa" : "")">
+        <span>🍕</span> Sabores de Pizza
+    </a>
+    <a href="/cadastros/produtos/combos" class="aba-botao @(IsActive("/cadastros/produtos/combos") ? "ativa" : "")">
+        <span>🍔</span> Combos
+    </a>
+    <a href="/cadastros/produtos/adicionais" class="aba-botao @(IsActive("/cadastros/produtos/adicionais") ? "ativa" : "")">
+        <span>➕</span> Adicionais
+    </a>
+    <a href="/cadastros/produtos/locais-producao" class="aba-botao @(IsActive("/cadastros/produtos/locais-producao") ? "ativa" : "")">
+        <span>🔥</span> Locais de Produção
+    </a>
+</div>
+
+@code {
+    private bool IsActive(string rota)
+    {
+        var uri = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/');
+        if (rota == "/cadastros/produtos")
+        {
+            return uri == "/cadastros/produtos";
+        }
+        return uri.StartsWith(rota, StringComparison.OrdinalIgnoreCase);
+    }
+}

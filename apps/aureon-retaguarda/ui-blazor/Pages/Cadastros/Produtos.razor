@@ -1,0 +1,1240 @@
+@page "/cadastros/produtos"
+
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Produtos — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Catálogo de Produtos</h1>
+        <p class="subtitulo-pagina">Gerencie seu catálogo completo, incluindo balança, combos, adicionais e controle de pizzas.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Cadastrar Produto
+    </button>
+</div>
+
+<!-- Componente de Submenu Compartilhado -->
+<SubmenuProdutos />
+
+<!-- Barra de Filtros Premium -->
+<div class="card-glass fade-in" style="padding: 20px; margin-bottom: 24px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
+        <div style="flex: 1; min-width: 250px;">
+            <input type="text" class="form-control" @bind-value="buscaTexto" @bind-value:event="oninput" placeholder="Buscar por descrição, referência ou código de barras..." style="width: 100%;" />
+        </div>
+        
+        <div style="width: 200px;">
+            <select class="form-control" @bind="grupoFiltro" style="width: 100%;">
+                <option value="">Todos os Grupos</option>
+                @foreach (var g in grupos)
+                {
+                    <option value="@g.id">@g.nome_grupo</option>
+                }
+            </select>
+        </div>
+
+        <div style="width: 160px;">
+            <select class="form-control" @bind="statusFiltro" style="width: 100%;">
+                <option value="ATIVOS">Somente Ativos</option>
+                <option value="INATIVOS">Somente Inativos</option>
+                <option value="TODOS">Todos</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando catálogo de produtos...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Ref / Cód. Barras</th>
+                    <th>Descrição</th>
+                    <th>Grupo / Subgrupo</th>
+                    <th>Preço de Venda</th>
+                    <th>Estoque</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in ProdutosFiltrados)
+                {
+                    <tr>
+                        <td style="font-size: 12px; color: var(--cor-texto-sub);">
+                            <div>Ref: @(p.referencia ?? "-")</div>
+                            <div style="font-family: monospace; color: var(--cor-texto-disabled);">@(p.codigo_barras ?? "-")</div>
+                        </td>
+                        <td style="font-weight: 600; color: #fff;">
+                            <div>@p.descricao</div>
+                            <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                @if (p.produto_pizza) { <span class="badge badge-pizza">Pizza</span> }
+                                @if (p.produto_combo) { <span class="badge badge-combo">Combo</span> }
+                                @if (p.permite_adicionais) { <span class="badge badge-adicional">Adicionais</span> }
+                            </div>
+                        </td>
+                        <td>
+                            <div>@(ObterNomeGrupo(p.grupo_id))</div>
+                            <span style="font-size: 11px; color: var(--cor-texto-sub);">@(ObterNomeSubgrupo(p.subgrupo_id))</span>
+                        </td>
+                        <td style="font-weight: bold; color: var(--cor-primaria);">
+                            @p.preco_venda.ToString("C2")
+                        </td>
+                        <td>
+                            @if (p.controla_estoque)
+                            {
+                                <span style='color: @(p.estoque_atual_base <= p.estoque_minimo ? "var(--cor-erro)" : "#38ef7d")'>
+                                    @p.estoque_atual_base.ToString("N3")
+                                </span>
+                            }
+                            else
+                            {
+                                <span style="color: var(--cor-texto-disabled);">Sem contr.</span>
+                            }
+                        </td>
+                        <td>
+                            @if (p.ativo)
+                            {
+                                <span class="badge badge-success">Ativo</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-error">Inativo</span>
+                            }
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(p.id)">Editar</button>
+                                @if (p.ativo)
+                                {
+                                    <button class="btn btn-sm btn-outline btn-perigo-outline" @onclick="() => InativarProduto(p.id)">Inativar</button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!ProdutosFiltrados.Any())
+                {
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--cor-texto-sub); padding: 48px;">
+                            Nenhum produto cadastrado com os filtros atuais.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal de Cadastro / Edição Principal com 10 Abas -->
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card-glass" style="max-width: 900px; width: 95%; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                <h2 class="modal-title" style="margin: 0; color: #fff;">
+                    @(editandoId == Guid.Empty ? "Cadastrar Novo Produto" : "Editar Produto")
+                </h2>
+                <button style="background: none; border: none; color: var(--cor-texto-sub); font-size: 20px; cursor: pointer;" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 20px;">@erroModal</div>
+            }
+            @if (!string.IsNullOrEmpty(sucessoModal))
+            {
+                <div class="alert-success-box" style="margin-bottom: 20px;">@sucessoModal</div>
+            }
+
+            <!-- Navegação de 10 Abas do Modal -->
+            <div class="abas-container" style="margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 4px;">
+                <button class="aba-botao @(abaAtiva == "GERAL" ? "ativa" : "")" @onclick='() => SetAba("GERAL")'>Gerais</button>
+                <button class="aba-botao @(abaAtiva == "PRECOS" ? "ativa" : "")" @onclick='() => SetAba("PRECOS")'>Preços</button>
+                <button class="aba-botao @(abaAtiva == "ESTOQUE" ? "ativa" : "")" @onclick='() => SetAba("ESTOQUE")'>Estoque</button>
+                <button class="aba-botao @(abaAtiva == "FISCAL" ? "ativa" : "")" @onclick='() => SetAba("FISCAL")'>Fiscal</button>
+                <button class="aba-botao @(abaAtiva == "BALANCA" ? "ativa" : "")" @onclick='() => SetAba("BALANCA")'>Balança</button>
+                
+                @if (model.produto_pizza)
+                {
+                    <button class="aba-botao @(abaAtiva == "PIZZA" ? "ativa" : "")" @onclick='() => SetAba("PIZZA")' style="border-color: #00c6ff;">🍕 Pizza</button>
+                }
+                @if (model.produto_combo)
+                {
+                    <button class="aba-botao @(abaAtiva == "COMBO" ? "ativa" : "")" @onclick='() => SetAba("COMBO")' style="border-color: #a855f7;">🍔 Combo</button>
+                }
+                @if (model.permite_adicionais)
+                {
+                    <button class="aba-botao @(abaAtiva == "ADICIONAIS" ? "ativa" : "")" @onclick='() => SetAba("ADICIONAIS")' style="border-color: #38ef7d;">➕ Adicionais</button>
+                }
+                
+                <button class="aba-botao @(abaAtiva == "PRODUCAO" ? "ativa" : "")" @onclick='() => SetAba("PRODUCAO")'>Produção</button>
+                
+                @if (editandoId != Guid.Empty)
+                {
+                    <button class="aba-botao @(abaAtiva == "HISTORICO" ? "ativa" : "")" @onclick='() => SetAba("HISTORICO")'>📈 Histórico</button>
+                }
+            </div>
+
+            <div class="modal-body-scroll">
+                
+                <!-- ABA 1: DADOS GERAIS -->
+                @if (abaAtiva == "GERAL")
+                {
+                    <div class="form-grid fade-in">
+                        <div class="form-grupo" style="grid-column: span 8;">
+                            <label>Descrição / Nome do Produto *</label>
+                            <input type="text" class="form-control" @bind="model.descricao" placeholder="Ex: Coca Cola 2L, Pizza Margherita..." />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Referência Interna</label>
+                            <input type="text" class="form-control" @bind="model.referencia" placeholder="Ref. única..." />
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>Código de Barras (EAN)</label>
+                            <input type="text" class="form-control" @bind="model.codigo_barras" placeholder="Cód. barras..." />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 3;">
+                            <label>Unidade de Medida</label>
+                            <select class="form-control" @bind="model.unidade_medida">
+                                <option value="UN">Unidade (UN)</option>
+                                <option value="KG">Quilo (KG)</option>
+                                <option value="LT">Litro (LT)</option>
+                                <option value="PCT">Pacote (PCT)</option>
+                                <option value="CX">Caixa (CX)</option>
+                            </select>
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 3; justify-content: center; display: flex; flex-direction: column;">
+                            <label class="checkbox-premium">
+                                <input type="checkbox" @bind="model.ativo" />
+                                <span>Produto Ativo</span>
+                            </label>
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Grupo *</label>
+                            <select class="form-control" @bind="model.grupo_id" @bind:after="CarregarSubgruposDoGrupo">
+                                <option value="">Selecione...</option>
+                                @foreach (var g in grupos)
+                                {
+                                    <option value="@g.id">@g.nome_grupo</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Subgrupo</label>
+                            <select class="form-control" @bind="model.subgrupo_id">
+                                <option value="">Selecione...</option>
+                                @foreach (var s in subgruposFiltradosModal)
+                                {
+                                    <option value="@s.id">@s.nome_subgrupo</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Marca</label>
+                            <select class="form-control" @bind="model.marca_id">
+                                <option value="">Selecione...</option>
+                                @foreach (var m in marcas)
+                                {
+                                    <option value="@m.id">@m.nome_marca</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- FLAGS DE MODOS ESPECIAIS -->
+                        <div class="form-grupo" style="grid-column: span 12; margin-top: 12px; border-top: 1px solid var(--cor-borda); padding-top: 16px;">
+                            <label style="margin-bottom: 12px; display: block; font-weight: bold; color: var(--cor-primaria);">Configurações Especiais do Produto</label>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
+                                <label class="checkbox-premium">
+                                    <input type="checkbox" @bind="model.produto_pizza" />
+                                    <span>🍕 É Sabor de Pizza</span>
+                                </label>
+                                <label class="checkbox-premium">
+                                    <input type="checkbox" @bind="model.produto_combo" />
+                                    <span>🍔 É um Combo</span>
+                                </label>
+                                <label class="checkbox-premium">
+                                    <input type="checkbox" @bind="model.permite_adicionais" />
+                                    <span>➕ Permite Adicionais</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 12;">
+                            <label>Descrição Detalhada / Composição</label>
+                            <textarea class="form-control" @bind="model.descricao_detalhada" rows="3" placeholder="Informações de ingredientes, especificações..."></textarea>
+                        </div>
+                    </div>
+                }
+
+                <!-- ABA 2: PREÇOS -->
+                else if (abaAtiva == "PRECOS")
+                {
+                    <div class="form-grid fade-in">
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Preço de Custo *</label>
+                            <input type="number" class="form-control" @bind="model.preco_custo" @bind:after="RecalcularPorCusto" min="0" step="0.01" />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Margem de Lucro (%)</label>
+                            <input type="number" class="form-control" @bind="model.margem_lucro" @bind:after="RecalcularPorMargem" min="0" step="0.01" />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Preço de Venda *</label>
+                            <input type="number" class="form-control" @bind="model.preco_venda" @bind:after="RecalcularPorVenda" min="0" step="0.01" />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Desconto Máximo Permitido (%)</label>
+                            <input type="number" class="form-control" @bind="model.desconto_maximo_permitido" min="0" max="100" step="0.01" />
+                        </div>
+                    </div>
+                }
+
+                <!-- ABA 3: ESTOQUE BASE -->
+                else if (abaAtiva == "ESTOQUE")
+                {
+                    <div class="form-grid fade-in">
+                        <div class="form-grupo" style="grid-column: span 6; justify-content: center; display: flex; flex-direction: column;">
+                            <label class="checkbox-premium">
+                                <input type="checkbox" @bind="model.controla_estoque" />
+                                <span>Controla Estoque</span>
+                            </label>
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 6; justify-content: center; display: flex; flex-direction: column;">
+                            <label class="checkbox-premium">
+                                <input type="checkbox" @bind="model.controla_validade" />
+                                <span>Controla Validade</span>
+                            </label>
+                        </div>
+
+                        @if (model.controla_estoque)
+                        {
+                            <div class="form-grupo" style="grid-column: span 6;">
+                                <label>Estoque Atual Base</label>
+                                <input type="number" class="form-control" @bind="model.estoque_atual_base" step="0.001" />
+                            </div>
+                            <div class="form-grupo" style="grid-column: span 6;">
+                                <label>Estoque Mínimo *</label>
+                                <input type="number" class="form-control" @bind="model.estoque_minimo" min="0" step="0.001" />
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- ABA 4: FISCAL -->
+                else if (abaAtiva == "FISCAL")
+                {
+                    <div class="form-grid fade-in">
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>NCM (Classificação Fiscal)</label>
+                            <input type="text" class="form-control" @bind="model.fiscal_ncm" placeholder="Ex: 2202.10.00..." />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>CEST</label>
+                            <input type="text" class="form-control" @bind="model.fiscal_cest" placeholder="Ex: 03.010.00..." />
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>CFOP Padrão</label>
+                            <input type="text" class="form-control" @bind="model.fiscal_cfop_padrao" placeholder="Ex: 5102..." />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>Origem da Mercadoria</label>
+                            <select class="form-control" @bind="model.fiscal_origem_mercadoria">
+                                <option value="0">0 - Nacional</option>
+                                <option value="1">1 - Estrangeira - Importação Direta</option>
+                                <option value="2">2 - Estrangeira - Adquirida no Mercado Interno</option>
+                            </select>
+                        </div>
+                    </div>
+                }
+
+                <!-- ABA 5: BALANÇA -->
+                else if (abaAtiva == "BALANCA")
+                {
+                    <div class="form-grid fade-in">
+                        <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                            <label class="checkbox-premium">
+                                <input type="checkbox" @bind="model.produto_balanca" />
+                                <span>Produto de Balança</span>
+                            </label>
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                            <label class="checkbox-premium">
+                                <input type="checkbox" @bind="model.reconfirmacao_pesagem" />
+                                <span>Reconfirmação de Pesagem</span>
+                            </label>
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                            <label class="checkbox-premium">
+                                <input type="checkbox" @bind="model.leitura_etiqueta" />
+                                <span>Leitura de Etiqueta</span>
+                            </label>
+                        </div>
+                    </div>
+                }
+
+                <!-- ABA 6: PIZZA (APENAS SE SABOR DE PIZZA FOR ATIVO) -->
+                else if (abaAtiva == "PIZZA" && model.produto_pizza)
+                {
+                    <div class="fade-in">
+                        <h3 style="color: #00c6ff; font-size: 15px; margin-bottom: 16px;">Vincular Preços de Sabor por Tamanho de Pizza</h3>
+                        <div class="alert-error-box" style="margin-bottom: 16px; font-size: 13px;">
+                            ℹ️ Defina o preço de venda para cada tamanho de pizza que utiliza este sabor.
+                        </div>
+                        <table class="table" style="background: rgba(255,255,255,0.01);">
+                            <thead>
+                                <tr>
+                                    <th>Sabor</th>
+                                    <th>Tamanho da Pizza</th>
+                                    <th>Preço de Venda</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var saborId in listSaboresDisponiveis)
+                                {
+                                    @foreach (var tam in listTamanhosPizza)
+                                    {
+                                        var item = ObterOuCriarSaborPreco(saborId, tam);
+                                        <tr>
+                                            <td>@(ObterNomeSabor(saborId))</td>
+                                            <td><span class="badge" style="background: rgba(0,198,255,0.1); color: #00c6ff;">@tam</span></td>
+                                            <td>
+                                                <input type="number" class="form-control" @bind="item.preco_venda" style="max-width: 150px;" min="0" step="0.01" />
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <!-- ABA 7: COMBO (APENAS SE PRODUTO COMBO FOR ATIVO) -->
+                else if (abaAtiva == "COMBO" && model.produto_combo)
+                {
+                    <div class="fade-in">
+                        <h3 style="color: #a855f7; font-size: 15px; margin-bottom: 16px;">Componentes do Combo</h3>
+                        <div style="display: flex; gap: 8px; margin-bottom: 16px; align-items: flex-end;">
+                            <div style="flex: 2;">
+                                <label style="font-size: 12px; margin-bottom: 4px; display:block;">Produto Vinculado</label>
+                                <select class="form-control" @bind="novoComboItemProdId">
+                                    <option value="">Selecione...</option>
+                                    @foreach (var p in todosProdutosCadastrados)
+                                    {
+                                        @if (p.id != editandoId)
+                                        {
+                                            <option value="@p.id">@p.descricao</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 12px; margin-bottom: 4px; display:block;">Quantidade</label>
+                                <input type="number" class="form-control" @bind="novoComboItemQtd" min="1" />
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 12px; margin-bottom: 4px; display:block;">Preço Adic.</label>
+                                <input type="number" class="form-control" @bind="novoComboItemPreco" min="0" step="0.01" />
+                            </div>
+                            <button class="btn btn-primary" type="button" @onclick="AdicionarComboItem">Adicionar</button>
+                        </div>
+
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Produto Componente</th>
+                                    <th>Quantidade</th>
+                                    <th>Preço Adicional</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var ci in model.combo_itens)
+                                {
+                                    <tr>
+                                        <td>@ObterNomeProdutoCadastrado(ci.produto_vinculado_id)</td>
+                                        <td>@ci.quantidade.ToString("N0")</td>
+                                        <td>@ci.preco_adicional.ToString("C2")</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline btn-perigo-outline" type="button" @onclick="() => RemoverComboItem(ci.produto_vinculado_id)">Remover</button>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!model.combo_itens.Any())
+                                {
+                                    <tr><td colspan="4" style="text-align: center; color: var(--cor-texto-sub); padding: 24px;">Nenhum produto adicionado ao combo ainda.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <!-- ABA 8: ADICIONAIS (APENAS SE PERMITE ADICIONAIS FOR ATIVO) -->
+                else if (abaAtiva == "ADICIONAIS" && model.permite_adicionais)
+                {
+                    <div class="fade-in">
+                        <h3 style="color: #38ef7d; font-size: 15px; margin-bottom: 16px;">Vincular Adicionais Permitidos</h3>
+                        <div style="display: flex; gap: 8px; margin-bottom: 16px; align-items: flex-end;">
+                            <div style="flex: 2;">
+                                <label style="font-size: 12px; margin-bottom: 4px; display:block;">Adicional Disponível</label>
+                                <select class="form-control" @bind="novoAdicionalId">
+                                    <option value="">Selecione...</option>
+                                    @foreach (var ad in adicionaisCadastrados)
+                                    {
+                                        <option value="@ad.id">@ad.nome_adicional (@ad.preco_venda.ToString("C2"))</option>
+                                    }
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 12px; margin-bottom: 4px; display:block;">Preço Diferenciado (Opcional)</label>
+                                <input type="number" class="form-control" @bind="novoAdicionalPreco" min="0" step="0.01" placeholder="Usar padrão..." />
+                            </div>
+                            <button class="btn btn-primary" type="button" @onclick="AdicionarAdicionalVinculo">Vincular</button>
+                        </div>
+
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nome do Adicional</th>
+                                    <th>Preço Diferenciado</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var ad in model.adicionais)
+                                {
+                                    <tr>
+                                        <td>@ObterNomeAdicionalCadastrado(ad.adicional_id)</td>
+                                        <td>
+                                            @if (ad.preco_venda_diferenciado.HasValue)
+                                            {
+                                                @ad.preco_venda_diferenciado.Value.ToString("C2")
+                                            }
+                                            else
+                                            {
+                                                <span style="color: var(--cor-texto-disabled);">Padrão</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline btn-perigo-outline" type="button" @onclick="() => RemoverAdicionalVinculo(ad.adicional_id)">Remover</button>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!model.adicionais.Any())
+                                {
+                                    <tr><td colspan="3" style="text-align: center; color: var(--cor-texto-sub); padding: 24px;">Nenhum adicional vinculado.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <!-- ABA 9: PRODUÇÃO -->
+                else if (abaAtiva == "PRODUCAO")
+                {
+                    <div class="form-grid fade-in">
+                        <div class="form-grupo" style="grid-column: span 12;">
+                            <label>Local de Produção / Impressora Física</label>
+                            <select class="form-control" @bind="model.local_producao_id">
+                                <option value="">Selecione...</option>
+                                @foreach (var lp in locaisProducao)
+                                {
+                                    <option value="@lp.id">@lp.nome_local</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                }
+
+                <!-- ABA 10: HISTÓRICO DE PREÇOS (APENAS EM EDIÇÃO) -->
+                else if (abaAtiva == "HISTORICO" && editandoId != Guid.Empty)
+                {
+                    <div class="fade-in">
+                        <h3 style="color: #fff; font-size: 15px; margin-bottom: 16px;">📈 Histórico de Atualizações de Preço</h3>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Data Alteração</th>
+                                    <th>Custo Anterior</th>
+                                    <th>Custo Novo</th>
+                                    <th>Venda Anterior</th>
+                                    <th>Venda Nova</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var hist in model.historico_precos)
+                                {
+                                    <tr>
+                                        <td>@hist.data_alteracao.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td>@hist.preco_custo_anterior.ToString("C2")</td>
+                                        <td style="font-weight: bold; color: var(--cor-erro);">@hist.preco_custo_novo.ToString("C2")</td>
+                                        <td>@hist.preco_venda_anterior.ToString("C2")</td>
+                                        <td style="font-weight: bold; color: #38ef7d;">@hist.preco_venda_novo.ToString("C2")</td>
+                                    </tr>
+                                }
+                                @if (!model.historico_precos.Any())
+                                {
+                                    <tr><td colspan="5" style="text-align: center; color: var(--cor-texto-sub); padding: 24px;">Nenhuma alteração de preço registrada no histórico.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+            </div>
+
+            <div class="modal-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Produto</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-error { background: rgba(239,68,68,0.12); color: #ff4b2b; border: 1px solid rgba(239,68,68,0.25); }
+    
+    .badge-pizza { background: rgba(0,198,255,0.08); color: #00c6ff; border: 1px solid rgba(0,198,255,0.18); font-size: 9px; }
+    .badge-combo { background: rgba(168,85,247,0.08); color: #a855f7; border: 1px solid rgba(168,85,247,0.18); font-size: 9px; }
+    .badge-adicional { background: rgba(56,239,125,0.08); color: #38ef7d; border: 1px solid rgba(56,239,125,0.18); font-size: 9px; }
+
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-outline { background: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto-sub); transition: all 0.2s ease; cursor: pointer; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); }
+    
+    .btn-perigo-outline { border-color: rgba(255,75,43,0.3); color: #ff4b2b; }
+    .btn-perigo-outline:hover { background: rgba(255,75,43,0.1); border-color: #ff4b2b; color: #fff; }
+
+    .checkbox-premium { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #fff; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--cor-borda); padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
+    .checkbox-premium:hover { background: rgba(0, 198, 255, 0.03); border-color: var(--cor-borda-glow); }
+    .checkbox-premium input[type=checkbox] { width: 18px; height: 18px; accent-color: #00c6ff; cursor: pointer; }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .alert-success-box { background: rgba(56,239,125,0.1); color: #38ef7d; border: 1px solid rgba(56,239,125,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral, erroModal, sucessoModal;
+
+    private string buscaTexto = "";
+    private string grupoFiltro = "";
+    private string statusFiltro = "ATIVOS";
+
+    private List<ProdutoDto> produtos = new();
+    private List<GrupoDto> grupos = new();
+    private List<SubgrupoDto> subgrupos = new();
+    private List<MarcaDto> marcas = new();
+    private List<LocalProducaoDto> locaisProducao = new();
+
+    // Dados auxiliares para pizza, combo, adicionais
+    private List<SaborPizzaDto> saboresCadastrados = new();
+    private List<AdicionalDto> adicionaisCadastrados = new();
+    private List<ProdutoDto> todosProdutosCadastrados = new();
+
+    // Estado do Modal
+    private bool mostrarModal = false;
+    private Guid editandoId = Guid.Empty;
+    private string abaAtiva = "GERAL";
+    private ProdutoModel model = new();
+
+    // Listas auxiliares do modal
+    private List<SubgrupoDto> subgruposFiltradosModal = new();
+    private List<string> listTamanhosPizza = new() { "GIGANTE", "GRANDE", "MEDIA", "PEQUENA", "BROTO" };
+    private List<Guid> listSaboresDisponiveis = new();
+
+    // Estados do Formulário de Combo/Adicionais
+    private Guid? novoComboItemProdId;
+    private decimal novoComboItemQtd = 1;
+    private decimal novoComboItemPreco = 0;
+
+    private Guid? novoAdicionalId;
+    private decimal? novoAdicionalPreco;
+
+    private IEnumerable<ProdutoDto> ProdutosFiltrados
+    {
+        get
+        {
+            var res = produtos.AsEnumerable();
+
+            if (!string.IsNullOrEmpty(grupoFiltro))
+            {
+                var gId = Guid.Parse(grupoFiltro);
+                res = res.Where(p => p.grupo_id == gId);
+            }
+
+            if (statusFiltro == "ATIVOS")
+            {
+                res = res.Where(p => p.ativo);
+            }
+            else if (statusFiltro == "INATIVOS")
+            {
+                res = res.Where(p => !p.ativo);
+            }
+
+            if (!string.IsNullOrEmpty(buscaTexto))
+            {
+                var t = buscaTexto.ToLower().Trim();
+                res = res.Where(p => p.descricao.ToLower().Contains(t) || 
+                                     (p.referencia != null && p.referencia.ToLower().Contains(t)) ||
+                                     (p.codigo_barras != null && p.codigo_barras.Contains(t)));
+            }
+
+            return res;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await CarregarDados();
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var resP = await Http.GetFromJsonAsync<Resposta<List<ProdutoDto>>>("/cadastros/produtos");
+            if (resP?.sucesso == true) produtos = resP.dados ?? new();
+
+            var resG = await Http.GetFromJsonAsync<Resposta<List<GrupoDto>>>("/cadastros/produtos/grupos");
+            if (resG?.sucesso == true) grupos = resG.dados ?? new();
+
+            var resS = await Http.GetFromJsonAsync<Resposta<List<SubgrupoDto>>>("/cadastros/produtos/subgrupos");
+            if (resS?.sucesso == true) subgrupos = resS.dados ?? new();
+
+            var resM = await Http.GetFromJsonAsync<Resposta<List<MarcaDto>>>("/cadastros/produtos/marcas");
+            if (resM?.sucesso == true) marcas = resM.dados ?? new();
+
+            var resL = await Http.GetFromJsonAsync<Resposta<List<LocalProducaoDto>>>("/cadastros/produtos/locais-producao");
+            if (resL?.sucesso == true) locaisProducao = resL.dados ?? new();
+
+            // Adicionais e Sabores de Pizza
+            var resSab = await Http.GetFromJsonAsync<Resposta<List<SaborPizzaDto>>>("/cadastros/produtos/sabores-pizza");
+            if (resSab?.sucesso == true) saboresCadastrados = resSab.dados ?? new();
+
+            var resAd = await Http.GetFromJsonAsync<Resposta<List<AdicionalDto>>>("/cadastros/produtos/adicionais");
+            if (resAd?.sucesso == true) adicionaisCadastrados = resAd.dados ?? new();
+
+            var resAll = await Http.GetFromJsonAsync<Resposta<List<ProdutoDto>>>("/cadastros/produtos");
+            if (resAll?.sucesso == true) todosProdutosCadastrados = resAll.dados ?? new();
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private string ObterNomeGrupo(Guid id) => grupos.FirstOrDefault(g => g.id == id)?.nome_grupo ?? "Sem Grupo";
+    private string ObterNomeSubgrupo(Guid? id) => id.HasValue ? (subgrupos.FirstOrDefault(s => s.id == id.Value)?.nome_subgrupo ?? "") : "";
+
+    private string ObterNomeSabor(Guid id) => saboresCadastrados.FirstOrDefault(s => s.id == id)?.nome_sabor ?? "Desconhecido";
+    private string ObterNomeProdutoCadastrado(Guid id) => todosProdutosCadastrados.FirstOrDefault(p => p.id == id)?.descricao ?? "Produto Desconhecido";
+    private string ObterNomeAdicionalCadastrado(Guid id) => adicionaisCadastrados.FirstOrDefault(a => a.id == id)?.nome_adicional ?? "Adicional Desconhecido";
+
+    private void SetAba(string aba) => abaAtiva = aba;
+
+    private void CarregarSubgruposDoGrupo()
+    {
+        if (model.grupo_id.HasValue)
+        {
+            subgruposFiltradosModal = subgrupos.Where(s => s.grupo_id == model.grupo_id.Value).ToList();
+        }
+        else
+        {
+            subgruposFiltradosModal.Clear();
+        }
+        model.subgrupo_id = null;
+    }
+
+    // ================================================================
+    // RECALCULOS DINÂMICOS DE PREÇOS
+    // ================================================================
+    private void RecalcularPorCusto()
+    {
+        if (model.preco_custo >= 0 && model.margem_lucro >= 0)
+        {
+            model.preco_venda = model.preco_custo * (1 + (model.margem_lucro / 100));
+        }
+    }
+
+    private void RecalcularPorMargem()
+    {
+        if (model.preco_custo >= 0 && model.margem_lucro >= 0)
+        {
+            model.preco_venda = model.preco_custo * (1 + (model.margem_lucro / 100));
+        }
+    }
+
+    private void RecalcularPorVenda()
+    {
+        if (model.preco_custo > 0 && model.preco_venda >= 0)
+        {
+            model.margem_lucro = ((model.preco_venda - model.preco_custo) / model.preco_custo) * 100;
+        }
+    }
+
+    // ================================================================
+    // SABORES E PREÇOS DE PIZZA
+    // ================================================================
+    private ProdutoSaborPrecoModel ObterOuCriarSaborPreco(Guid saborId, string tamanho)
+    {
+        var item = model.sabores_precos.FirstOrDefault(sp => sp.sabor_id == saborId && sp.tamanho_pizza == tamanho);
+        if (item == null)
+        {
+            item = new ProdutoSaborPrecoModel { sabor_id = saborId, tamanho_pizza = tamanho, preco_venda = model.preco_venda };
+            model.sabores_precos.Add(item);
+        }
+        return item;
+    }
+
+    // ================================================================
+    // COMBOS ITENS
+    // ================================================================
+    private void AdicionarComboItem()
+    {
+        if (!novoComboItemProdId.HasValue || novoComboItemProdId == Guid.Empty) return;
+        if (novoComboItemQtd <= 0) return;
+
+        // Se já existe, remove primeiro
+        model.combo_itens.RemoveAll(ci => ci.produto_vinculado_id == novoComboItemProdId.Value);
+
+        model.combo_itens.Add(new ProdutoComboItemModel
+        {
+            produto_vinculado_id = novoComboItemProdId.Value,
+            quantidade = novoComboItemQtd,
+            preco_adicional = novoComboItemPreco
+        });
+
+        novoComboItemProdId = null;
+        novoComboItemQtd = 1;
+        novoComboItemPreco = 0;
+    }
+
+    private void RemoverComboItem(Guid prodId)
+    {
+        model.combo_itens.RemoveAll(ci => ci.produto_vinculado_id == prodId);
+    }
+
+    // ================================================================
+    // ADICIONAIS VINCLADOS
+    // ================================================================
+    private void AdicionarAdicionalVinculo()
+    {
+        if (!novoAdicionalId.HasValue || novoAdicionalId == Guid.Empty) return;
+
+        model.adicionais.RemoveAll(a => a.adicional_id == novoAdicionalId.Value);
+
+        model.adicionais.Add(new ProdutoAdicionalVinculoModel
+        {
+            adicional_id = novoAdicionalId.Value,
+            preco_venda_diferenciado = novoAdicionalPreco
+        });
+
+        novoAdicionalId = null;
+        novoAdicionalPreco = null;
+    }
+
+    private void RemoverAdicionalVinculo(Guid adId)
+    {
+        model.adicionais.RemoveAll(a => a.adicional_id == adId);
+    }
+
+    // ================================================================
+    // FLUXO DO MODAL
+    // ================================================================
+    private void AbrirModalNovo()
+    {
+        editandoId = Guid.Empty;
+        model = new ProdutoModel();
+        
+        // Pega todos sabores cadastrados e deixa disponível
+        listSaboresDisponiveis = saboresCadastrados.Where(s => s.ativo).Select(s => s.id).ToList();
+
+        erroModal = null; sucessoModal = null;
+        abaAtiva = "GERAL";
+        mostrarModal = true;
+    }
+
+    private async Task AbrirModalEditar(Guid id)
+    {
+        editandoId = id; erroModal = null; sucessoModal = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<ProdutoDetalheDto>>($"/cadastros/produtos/{id}");
+            if (res?.sucesso == true && res.dados != null)
+            {
+                var d = res.dados;
+                model = new ProdutoModel
+                {
+                    codigo_barras = d.codigo_barras,
+                    descricao = d.descricao,
+                    descricao_detalhada = d.descricao_detalhada,
+                    referencia = d.referencia,
+                    grupo_id = d.grupo_id,
+                    subgrupo_id = d.subgrupo_id,
+                    marca_id = d.marca_id,
+                    unidade_medida = d.unidade_medida,
+                    preco_custo = d.preco_custo,
+                    margem_lucro = d.margem_lucro,
+                    preco_venda = d.preco_venda,
+                    estoque_atual_base = d.estoque_atual_base,
+                    estoque_minimo = d.estoque_minimo,
+                    controla_estoque = d.controla_estoque,
+                    controla_validade = d.controla_validade,
+                    desconto_maximo_permitido = d.desconto_maximo_permitido,
+                    fiscal_ncm = d.fiscal_ncm,
+                    fiscal_cest = d.fiscal_cest,
+                    fiscal_cfop_padrao = d.fiscal_cfop_padrao,
+                    fiscal_origem_mercadoria = d.fiscal_origem_mercadoria,
+                    local_producao_id = d.local_producao_id,
+                    produto_pizza = d.produto_pizza,
+                    produto_combo = d.produto_combo,
+                    permite_adicionais = d.permite_adicionais,
+                    produto_balanca = d.produto_balanca,
+                    reconfirmacao_pesagem = d.reconfirmacao_pesagem,
+                    leitura_etiqueta = d.leitura_etiqueta,
+                    ativo = d.ativo,
+
+                    sabores_precos = d.sabores_precos ?? new(),
+                    combo_itens = d.combo_itens ?? new(),
+                    adicionais = d.adicionais ?? new(),
+                    historico_precos = d.historico_precos ?? new()
+                };
+
+                // Carrega subgrupos baseados no grupo atual
+                if (model.grupo_id.HasValue)
+                {
+                    subgruposFiltradosModal = subgrupos.Where(s => s.grupo_id == model.grupo_id.Value).ToList();
+                }
+                
+                listSaboresDisponiveis = saboresCadastrados.Where(s => s.ativo).Select(s => s.id).ToList();
+
+                abaAtiva = "GERAL";
+                mostrarModal = true;
+            }
+            else
+            {
+                erroGeral = res?.mensagem ?? "Erro ao carregar detalhes do produto.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de rede: " + ex.Message;
+        }
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null; sucessoModal = null;
+        
+        // Validações visuais obrigatórias do Bloco 5
+        if (string.IsNullOrWhiteSpace(model.descricao))
+        {
+            erroModal = "A descrição do produto é obrigatória.";
+            abaAtiva = "GERAL";
+            return;
+        }
+
+        if (!model.grupo_id.HasValue || model.grupo_id.Value == Guid.Empty)
+        {
+            erroModal = "O grupo do produto é de preenchimento obrigatório.";
+            abaAtiva = "GERAL";
+            return;
+        }
+
+        if (model.preco_custo < 0)
+        {
+            erroModal = "O preço de custo não pode ser negativo.";
+            abaAtiva = "PRECOS";
+            return;
+        }
+
+        if (model.preco_venda < 0)
+        {
+            erroModal = "O preço de venda não pode ser negativo.";
+            abaAtiva = "PRECOS";
+            return;
+        }
+
+        if (model.margem_lucro < 0)
+        {
+            erroModal = "A margem de lucro não pode ser negativa.";
+            abaAtiva = "PRECOS";
+            return;
+        }
+
+        if (model.controla_estoque && model.estoque_minimo < 0)
+        {
+            erroModal = "O estoque mínimo não pode ser negativo.";
+            abaAtiva = "ESTOQUE";
+            return;
+        }
+
+        if (model.desconto_maximo_permitido < 0 || model.desconto_maximo_permitido > 100)
+        {
+            erroModal = "O desconto máximo permitido deve estar entre 0% e 100%.";
+            abaAtiva = "PRECOS";
+            return;
+        }
+
+        try
+        {
+            HttpResponseMessage res;
+            if (editandoId == Guid.Empty)
+            {
+                res = await Http.PostAsJsonAsync("/cadastros/produtos", model);
+            }
+            else
+            {
+                res = await Http.PutAsJsonAsync($"/cadastros/produtos/{editandoId}", model);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                sucessoModal = "Produto salvo com sucesso!";
+                
+                // Limpar campos de documentos confidenciais
+                model.codigo_barras = ""; model.referencia = "";
+
+                await Task.Delay(1000);
+                mostrarModal = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroModal = err?.mensagem ?? "Falha ao salvar as informações do produto.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = "Falha crítica na rede: " + ex.Message;
+        }
+    }
+
+    private async Task InativarProduto(Guid id)
+    {
+        bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", "Tem certeza que deseja inativar este produto?");
+        if (!confirm) return;
+
+        try
+        {
+            var res = await Http.PutAsync($"/cadastros/produtos/{id}/inativar", null);
+            if (res.IsSuccessStatusCode)
+            {
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                await JSRuntime.InvokeVoidAsync("alert", err?.mensagem ?? "Falha ao inativar o produto.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Erro ao conectar ao servidor: " + ex.Message);
+        }
+    }
+
+    private void FecharModal() => mostrarModal = false;
+
+    // ================================================================
+    // DTOs & Models locais
+    // ================================================================
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class GrupoDto
+    {
+        public Guid id { get; set; }
+        public string nome_grupo { get; set; } = "";
+    }
+
+    public class SubgrupoDto
+    {
+        public Guid id { get; set; }
+        public Guid grupo_id { get; set; }
+        public string nome_subgrupo { get; set; } = "";
+    }
+
+    public class MarcaDto
+    {
+        public Guid id { get; set; }
+        public string nome_marca { get; set; } = "";
+    }
+
+    public class LocalProducaoDto
+    {
+        public Guid id { get; set; }
+        public string nome_local { get; set; } = "";
+    }
+
+    public class SaborPizzaDto
+    {
+        public Guid id { get; set; }
+        public string nome_sabor { get; set; } = "";
+        public bool ativo { get; set; }
+    }
+
+    public class AdicionalDto
+    {
+        public Guid id { get; set; }
+        public string nome_adicional { get; set; } = "";
+        public decimal preco_venda { get; set; }
+    }
+
+    public class ProdutoDto
+    {
+        public Guid id { get; set; }
+        public string? codigo_barras { get; set; }
+        public string descricao { get; set; } = "";
+        public string? referencia { get; set; }
+        public Guid grupo_id { get; set; }
+        public Guid? subgrupo_id { get; set; }
+        public decimal preco_venda { get; set; }
+        public decimal estoque_atual_base { get; set; }
+        public decimal estoque_minimo { get; set; }
+        public bool controla_estoque { get; set; }
+        public bool produto_pizza { get; set; }
+        public bool produto_combo { get; set; }
+        public bool permite_adicionais { get; set; }
+        public bool ativo { get; set; }
+    }
+
+    public class ProdutoDetalheDto
+    {
+        public Guid id { get; set; }
+        public string? codigo_barras { get; set; }
+        public string descricao { get; set; } = "";
+        public string? descricao_detalhada { get; set; }
+        public string? referencia { get; set; }
+        public Guid? grupo_id { get; set; }
+        public Guid? subgrupo_id { get; set; }
+        public Guid? marca_id { get; set; }
+        public string unidade_medida { get; set; } = "UN";
+        public decimal preco_custo { get; set; }
+        public decimal margem_lucro { get; set; }
+        public decimal preco_venda { get; set; }
+        public decimal estoque_atual_base { get; set; }
+        public decimal estoque_minimo { get; set; }
+        public bool controla_estoque { get; set; }
+        public bool controla_validade { get; set; }
+        public decimal desconto_maximo_permitido { get; set; }
+        public string? fiscal_ncm { get; set; }
+        public string? fiscal_cest { get; set; }
+        public string? fiscal_cfop_padrao { get; set; }
+        public string fiscal_origem_mercadoria { get; set; } = "0";
+        public Guid? local_producao_id { get; set; }
+        public bool produto_pizza { get; set; }
+        public bool produto_combo { get; set; }
+        public bool permite_adicionais { get; set; }
+        public bool produto_balanca { get; set; }
+        public bool reconfirmacao_pesagem { get; set; }
+        public bool leitura_etiqueta { get; set; }
+        public bool ativo { get; set; }
+
+        public List<ProdutoSaborPrecoModel>? sabores_precos { get; set; }
+        public List<ProdutoComboItemModel>? combo_itens { get; set; }
+        public List<ProdutoAdicionalVinculoModel>? adicionais { get; set; }
+        public List<ProdutoHistoricoPrecoDto>? historico_precos { get; set; }
+    }
+
+    public class ProdutoModel
+    {
+        public string? codigo_barras { get; set; }
+        public string descricao { get; set; } = "";
+        public string? descricao_detalhada { get; set; }
+        public string? referencia { get; set; }
+        public Guid? grupo_id { get; set; }
+        public Guid? subgrupo_id { get; set; }
+        public Guid? marca_id { get; set; }
+        public string unidade_medida { get; set; } = "UN";
+        public decimal preco_custo { get; set; } = 0;
+        public decimal margem_lucro { get; set; } = 0;
+        public decimal preco_venda { get; set; } = 0;
+        public decimal estoque_atual_base { get; set; } = 0;
+        public decimal estoque_minimo { get; set; } = 0;
+        public bool controla_estoque { get; set; } = true;
+        public bool controla_validade { get; set; } = false;
+        public decimal desconto_maximo_permitido { get; set; } = 0;
+        public string? fiscal_ncm { get; set; }
+        public string? fiscal_cest { get; set; }
+        public string? fiscal_cfop_padrao { get; set; }
+        public string fiscal_origem_mercadoria { get; set; } = "0";
+        public Guid? local_producao_id { get; set; }
+        public bool produto_pizza { get; set; } = false;
+        public bool produto_combo { get; set; } = false;
+        public bool permite_adicionais { get; set; } = false;
+        public bool produto_balanca { get; set; } = false;
+        public bool reconfirmacao_pesagem { get; set; } = false;
+        public bool leitura_etiqueta { get; set; } = false;
+        public bool ativo { get; set; } = true;
+
+        public List<ProdutoSaborPrecoModel> sabores_precos { get; set; } = new();
+        public List<ProdutoComboItemModel> combo_itens { get; set; } = new();
+        public List<ProdutoAdicionalVinculoModel> adicionais { get; set; } = new();
+        public List<ProdutoHistoricoPrecoDto> historico_precos { get; set; } = new();
+    }
+
+    public class ProdutoSaborPrecoModel
+    {
+        public Guid sabor_id { get; set; }
+        public string tamanho_pizza { get; set; } = "GRANDE";
+        public decimal preco_venda { get; set; }
+    }
+
+    public class ProdutoComboItemModel
+    {
+        public Guid produto_vinculado_id { get; set; }
+        public decimal quantidade { get; set; }
+        public decimal preco_adicional { get; set; }
+    }
+
+    public class ProdutoAdicionalVinculoModel
+    {
+        public Guid adicional_id { get; set; }
+        public decimal? preco_venda_diferenciado { get; set; }
+    }
+
+    public class ProdutoHistoricoPrecoDto
+    {
+        public DateTime data_alteracao { get; set; }
+        public decimal preco_custo_anterior { get; set; }
+        public decimal preco_custo_novo { get; set; }
+        public decimal preco_venda_anterior { get; set; }
+        public decimal preco_venda_novo { get; set; }
+    }
+}

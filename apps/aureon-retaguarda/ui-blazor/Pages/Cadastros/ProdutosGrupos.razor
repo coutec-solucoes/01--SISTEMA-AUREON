@@ -1,0 +1,390 @@
+@page "/cadastros/produtos/grupos"
+@page "/cadastros/produtos/subgrupos"
+@page "/cadastros/produtos/marcas"
+
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Estrutura de Produtos — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Grupos, Subgrupos & Marcas</h1>
+        <p class="subtitulo-pagina">Organize seu catálogo de produtos em categorias estruturadas e marcas comerciais.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Novo Registro
+    </button>
+</div>
+
+<!-- Componente de Submenu Compartilhado -->
+<SubmenuProdutos />
+
+<!-- Navegação Interna das Estruturas -->
+<div class="card-glass fade-in" style="padding: 12px; margin-bottom: 24px; display: flex; gap: 8px;">
+    <button class='btn btn-sm @(tipoEstrutura == "GRUPO" ? "btn-primary" : "btn-outline")' @onclick='() => MudarTipo("GRUPO")'>Grupos</button>
+    <button class='btn btn-sm @(tipoEstrutura == "SUBGRUPO" ? "btn-primary" : "btn-outline")' @onclick='() => MudarTipo("SUBGRUPO")'>Subgrupos</button>
+    <button class='btn btn-sm @(tipoEstrutura == "MARCA" ? "btn-primary" : "btn-outline")' @onclick='() => MudarTipo("MARCA")'>Marcas</button>
+</div>
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando dados estruturais...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    @if (tipoEstrutura == "SUBGRUPO")
+                    {
+                        <th>Grupo Relacionado</th>
+                    }
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (tipoEstrutura == "GRUPO")
+                {
+                    @foreach (var g in grupos)
+                    {
+                        <tr>
+                            <td style="font-weight: 600; color: #fff;">@g.nome_grupo</td>
+                            <td>
+                                @if (g.ativo) { <span class="badge badge-success">Ativo</span> }
+                                else { <span class="badge badge-error">Inativo</span> }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(g.id, g.nome_grupo, g.ativo, null)">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!grupos.Any())
+                    {
+                        <tr><td colspan="3" style="text-align: center; color: var(--cor-texto-sub); padding: 32px;">Nenhum grupo cadastrado.</td></tr>
+                    }
+                }
+                else if (tipoEstrutura == "SUBGRUPO")
+                {
+                    @foreach (var s in subgrupos)
+                    {
+                        <tr>
+                            <td style="font-weight: 600; color: #fff;">@s.nome_subgrupo</td>
+                            <td>@(ObterNomeGrupo(s.grupo_id))</td>
+                            <td>
+                                @if (s.ativo) { <span class="badge badge-success">Ativo</span> }
+                                else { <span class="badge badge-error">Inativo</span> }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(s.id, s.nome_subgrupo, s.ativo, s.grupo_id)">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!subgrupos.Any())
+                    {
+                        <tr><td colspan="4" style="text-align: center; color: var(--cor-texto-sub); padding: 32px;">Nenhum subgrupo cadastrado.</td></tr>
+                    }
+                }
+                else if (tipoEstrutura == "MARCA")
+                {
+                    @foreach (var m in marcas)
+                    {
+                        <tr>
+                            <td style="font-weight: 600; color: #fff;">@m.nome_marca</td>
+                            <td>
+                                @if (m.ativo) { <span class="badge badge-success">Ativo</span> }
+                                else { <span class="badge badge-error">Inativo</span> }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(m.id, m.nome_marca, m.ativo, null)">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!marcas.Any())
+                    {
+                        <tr><td colspan="3" style="text-align: center; color: var(--cor-texto-sub); padding: 32px;">Nenhuma marca cadastrada.</td></tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal de Cadastro / Edição -->
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card-glass" style="max-width: 500px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                <h2 class="modal-title" style="margin: 0; color: #fff;">
+                    @(modalEditandoId == Guid.Empty ? "Novo " + ObterNomeTipo() : "Editar " + ObterNomeTipo())
+                </h2>
+                <button style="background: none; border: none; color: var(--cor-texto-sub); font-size: 20px; cursor: pointer;" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 20px;">@erroModal</div>
+            }
+
+            <div class="form-grid">
+                @if (tipoEstrutura == "SUBGRUPO")
+                {
+                    <div class="form-grupo" style="grid-column: span 12;">
+                        <label>Grupo Relacionado *</label>
+                        <select class="form-control" @bind="modalGrupoId">
+                            <option value="">Selecione um grupo...</option>
+                            @foreach (var g in grupos)
+                            {
+                                <option value="@g.id">@g.nome_grupo</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                <div class="form-grupo" style="grid-column: span 12;">
+                    <label>Nome do @ObterNomeTipo() *</label>
+                    <input type="text" class="form-control" @bind="modalNome" placeholder="Digite o nome..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 12; margin-top: 12px;">
+                    <label class="checkbox-premium">
+                        <input type="checkbox" @bind="modalAtivo" />
+                        <span>Registro Ativo</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Registro</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-error { background: rgba(239,68,68,0.12); color: #ff4b2b; border: 1px solid rgba(239,68,68,0.25); }
+
+    .btn-sm { padding: 4px 12px; font-size: 12px; border-radius: 6px; }
+    .btn-outline { background: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto-sub); transition: all 0.2s ease; cursor: pointer; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); }
+
+    .checkbox-premium { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #fff; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--cor-borda); padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
+    .checkbox-premium:hover { background: rgba(0, 198, 255, 0.03); border-color: var(--cor-borda-glow); }
+    .checkbox-premium input[type=checkbox] { width: 18px; height: 18px; accent-color: #00c6ff; cursor: pointer; }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private string tipoEstrutura = "GRUPO";
+    private bool carregando = true;
+    private string? erroGeral, erroModal;
+
+    private List<GrupoDto> grupos = new();
+    private List<SubgrupoDto> subgrupos = new();
+    private List<MarcaDto> marcas = new();
+
+    // Estado do Modal
+    private bool mostrarModal = false;
+    private Guid modalEditandoId = Guid.Empty;
+    private string modalNome = "";
+    private Guid? modalGrupoId;
+    private bool modalAtivo = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        DeterminarTipoPelaRota();
+        await CarregarDados();
+    }
+
+    private void DeterminarTipoPelaRota()
+    {
+        var uri = Navigation.Uri.ToLower();
+        if (uri.Contains("subgrupos")) tipoEstrutura = "SUBGRUPO";
+        else if (uri.Contains("marcas")) tipoEstrutura = "MARCA";
+        else tipoEstrutura = "GRUPO";
+    }
+
+    private void MudarTipo(string tipo)
+    {
+        tipoEstrutura = tipo;
+        if (tipo == "GRUPO") Navigation.NavigateTo("/cadastros/produtos/grupos");
+        else if (tipo == "SUBGRUPO") Navigation.NavigateTo("/cadastros/produtos/subgrupos");
+        else if (tipo == "MARCA") Navigation.NavigateTo("/cadastros/produtos/marcas");
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            // Sempre carrega grupos (pois subgrupo precisa de lista de grupos)
+            var resGrupos = await Http.GetFromJsonAsync<Resposta<List<GrupoDto>>>("/cadastros/produtos/grupos");
+            if (resGrupos?.sucesso == true) grupos = resGrupos.dados ?? new();
+
+            if (tipoEstrutura == "SUBGRUPO")
+            {
+                var resSub = await Http.GetFromJsonAsync<Resposta<List<SubgrupoDto>>>("/cadastros/produtos/subgrupos");
+                if (resSub?.sucesso == true) subgrupos = resSub.dados ?? new();
+            }
+            else if (tipoEstrutura == "MARCA")
+            {
+                var resMarcas = await Http.GetFromJsonAsync<Resposta<List<MarcaDto>>>("/cadastros/produtos/marcas");
+                if (resMarcas?.sucesso == true) marcas = resMarcas.dados ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private string ObterNomeGrupo(Guid id)
+    {
+        return grupos.FirstOrDefault(g => g.id == id)?.nome_grupo ?? "Desconhecido";
+    }
+
+    private string ObterNomeTipo()
+    {
+        return tipoEstrutura == "GRUPO" ? "Grupo" : tipoEstrutura == "SUBGRUPO" ? "Subgrupo" : "Marca";
+    }
+
+    private void AbrirModalNovo()
+    {
+        modalEditandoId = Guid.Empty;
+        modalNome = "";
+        modalGrupoId = grupos.FirstOrDefault()?.id;
+        modalAtivo = true;
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditar(Guid id, string nome, bool ativo, Guid? grupoId)
+    {
+        modalEditandoId = id;
+        modalNome = nome;
+        modalGrupoId = grupoId;
+        modalAtivo = ativo;
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null;
+        if (string.IsNullOrWhiteSpace(modalNome))
+        {
+            erroModal = "O Nome é obrigatório.";
+            return;
+        }
+
+        if (tipoEstrutura == "SUBGRUPO" && (!modalGrupoId.HasValue || modalGrupoId.Value == Guid.Empty))
+        {
+            erroModal = "Selecione o Grupo Relacionado.";
+            return;
+        }
+
+        try
+        {
+            HttpResponseMessage res;
+            if (tipoEstrutura == "GRUPO")
+            {
+                var payload = new { nome_grupo = modalNome, ativo = modalAtivo };
+                if (modalEditandoId == Guid.Empty)
+                    res = await Http.PostAsJsonAsync("/cadastros/produtos/grupos", payload);
+                else
+                    res = await Http.PutAsJsonAsync($"/cadastros/produtos/grupos/{modalEditandoId}", payload);
+            }
+            else if (tipoEstrutura == "SUBGRUPO")
+            {
+                var payload = new { grupo_id = modalGrupoId.Value, nome_subgrupo = modalNome, ativo = modalAtivo };
+                if (modalEditandoId == Guid.Empty)
+                    res = await Http.PostAsJsonAsync("/cadastros/produtos/subgrupos", payload);
+                else
+                    res = await Http.PutAsJsonAsync($"/cadastros/produtos/subgrupos/{modalEditandoId}", payload);
+            }
+            else // MARCA
+            {
+                var payload = new { nome_marca = modalNome, ativo = modalAtivo };
+                if (modalEditandoId == Guid.Empty)
+                    res = await Http.PostAsJsonAsync("/cadastros/produtos/marcas", payload);
+                else
+                    res = await Http.PutAsJsonAsync($"/cadastros/produtos/marcas/{modalEditandoId}", payload);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                mostrarModal = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroModal = err?.mensagem ?? "Ocorreu uma falha ao salvar o registro.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = "Erro ao enviar requisição: " + ex.Message;
+        }
+    }
+
+    private void FecharModal() => mostrarModal = false;
+
+    // ================================================================
+    // DTOs locais para desserialização
+    // ================================================================
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class GrupoDto
+    {
+        public Guid id { get; set; }
+        public string nome_grupo { get; set; } = "";
+        public bool ativo { get; set; }
+    }
+
+    public class SubgrupoDto
+    {
+        public Guid id { get; set; }
+        public Guid grupo_id { get; set; }
+        public string nome_subgrupo { get; set; } = "";
+        public bool ativo { get; set; }
+    }
+
+    public class MarcaDto
+    {
+        public Guid id { get; set; }
+        public string nome_marca { get; set; } = "";
+        public bool ativo { get; set; }
+    }
+}

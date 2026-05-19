@@ -1,0 +1,461 @@
+@page "/cadastros/produtos/sabores-pizza"
+@page "/cadastros/produtos/combos"
+@page "/cadastros/produtos/adicionais"
+@page "/cadastros/produtos/locais-producao"
+
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Estruturas Auxiliares — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Estruturas & Complementos</h1>
+        <p class="subtitulo-pagina">Configure locais de produção, adicionais, combos e sabores de pizzas do sistema.</p>
+    </div>
+    @if (tipoEstrutura != "COMBO")
+    {
+        <button class="btn btn-primary" @onclick="AbrirModalNovo">
+            <span>+</span> Novo Registro
+        </button>
+    }
+</div>
+
+<!-- Componente de Submenu Compartilhado -->
+<SubmenuProdutos />
+
+<!-- Navegação Interna das Estruturas -->
+<div class="card-glass fade-in" style="padding: 12px; margin-bottom: 24px; display: flex; gap: 8px;">
+    <button class='btn btn-sm @(tipoEstrutura == "PIZZA" ? "btn-primary" : "btn-outline")' @onclick='() => MudarTipo("PIZZA")'>Sabores Pizza</button>
+    <button class='btn btn-sm @(tipoEstrutura == "COMBO" ? "btn-primary" : "btn-outline")' @onclick='() => MudarTipo("COMBO")'>Vínculos de Combos</button>
+    <button class='btn btn-sm @(tipoEstrutura == "ADICIONAL" ? "btn-primary" : "btn-outline")' @onclick='() => MudarTipo("ADICIONAL")'>Adicionais</button>
+    <button class='btn btn-sm @(tipoEstrutura == "LOCAL" ? "btn-primary" : "btn-outline")' @onclick='() => MudarTipo("LOCAL")'>Locais de Produção</button>
+</div>
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando dados auxiliares...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    @if (tipoEstrutura == "COMBO")
+                    {
+                        <th>Produto Combo Principal</th>
+                        <th>Item Vinculado</th>
+                        <th>Quantidade</th>
+                        <th>Preço Adicional</th>
+                    }
+                    else
+                    {
+                        <th>Nome</th>
+                        @if (tipoEstrutura == "ADICIONAL")
+                        {
+                            <th>Preço Venda</th>
+                        }
+                        <th>Status</th>
+                        <th>Ações</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (tipoEstrutura == "PIZZA")
+                {
+                    @foreach (var s in sabores)
+                    {
+                        <tr>
+                            <td style="font-weight: 600; color: #fff;">@s.nome_sabor</td>
+                            <td>
+                                @if (s.ativo) { <span class="badge badge-success">Ativo</span> }
+                                else { <span class="badge badge-error">Inativo</span> }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditarSabor(s.id, s.nome_sabor, s.ativo)">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!sabores.Any())
+                    {
+                        <tr><td colspan="3" style="text-align: center; color: var(--cor-texto-sub); padding: 32px;">Nenhum sabor cadastrado.</td></tr>
+                    }
+                }
+                else if (tipoEstrutura == "COMBO")
+                {
+                    @foreach (var c in combos)
+                    {
+                        <tr>
+                            <td style="font-weight: 600; color: #fff;">@(ObterNomeProduto(c.combo_id))</td>
+                            <td>@(ObterNomeProduto(c.produto_vinculado_id))</td>
+                            <td>@c.quantidade.ToString("N0")</td>
+                            <td>@c.preco_adicional.ToString("C2")</td>
+                        </tr>
+                    }
+                    @if (!combos.Any())
+                    {
+                        <tr><td colspan="4" style="text-align: center; color: var(--cor-texto-sub); padding: 32px;">Nenhum vínculo de combo configurado. (Cadastre e vincule combos a partir do cadastro de produtos).</td></tr>
+                    }
+                }
+                else if (tipoEstrutura == "ADICIONAL")
+                {
+                    @foreach (var a in adicionais)
+                    {
+                        <tr>
+                            <td style="font-weight: 600; color: #fff;">@a.nome_adicional</td>
+                            <td>@a.preco_venda.ToString("C2")</td>
+                            <td>
+                                @if (a.ativo) { <span class="badge badge-success">Ativo</span> }
+                                else { <span class="badge badge-error">Inativo</span> }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditarAdicional(a.id, a.nome_adicional, a.preco_venda, a.ativo)">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!adicionais.Any())
+                    {
+                        <tr><td colspan="4" style="text-align: center; color: var(--cor-texto-sub); padding: 32px;">Nenhum adicional cadastrado.</td></tr>
+                    }
+                }
+                else if (tipoEstrutura == "LOCAL")
+                {
+                    @foreach (var l in locais)
+                    {
+                        <tr>
+                            <td style="font-weight: 600; color: #fff;">@l.nome_local</td>
+                            <td>
+                                @if (l.ativo) { <span class="badge badge-success">Ativo</span> }
+                                else { <span class="badge badge-error">Inativo</span> }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditarLocal(l.id, l.nome_local, l.ativo)">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!locais.Any())
+                    {
+                        <tr><td colspan="3" style="text-align: center; color: var(--cor-texto-sub); padding: 32px;">Nenhum local de produção cadastrado.</td></tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modais de Cadastro / Edição -->
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card-glass" style="max-width: 500px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                <h2 class="modal-title" style="margin: 0; color: #fff;">
+                    @(modalEditandoId == Guid.Empty ? "Novo " + ObterNomeTipo() : "Editar " + ObterNomeTipo())
+                </h2>
+                <button style="background: none; border: none; color: var(--cor-texto-sub); font-size: 20px; cursor: pointer;" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 20px;">@erroModal</div>
+            }
+
+            <div class="form-grid">
+                <div class="form-grupo" style="grid-column: span 12;">
+                    <label>Nome do @ObterNomeTipo() *</label>
+                    <input type="text" class="form-control" @bind="modalNome" placeholder="Digite o nome..." />
+                </div>
+
+                @if (tipoEstrutura == "ADICIONAL")
+                {
+                    <div class="form-grupo" style="grid-column: span 12;">
+                        <label>Preço de Venda do Adicional *</label>
+                        <input type="number" class="form-control" @bind="modalPrecoVenda" min="0" step="0.01" />
+                    </div>
+                }
+
+                <div class="form-grupo" style="grid-column: span 12; margin-top: 12px;">
+                    <label class="checkbox-premium">
+                        <input type="checkbox" @bind="modalAtivo" />
+                        <span>Ativo</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Registro</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-error { background: rgba(239,68,68,0.12); color: #ff4b2b; border: 1px solid rgba(239,68,68,0.25); }
+
+    .btn-sm { padding: 4px 12px; font-size: 12px; border-radius: 6px; }
+    .btn-outline { background: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto-sub); transition: all 0.2s ease; cursor: pointer; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); }
+
+    .checkbox-premium { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #fff; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--cor-borda); padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
+    .checkbox-premium:hover { background: rgba(0, 198, 255, 0.03); border-color: var(--cor-borda-glow); }
+    .checkbox-premium input[type=checkbox] { width: 18px; height: 18px; accent-color: #00c6ff; cursor: pointer; }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private string tipoEstrutura = "PIZZA";
+    private bool carregando = true;
+    private string? erroGeral, erroModal;
+
+    private List<SaborPizzaDto> sabores = new();
+    private List<ComboItemDto> combos = new();
+    private List<AdicionalDto> adicionais = new();
+    private List<LocalProducaoDto> locais = new();
+    private List<ProdutoSimplesDto> produtos = new();
+
+    // Estado do Modal
+    private bool mostrarModal = false;
+    private Guid modalEditandoId = Guid.Empty;
+    private string modalNome = "";
+    private decimal modalPrecoVenda = 0;
+    private bool modalAtivo = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        DeterminarTipoPelaRota();
+        await CarregarDados();
+    }
+
+    private void DeterminarTipoPelaRota()
+    {
+        var uri = Navigation.Uri.ToLower();
+        if (uri.Contains("combos")) tipoEstrutura = "COMBO";
+        else if (uri.Contains("adicionais")) tipoEstrutura = "ADICIONAL";
+        else if (uri.Contains("locais-producao")) tipoEstrutura = "LOCAL";
+        else tipoEstrutura = "PIZZA";
+    }
+
+    private void MudarTipo(string tipo)
+    {
+        tipoEstrutura = tipo;
+        if (tipo == "PIZZA") Navigation.NavigateTo("/cadastros/produtos/sabores-pizza");
+        else if (tipo == "COMBO") Navigation.NavigateTo("/cadastros/produtos/combos");
+        else if (tipo == "ADICIONAL") Navigation.NavigateTo("/cadastros/produtos/adicionais");
+        else if (tipo == "LOCAL") Navigation.NavigateTo("/cadastros/produtos/locais-producao");
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            // Busca produtos para mapear nomes no combo
+            var resProd = await Http.GetFromJsonAsync<Resposta<List<ProdutoSimplesDto>>>("/cadastros/produtos");
+            if (resProd?.sucesso == true) produtos = resProd.dados ?? new();
+
+            if (tipoEstrutura == "PIZZA")
+            {
+                var res = await Http.GetFromJsonAsync<Resposta<List<SaborPizzaDto>>>("/cadastros/produtos/sabores-pizza");
+                if (res?.sucesso == true) sabores = res.dados ?? new();
+            }
+            else if (tipoEstrutura == "COMBO")
+            {
+                var res = await Http.GetFromJsonAsync<Resposta<List<ComboItemDto>>>("/cadastros/produtos/combos");
+                if (res?.sucesso == true) combos = res.dados ?? new();
+            }
+            else if (tipoEstrutura == "ADICIONAL")
+            {
+                var res = await Http.GetFromJsonAsync<Resposta<List<AdicionalDto>>>("/cadastros/produtos/adicionais");
+                if (res?.sucesso == true) adicionais = res.dados ?? new();
+            }
+            else if (tipoEstrutura == "LOCAL")
+            {
+                var res = await Http.GetFromJsonAsync<Resposta<List<LocalProducaoDto>>>("/cadastros/produtos/locais-producao");
+                if (res?.sucesso == true) locais = res.dados ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private string ObterNomeProduto(Guid id)
+    {
+        return produtos.FirstOrDefault(p => p.id == id)?.descricao ?? "Produto Desconhecido";
+    }
+
+    private string ObterNomeTipo()
+    {
+        return tipoEstrutura == "PIZZA" ? "Sabor de Pizza" : tipoEstrutura == "ADICIONAL" ? "Adicional" : "Local de Produção";
+    }
+
+    private void AbrirModalNovo()
+    {
+        modalEditandoId = Guid.Empty;
+        modalNome = "";
+        modalPrecoVenda = 0;
+        modalAtivo = true;
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditarSabor(Guid id, string nome, bool ativo)
+    {
+        modalEditandoId = id;
+        modalNome = nome;
+        modalAtivo = ativo;
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditarAdicional(Guid id, string nome, decimal preco, bool ativo)
+    {
+        modalEditandoId = id;
+        modalNome = nome;
+        modalPrecoVenda = preco;
+        modalAtivo = ativo;
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditarLocal(Guid id, string nome, bool ativo)
+    {
+        modalEditandoId = id;
+        modalNome = nome;
+        modalAtivo = ativo;
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null;
+        if (string.IsNullOrWhiteSpace(modalNome))
+        {
+            erroModal = "O Nome é obrigatório.";
+            return;
+        }
+
+        if (tipoEstrutura == "ADICIONAL" && modalPrecoVenda < 0)
+        {
+            erroModal = "O preço de venda do adicional não pode ser negativo.";
+            return;
+        }
+
+        try
+        {
+            HttpResponseMessage res;
+            if (tipoEstrutura == "PIZZA")
+            {
+                var payload = new { nome_sabor = modalNome, ativo = modalAtivo };
+                if (modalEditandoId == Guid.Empty)
+                    res = await Http.PostAsJsonAsync("/cadastros/produtos/sabores-pizza", payload);
+                else
+                    res = await Http.PutAsJsonAsync($"/cadastros/produtos/sabores-pizza/{modalEditandoId}", payload);
+            }
+            else if (tipoEstrutura == "ADICIONAL")
+            {
+                var payload = new { nome_adicional = modalNome, preco_venda = modalPrecoVenda, ativo = modalAtivo };
+                if (modalEditandoId == Guid.Empty)
+                    res = await Http.PostAsJsonAsync("/cadastros/produtos/adicionais", payload);
+                else
+                    res = await Http.PutAsJsonAsync($"/cadastros/produtos/adicionais/{modalEditandoId}", payload);
+            }
+            else // LOCAL
+            {
+                var payload = new { nome_local = modalNome, ativo = modalAtivo };
+                if (modalEditandoId == Guid.Empty)
+                    res = await Http.PostAsJsonAsync("/cadastros/produtos/locais-producao", payload);
+                else
+                    res = await Http.PutAsJsonAsync($"/cadastros/produtos/locais-producao/{modalEditandoId}", payload);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                mostrarModal = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroModal = err?.mensagem ?? "Ocorreu uma falha ao salvar o registro.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = "Erro ao enviar requisição: " + ex.Message;
+        }
+    }
+
+    private void FecharModal() => mostrarModal = false;
+
+    // ================================================================
+    // DTOs locais
+    // ================================================================
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class ProdutoSimplesDto
+    {
+        public Guid id { get; set; }
+        public string descricao { get; set; } = "";
+    }
+
+    public class SaborPizzaDto
+    {
+        public Guid id { get; set; }
+        public string nome_sabor { get; set; } = "";
+        public bool ativo { get; set; }
+    }
+
+    public class ComboItemDto
+    {
+        public Guid combo_id { get; set; }
+        public Guid produto_vinculado_id { get; set; }
+        public decimal quantidade { get; set; }
+        public decimal preco_adicional { get; set; }
+    }
+
+    public class AdicionalDto
+    {
+        public Guid id { get; set; }
+        public string nome_adicional { get; set; } = "";
+        public decimal preco_venda { get; set; }
+        public bool ativo { get; set; }
+    }
+
+    public class LocalProducaoDto
+    {
+        public Guid id { get; set; }
+        public string nome_local { get; set; } = "";
+        public bool ativo { get; set; }
+    }
+}
