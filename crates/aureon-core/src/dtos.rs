@@ -91,6 +91,22 @@ pub struct ConfirmacaoAplicacaoReq {
 }
 
 // --- DTOs da Fase 7: Caixa, Venda e Pagamento ---
+// Convencao de unidade menor (_minor):
+//   BRL/USD: centavos  (R$ 10,50 -> 1050)
+//   PYG: guaranis      (Gs 10500 -> 10500)
+//   taxa_cambio: escala 1_000_000 (1 USD = 5.52 BRL -> 5_520_000)
+//   quantidade: escala 1_000 (1.500 kg -> 1500)
+
+// --- Caixa ---
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SaldoMoedaResp {
+    pub moeda_codigo: String,
+    pub valor_abertura_minor: i64,
+    pub valor_fechamento_informado_minor: Option<i64>,
+    pub valor_esperado_minor: Option<i64>,
+    pub diferenca_minor: Option<i64>,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SessaoCaixaResp {
@@ -98,36 +114,45 @@ pub struct SessaoCaixaResp {
     pub registradora_id: String,
     pub usuario_id: String,
     pub status: String,
-    pub valor_abertura: f64,
-    pub valor_fechamento: Option<f64>,
     pub aberto_em: String,
     pub fechado_em: Option<String>,
+    pub observacao: Option<String>,
+    pub saldos: Vec<SaldoMoedaResp>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SaldoMoedaReq {
+    pub moeda_codigo: String,
+    pub valor_minor: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AbrirCaixaReq {
     pub registradora_id: String,
     pub usuario_id: String,
-    pub valor_abertura: f64,
+    pub saldos_abertura: Vec<SaldoMoedaReq>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FecharCaixaReq {
     pub sessao_id: String,
     pub usuario_id: String,
-    pub valor_fechamento: f64,
+    pub saldos_fechamento: Vec<SaldoMoedaReq>,
+    pub observacao: Option<String>,
 }
+
+// --- Venda ---
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VendaResumoResp {
     pub id: String,
-    pub numero_venda: i64,
+    pub numero_venda: Option<i64>,  // NULL enquanto em andamento
     pub status: String,
     pub tipo_venda: String,
-    pub subtotal: f64,
-    pub desconto_total: f64,
-    pub acrescimo_total: f64,
-    pub total: f64,
+    pub subtotal_minor: i64,
+    pub desconto_total_minor: i64,
+    pub acrescimo_total_minor: i64,
+    pub total_minor: i64,
     pub total_itens: i64,
 }
 
@@ -138,7 +163,7 @@ pub struct ProdutoPdvResp {
     pub codigo_barras: Option<String>,
     pub nome: String,
     pub unidade_medida: String,
-    pub preco_venda: f64,
+    pub preco_venda_minor: i64,
     pub ativo: bool,
 }
 
@@ -149,11 +174,13 @@ pub struct VendaItemResp {
     pub produto_id: String,
     pub descricao_produto: String,
     pub codigo_produto: Option<String>,
-    pub quantidade: f64,
-    pub preco_unitario: f64,
-    pub desconto_item: f64,
-    pub total_item: f64,
+    pub quantidade_escala3: i64,
+    pub preco_unitario_minor: i64,
+    pub desconto_item_minor: i64,
+    pub total_item_minor: i64,
     pub cancelado: bool,
+    pub cancelado_em: Option<String>,
+    pub motivo_cancelamento: Option<String>,
     pub criado_em: String,
 }
 
@@ -163,16 +190,54 @@ pub struct VendaDetalheResp {
     pub itens: Vec<VendaItemResp>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AdicionarItemReq {
+    pub venda_id: String,
+    pub produto_id: String,
+    pub descricao_produto: String,
+    pub codigo_produto: Option<String>,
+    pub codigo_barras: Option<String>,
+    /// Quantidade em escala 3 casas (ex: 1.500 kg -> 1500)
+    pub quantidade_escala3: i64,
+    /// Preco unitario em minor unit (centavos)
+    pub preco_unitario_minor: i64,
+    /// Desconto no item em minor unit
+    pub desconto_item_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarItemReq {
+    pub item_id: String,
+    pub usuario_cancelamento_id: String,
+    pub motivo_cancelamento: String,
+    pub supervisor_id: Option<String>,
+    pub autorizacao_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarVendaReq {
+    pub venda_id: String,
+    pub usuario_cancelamento_id: String,
+    pub motivo_cancelamento: String,
+    pub supervisor_id: Option<String>,
+    pub autorizacao_id: Option<String>,
+}
+
+// --- Pagamento ---
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PagamentoResp {
     pub id: String,
     pub venda_id: String,
     pub forma_pagamento: String,
     pub moeda_codigo: String,
-    pub valor_informado: f64,
-    pub valor_convertido: f64,
-    pub taxa_cambio: f64,
-    pub troco: f64,
+    pub valor_informado_minor: i64,
+    pub moeda_principal_codigo: String,
+    pub valor_convertido_minor: i64,
+    pub taxa_cambio_escala6: i64,
+    pub data_cotacao_usada: String,
+    pub troco_minor: i64,
+    pub moeda_troco_codigo: Option<String>,
     pub criado_em: String,
 }
 
@@ -181,15 +246,19 @@ pub struct RegistrarPagamentoReq {
     pub venda_id: String,
     pub forma_pagamento: String,
     pub moeda_codigo: String,
-    pub valor_informado: f64,
+    /// Valor informado pelo operador em minor unit (centavos)
+    pub valor_informado_minor: i64,
+    /// Moeda em que o troco deve ser devolvido (default = moeda principal)
+    pub moeda_troco_codigo: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TrocoResp {
-    pub total_venda: f64,
-    pub total_pago: f64,
-    pub troco: f64,
+    pub total_venda_minor: i64,
+    pub total_pago_minor: i64,
+    pub troco_minor: i64,
     pub quitado: bool,
 }
+
 
 

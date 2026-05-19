@@ -1,12 +1,18 @@
 use tauri::State;
 use tracing::{info, error};
 use uuid::Uuid;
+use serde_json::json;
 
 use aureon_core::{dtos::*, RespostaBase};
 use crate::estado::EstadoApp;
+use crate::commands_caixa::outbox_inserir;
 
-/// Registra um pagamento para uma venda, com suporte a multiplas moedas.
-/// Usa cotacoes_cache para converter o valor informado para a moeda principal.
+// ================================================================
+// Command: registrar_pagamento
+// Valores em minor unit (i64). Taxa escalada em 1_000_000.
+// Snapshot da data/cotacao travado no momento do registro.
+// ================================================================
+
 #[tauri::command]
 pub async fn registrar_pagamento(
     dto: RegistrarPagamentoReq,
@@ -17,17 +23,16 @@ pub async fn registrar_pagamento(
         venda_id = %dto.venda_id,
         forma = %dto.forma_pagamento,
         moeda = %dto.moeda_codigo,
-        valor = dto.valor_informado,
+        valor_minor = dto.valor_informado_minor,
         "Chamada: registrar_pagamento"
     );
 
-    if dto.valor_informado <= 0.0 {
+    if dto.valor_informado_minor <= 0 {
         return Err("Valor do pagamento deve ser maior que zero.".into());
     }
 
-    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+    let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
 
-    // Verificar se venda existe e esta EM_ANDAMENTO
     let venda_ok: bool = conn.query_row(
         "SELECT COUNT(*) > 0 FROM vendas WHERE id = ?1 AND status = 'EM_ANDAMENTO'",
         rusqlite::params![&dto.venda_id],
@@ -38,47 +43,69 @@ pub async fn registrar_pagamento(
         return Err("Venda nao encontrada ou nao esta em andamento.".into());
     }
 
-    // Buscar moeda principal da empresa (principal = 1)
-    let moeda_principal: String = conn.query_row(
-        "SELECT codigo FROM moedas_cache WHERE principal = 1 LIMIT 1",
+    // Buscar moeda principal
+    let (moeda_principal, _data_cot_principal): (String, String) = conn.query_row(
+        "SELECT codigo, COALESCE(MAX(data_cotacao), datetime('now')) FROM moedas_cache
+         WHERE principal = 1 LIMIT 1",
         [],
-        |row| row.get(0),
-    ).unwrap_or_else(|_| "BRL".to_string());
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).unwrap_or_else(|_| ("BRL".to_string(), chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()));
 
-    // Calcular taxa de cambio
-    // Se a moeda do pagamento ja eh a principal, taxa = 1.0
-    let taxa_cambio: f64 = if dto.moeda_codigo.to_uppercase() == moeda_principal.to_uppercase() {
-        1.0
-    } else {
-        // Buscar cotacao: quanto vale 1 unidade de dto.moeda_codigo em moeda principal
-        conn.query_row(
-            "SELECT taxa FROM cotacoes_cache
-             WHERE UPPER(moeda_origem) = UPPER(?1) AND UPPER(moeda_destino) = UPPER(?2)
-             ORDER BY data_cotacao DESC LIMIT 1",
-            rusqlite::params![&dto.moeda_codigo, &moeda_principal],
-            |row| row.get(0),
-        ).map_err(|_| format!(
-            "Cotacao nao encontrada para {} -> {}. Atualize as cotacoes antes de usar esta moeda.",
-            dto.moeda_codigo, moeda_principal
-        ))?
-    };
+    // Calcular taxa escalada (1_000_000 = taxa 1.0)
+    let (taxa_cambio_escala6, data_cotacao_usada): (i64, String) =
+        if dto.moeda_codigo.to_uppercase() == moeda_principal.to_uppercase() {
+            (1_000_000_i64, chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string())
+        } else {
+            // Buscar cotacao mais recente: taxa em f64, converter para escala6
+            conn.query_row(
+                "SELECT taxa, data_cotacao FROM cotacoes_cache
+                 WHERE UPPER(moeda_origem) = UPPER(?1) AND UPPER(moeda_destino) = UPPER(?2)
+                 ORDER BY data_cotacao DESC LIMIT 1",
+                rusqlite::params![&dto.moeda_codigo, &moeda_principal],
+                |row| {
+                    let taxa_f64: f64 = row.get(0)?;
+                    let data: String = row.get(1)?;
+                    // Escala 1_000_000 — sem f64 nas operacoes financeiras apos este ponto
+                    let taxa_escala6 = (taxa_f64 * 1_000_000.0).round() as i64;
+                    Ok((taxa_escala6, data))
+                },
+            ).map_err(|_| format!(
+                "Cotacao nao encontrada para {} -> {}. Atualize as cotacoes.",
+                dto.moeda_codigo, moeda_principal
+            ))?
+        };
 
-    let valor_convertido = dto.valor_informado * taxa_cambio;
+    // Conversao inteira: valor_informado * taxa_escala6 / 1_000_000
+    let valor_convertido_minor = dto.valor_informado_minor
+        .checked_mul(taxa_cambio_escala6)
+        .ok_or("Overflow no calculo de conversao")?
+        / 1_000_000;
+
     let agora = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let pag_id = Uuid::new_v4().to_string();
+    let moeda_troco = dto.moeda_troco_codigo.clone()
+        .unwrap_or_else(|| moeda_principal.clone());
 
-    conn.execute(
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute(
         "INSERT INTO venda_pagamentos (id, venda_id, forma_pagamento, moeda_codigo,
-                                       valor_informado, valor_convertido, taxa_cambio, troco, criado_em)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0.0, ?8)",
+                                       valor_informado_minor, moeda_principal_codigo,
+                                       valor_convertido_minor, taxa_cambio_escala6,
+                                       data_cotacao_usada, troco_minor, moeda_troco_codigo,
+                                       criado_em)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, ?10, ?11)",
         rusqlite::params![
             &pag_id,
             &dto.venda_id,
             &dto.forma_pagamento,
             &dto.moeda_codigo,
-            dto.valor_informado,
-            valor_convertido,
-            taxa_cambio,
+            dto.valor_informado_minor,
+            &moeda_principal,
+            valor_convertido_minor,
+            taxa_cambio_escala6,
+            &data_cotacao_usada,  // snapshot travado
+            &moeda_troco,
             &agora
         ],
     ).map_err(|e| {
@@ -86,22 +113,48 @@ pub async fn registrar_pagamento(
         e.to_string()
     })?;
 
+    // Evento outbox: PAGAMENTO_REGISTRADO
+    outbox_inserir(
+        &tx,
+        "PAGAMENTO_REGISTRADO",
+        json!({
+            "pagamento_id": &pag_id,
+            "venda_id": &dto.venda_id,
+            "forma_pagamento": &dto.forma_pagamento,
+            "moeda_codigo": &dto.moeda_codigo,
+            "valor_informado_minor": dto.valor_informado_minor,
+            "valor_convertido_minor": valor_convertido_minor,
+            "taxa_cambio_escala6": taxa_cambio_escala6,
+            "data_cotacao_usada": &data_cotacao_usada,
+            "criado_em": &agora
+        }),
+    )?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+
     let resp = PagamentoResp {
-        id:              pag_id,
-        venda_id:        dto.venda_id,
+        id: pag_id,
+        venda_id: dto.venda_id,
         forma_pagamento: dto.forma_pagamento,
-        moeda_codigo:    dto.moeda_codigo,
-        valor_informado: dto.valor_informado,
-        valor_convertido,
-        taxa_cambio,
-        troco: 0.0,
+        moeda_codigo: dto.moeda_codigo,
+        valor_informado_minor: dto.valor_informado_minor,
+        moeda_principal_codigo: moeda_principal,
+        valor_convertido_minor,
+        taxa_cambio_escala6,
+        data_cotacao_usada,
+        troco_minor: 0, // calculado separadamente por calcular_troco
+        moeda_troco_codigo: Some(moeda_troco),
         criado_em: agora,
     };
 
     Ok(RespostaBase::ok("Pagamento registrado", resp))
 }
 
-/// Calcula o troco com base nos pagamentos ja registrados para a venda.
+// ================================================================
+// Command: calcular_troco
+// Aritmética inteira pura — sem f64
+// ================================================================
+
 #[tauri::command]
 pub async fn calcular_troco(
     venda_id: String,
@@ -115,31 +168,33 @@ pub async fn calcular_troco(
 
     let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
 
-    let total_venda: f64 = conn.query_row(
-        "SELECT total FROM vendas WHERE id = ?1",
+    let total_venda_minor: i64 = conn.query_row(
+        "SELECT total_minor FROM vendas WHERE id = ?1",
         rusqlite::params![&venda_id],
         |row| row.get(0),
     ).map_err(|_| "Venda nao encontrada.".to_string())?;
 
-    let total_pago: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(valor_convertido), 0.0) FROM venda_pagamentos WHERE venda_id = ?1",
+    let total_pago_minor: i64 = conn.query_row(
+        "SELECT COALESCE(SUM(valor_convertido_minor), 0) FROM venda_pagamentos WHERE venda_id = ?1",
         rusqlite::params![&venda_id],
         |row| row.get(0),
-    ).unwrap_or(0.0);
+    ).unwrap_or(0);
 
-    let troco = total_pago - total_venda;
+    let troco_minor = (total_pago_minor - total_venda_minor).max(0);
 
-    let resp = TrocoResp {
-        total_venda,
-        total_pago,
-        troco: troco.max(0.0),
-        quitado: total_pago >= total_venda,
-    };
-
-    Ok(RespostaBase::ok("Troco calculado", resp))
+    Ok(RespostaBase::ok("Troco calculado", TrocoResp {
+        total_venda_minor,
+        total_pago_minor,
+        troco_minor,
+        quitado: total_pago_minor >= total_venda_minor,
+    }))
 }
 
-/// Finaliza a venda, exigindo que o pagamento total cubra o valor da venda.
+// ================================================================
+// Command: finalizar_venda
+// numero_venda atribuido aqui — transacao atomica com incremento
+// ================================================================
+
 #[tauri::command]
 pub async fn finalizar_venda(
     venda_id: String,
@@ -153,9 +208,9 @@ pub async fn finalizar_venda(
 
     let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
 
-    // Verificar se venda esta EM_ANDAMENTO
-    let (total_venda, total_itens): (f64, i64) = conn.query_row(
-        "SELECT v.total, COUNT(CASE WHEN vi.cancelado = 0 THEN 1 END)
+    // Verificar venda EM_ANDAMENTO e buscar total e contagem de itens
+    let (total_venda_minor, total_itens): (i64, i64) = conn.query_row(
+        "SELECT v.total_minor, COUNT(CASE WHEN vi.cancelado = 0 THEN 1 END)
          FROM vendas v
          LEFT JOIN venda_itens vi ON vi.venda_id = v.id
          WHERE v.id = ?1 AND v.status = 'EM_ANDAMENTO'
@@ -165,67 +220,108 @@ pub async fn finalizar_venda(
     ).map_err(|_| "Venda nao encontrada ou nao esta em andamento.".to_string())?;
 
     if total_itens == 0 {
-        return Err("Nao eh possivel finalizar uma venda sem itens.".into());
+        return Err("Nao e possivel finalizar uma venda sem itens ativos.".into());
     }
 
-    // Verificar se pagamento cobre o total
-    let total_pago: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(valor_convertido), 0.0) FROM venda_pagamentos WHERE venda_id = ?1",
+    // Verificar cobertura do pagamento — aritmética inteira
+    let total_pago_minor: i64 = conn.query_row(
+        "SELECT COALESCE(SUM(valor_convertido_minor), 0) FROM venda_pagamentos WHERE venda_id = ?1",
         rusqlite::params![&venda_id],
         |row| row.get(0),
-    ).unwrap_or(0.0);
+    ).unwrap_or(0);
 
-    // Tolerancia de 1 centavo para arredondamentos de ponto flutuante
-    if total_pago < total_venda - 0.01 {
+    if total_pago_minor < total_venda_minor {
         return Err(format!(
-            "Pagamento insuficiente. Total: {:.2} | Pago: {:.2} | Faltam: {:.2}",
-            total_venda,
-            total_pago,
-            total_venda - total_pago
+            "Pagamento insuficiente. Total: {} | Pago: {} | Faltam: {} (em minor unit)",
+            total_venda_minor,
+            total_pago_minor,
+            total_venda_minor - total_pago_minor
         ));
     }
 
     let agora = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
+    // Transacao atomica: buscar+incrementar numero_venda + marcar FINALIZADA
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    tx.execute(
-        "UPDATE vendas SET status = 'FINALIZADA', finalizado_em = ?1, atualizado_em = ?1
-         WHERE id = ?2",
-        rusqlite::params![&agora, &venda_id],
+    let numero_venda: i64 = tx.query_row(
+        "SELECT proximo_numero FROM controle_numeracao WHERE id = 1",
+        [],
+        |row| row.get(0),
     ).map_err(|e| e.to_string())?;
+
+    tx.execute(
+        "UPDATE controle_numeracao SET proximo_numero = proximo_numero + 1, atualizado_em = ?1
+         WHERE id = 1",
+        rusqlite::params![&agora],
+    ).map_err(|e| e.to_string())?;
+
+    tx.execute(
+        "UPDATE vendas
+         SET status = 'FINALIZADA',
+             numero_venda = ?1,
+             finalizado_em = ?2,
+             atualizado_em = ?2
+         WHERE id = ?3",
+        rusqlite::params![numero_venda, &agora, &venda_id],
+    ).map_err(|e| e.to_string())?;
+
+    // Calcular e gravar troco no pagamento mais recente (simplificado)
+    let troco_minor = total_pago_minor - total_venda_minor;
+    if troco_minor > 0 {
+        tx.execute(
+            "UPDATE venda_pagamentos SET troco_minor = ?1
+             WHERE id = (SELECT id FROM venda_pagamentos WHERE venda_id = ?2
+                         ORDER BY criado_em DESC LIMIT 1)",
+            rusqlite::params![troco_minor, &venda_id],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // Evento outbox: VENDA_FINALIZADA
+    outbox_inserir(
+        &tx,
+        "VENDA_FINALIZADA",
+        json!({
+            "venda_id": &venda_id,
+            "numero_venda": numero_venda,
+            "total_minor": total_venda_minor,
+            "total_pago_minor": total_pago_minor,
+            "troco_minor": troco_minor,
+            "finalizado_em": &agora
+        }),
+    )?;
 
     tx.commit().map_err(|e| e.to_string())?;
 
-    // Retornar resumo final
+    // Retornar resumo atualizado com numero_venda preenchido
     let resp = conn.query_row(
         "SELECT v.id, v.numero_venda, v.status, v.tipo_venda,
-                v.subtotal, v.desconto_total, v.acrescimo_total, v.total,
+                v.subtotal_minor, v.desconto_total_minor, v.acrescimo_total_minor, v.total_minor,
                 COUNT(CASE WHEN vi.cancelado = 0 THEN 1 END) as total_itens
          FROM vendas v
          LEFT JOIN venda_itens vi ON vi.venda_id = v.id
-         WHERE v.id = ?1
-         GROUP BY v.id",
+         WHERE v.id = ?1 GROUP BY v.id",
         rusqlite::params![&venda_id],
-        |row| {
-            Ok(VendaResumoResp {
-                id:              row.get(0)?,
-                numero_venda:    row.get(1)?,
-                status:          row.get(2)?,
-                tipo_venda:      row.get(3)?,
-                subtotal:        row.get(4)?,
-                desconto_total:  row.get(5)?,
-                acrescimo_total: row.get(6)?,
-                total:           row.get(7)?,
-                total_itens:     row.get(8)?,
-            })
-        },
+        |row| Ok(VendaResumoResp {
+            id:                    row.get(0)?,
+            numero_venda:          row.get(1)?,
+            status:                row.get(2)?,
+            tipo_venda:            row.get(3)?,
+            subtotal_minor:        row.get(4)?,
+            desconto_total_minor:  row.get(5)?,
+            acrescimo_total_minor: row.get(6)?,
+            total_minor:           row.get(7)?,
+            total_itens:           row.get(8)?,
+        }),
     ).map_err(|e| e.to_string())?;
 
     Ok(RespostaBase::ok("Venda finalizada com sucesso", resp))
 }
 
-/// Lista todos os pagamentos registrados para uma venda.
+// ================================================================
+// Command: listar_pagamentos_venda
+// ================================================================
+
 #[tauri::command]
 pub async fn listar_pagamentos_venda(
     venda_id: String,
@@ -241,30 +337,31 @@ pub async fn listar_pagamentos_venda(
 
     let mut stmt = conn.prepare(
         "SELECT id, venda_id, forma_pagamento, moeda_codigo,
-                valor_informado, valor_convertido, taxa_cambio, troco, criado_em
-         FROM venda_pagamentos
-         WHERE venda_id = ?1
-         ORDER BY criado_em ASC"
+                valor_informado_minor, moeda_principal_codigo, valor_convertido_minor,
+                taxa_cambio_escala6, data_cotacao_usada, troco_minor,
+                moeda_troco_codigo, criado_em
+         FROM venda_pagamentos WHERE venda_id = ?1 ORDER BY criado_em ASC"
     ).map_err(|e| e.to_string())?;
 
     let iter = stmt.query_map(rusqlite::params![&venda_id], |row| {
         Ok(PagamentoResp {
-            id:              row.get(0)?,
-            venda_id:        row.get(1)?,
-            forma_pagamento: row.get(2)?,
-            moeda_codigo:    row.get(3)?,
-            valor_informado: row.get(4)?,
-            valor_convertido: row.get(5)?,
-            taxa_cambio:     row.get(6)?,
-            troco:           row.get(7)?,
-            criado_em:       row.get(8)?,
+            id:                     row.get(0)?,
+            venda_id:               row.get(1)?,
+            forma_pagamento:        row.get(2)?,
+            moeda_codigo:           row.get(3)?,
+            valor_informado_minor:  row.get(4)?,
+            moeda_principal_codigo: row.get(5)?,
+            valor_convertido_minor: row.get(6)?,
+            taxa_cambio_escala6:    row.get(7)?,
+            data_cotacao_usada:     row.get(8)?,
+            troco_minor:            row.get(9)?,
+            moeda_troco_codigo:     row.get(10)?,
+            criado_em:              row.get(11)?,
         })
     }).map_err(|e| e.to_string())?;
 
     let mut pagamentos = Vec::new();
-    for p in iter {
-        if let Ok(val) = p { pagamentos.push(val); }
-    }
+    for p in iter { if let Ok(val) = p { pagamentos.push(val); } }
 
     Ok(RespostaBase::ok("Pagamentos da venda", pagamentos))
 }

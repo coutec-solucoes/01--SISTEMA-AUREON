@@ -29,6 +29,11 @@ fn migrations() -> Vec<Migration> {
             nome:   "venda_nucleo",
             sql:    include_str!("../../../../database/migrations/sqlite/003_venda_nucleo.sql"),
         },
+        Migration {
+            versao: 4,
+            nome:   "venda_nucleo_correcao_financeira",
+            sql:    include_str!("../../../../database/migrations/sqlite/004_venda_nucleo_correcao_financeira.sql"),
+        },
     ]
 }
 
