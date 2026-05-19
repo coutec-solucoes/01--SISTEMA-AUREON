@@ -9,6 +9,7 @@
     "beforeBuildCommand": "dotnet publish ..\\ui-blazor\\aureon-pdv-ui.csproj -c Release"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Aureon PDV",
