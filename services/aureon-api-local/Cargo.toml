@@ -22,6 +22,9 @@ chrono      = { workspace = true }
 sqlx        = { workspace = true }
 rust_decimal = { workspace = true }
 uuid         = { workspace = true }
+argon2       = { workspace = true }
+rand         = { workspace = true }
+sha2         = { workspace = true }
 
 # Variáveis de ambiente
 dotenvy = "0.15"
