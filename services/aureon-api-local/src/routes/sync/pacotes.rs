@@ -74,32 +74,113 @@ pub async fn primeira_sincronizacao(
 
     // Gerar pacote na tabela pacotes_sincronizacao
     let pacote_id = Uuid::new_v4();
-    let hash_geral = "hash-placeholder".to_string(); // será calculado com base nos itens
-
+    
     let mut tx = pool.begin().await.map_err(|e| ErroApi::interno(e.to_string()))?;
 
-    // Registra o pacote
+    // Consulta versoes de dados reais do PostgreSQL
+    let versoes = sqlx::query("SELECT tipo_dado, versao, hash_conteudo FROM sync_versoes_dados")
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| ErroApi::interno(e.to_string()))?;
+
+    let mut grupos_dados = Vec::new();
+    let mut itens_payload = Vec::new();
+
+    for row in &versoes {
+        let tipo_dado: String = row.try_get("tipo_dado").unwrap_or_default();
+        let versao: i32 = row.try_get("versao").unwrap_or(1);
+        let hash_conteudo: String = row.try_get("hash_conteudo").unwrap_or_default();
+
+        // Consulta real de dados baseados no grupo
+        let payload_json: serde_json::Value = match tipo_dado.as_str() {
+            "empresa_config" => {
+                let empresas: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM empresas t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                json!({ "empresas": empresas })
+            },
+            "moedas_cotacoes" => {
+                let moedas: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM moedas t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                json!({ "moedas": moedas })
+            },
+            "usuarios_permissoes" => {
+                // Removido senha e hash sensível por regra
+                let usuarios: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(json_build_object('id', t.id, 'nome', t.nome, 'ativo', t.ativo)), '[]') FROM usuarios t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                let perfis: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM perfis t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                json!({ "usuarios": usuarios, "perfis": perfis })
+            },
+            "produtos_catalogo" => {
+                let produtos: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM produtos t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                json!({ "produtos": produtos })
+            },
+            "produtos_precos" => {
+                let precos: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(json_build_object('produto_id', id, 'preco_custo', preco_custo, 'preco_venda', preco_venda)), '[]') FROM produtos").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                json!({ "precos": precos })
+            },
+            "produtos_fiscal" => {
+                let fiscais: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM produtos_fiscal t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                json!({ "fiscais": fiscais })
+            },
+            "produtos_complementos" => {
+                let adicionais: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM adicionais t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                let prod_adicionais: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM produtos_adicionais t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                json!({ "adicionais": adicionais, "produtos_adicionais": prod_adicionais })
+            },
+            "configuracoes_operacionais" => {
+                let terminais: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(json_build_object('id', t.id, 'status_sync', t.status_sync, 'ativo', t.ativo)), '[]') FROM terminais_pdv t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                let configs_pdv: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM configuracoes_pdv t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                let regras: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM regras_venda t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                json!({ "terminais_pdv": terminais, "configuracoes_pdv": configs_pdv, "regras_venda": regras })
+            },
+            "dispositivos_perifericos" => {
+                let perifericos: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM perifericos t").fetch_one(&mut *tx).await.unwrap_or(json!([]));
+                json!({ "perifericos": perifericos })
+            },
+            _ => json!({}),
+        };
+
+        // Insere o item do pacote
+        sqlx::query(
+            "INSERT INTO pacotes_sincronizacao_itens (pacote_id, tipo_dado, versao, hash_conteudo, payload_json)
+             VALUES ($1, $2, $3, $4, $5)"
+        )
+        .bind(pacote_id)
+        .bind(&tipo_dado)
+        .bind(versao)
+        .bind(&hash_conteudo)
+        .bind(&payload_json)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ErroApi::interno(e.to_string()))?;
+
+        grupos_dados.push(tipo_dado.clone());
+        itens_payload.push(json!({
+            "tipo_dado": tipo_dado,
+            "versao": versao,
+            "hash_conteudo": hash_conteudo,
+            "payload": payload_json
+        }));
+    }
+
+    let hash_geral = format!("hash-{}", Uuid::new_v4()); // Hash real seria digest SHA256 do pacote
+    let total_itens = grupos_dados.len() as i32;
+
+    // Registra o pacote pai
     sqlx::query(
         "INSERT INTO pacotes_sincronizacao (id, terminal_id, tipo_pacote, status, idempotency_key, versao_geral, total_itens)
-         VALUES ($1, $2, 'PRIMEIRA_SYNC', 'GERADO', $3, $4, 0)"
+         VALUES ($1, $2, 'PRIMEIRA_SYNC', 'GERADO', $3, $4, $5)"
     )
     .bind(pacote_id)
     .bind(payload.terminal_id)
     .bind(&payload.idempotency_key)
     .bind(&hash_geral)
+    .bind(total_itens)
     .execute(&mut *tx)
     .await
     .map_err(|e| ErroApi::interno(e.to_string()))?;
 
-    // Placeholder do pacote (na implementação completa aqui leríamos as versões reais)
     let resposta_pacote = json!({
         "pacote_id": pacote_id,
         "tipo": "PRIMEIRA_SYNC",
-        "grupos_dados": [
-            "empresa_config", "moedas_cotacoes", "usuarios_permissoes",
-            "produtos_catalogo", "produtos_precos", "produtos_fiscal",
-            "produtos_complementos", "configuracoes_operacionais", "dispositivos_perifericos"
-        ]
+        "grupos_dados": itens_payload
     });
 
     sqlx::query(

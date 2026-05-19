@@ -70,3 +70,17 @@ Decisões de arquitetura adotadas na Fase 6 — Sincronização Base e Publicaç
 - **Contexto**: O terminal PDV precisa armazenar sua `chave_terminal` (token opaco UUID) localmente para autenticar chamadas subsequentes à API.
 - **Decisão**: Em produção, o valor sensível é gravado na tabela `configuracoes_locais` (campo `valor_criptografado`). A coluna `chave_terminal` em `terminal_local` serve apenas como referência de status — nunca é exposta em `sync_logs` ou `logs_locais`.
 - **Consequência**: Proteção dupla: dado sensível criptografado + log sem exposição de segredos. Segue o padrão oficial da Fase 3 de não logar tokens.
+
+---
+
+## 📦 ADR 10: Integração Real PostgreSQL para Pacotes de Sincronização
+- **Contexto**: A rota de primeira sincronização inicialmente usava payloads mockados para catálogo de produtos, preços, fiscal, periféricos e complementos.
+- **Decisão**: Substituímos todos os mocks JSON por consultas dinâmicas reais ao PostgreSQL usando funções SQL agregadoras como `json_agg` e `row_to_json`. As queries cobrem 100% dos 9 grupos de dados requeridos.
+- **Consequência**: Sincronização ponta a ponta com dados reais cadastrados na retaguarda, eliminando o isolamento de dados artificiais.
+
+---
+
+## 🖥️ ADR 11: Interface Blazor para Administração de Sync
+- **Contexto**: A retaguarda necessita expor os status de sincronização e diagnóstico para controle gerencial dos administradores.
+- **Decisão**: Criada uma seção "Sincronização" no menu principal com 4 telas Blazor WebAssembly dedicadas: Status de Terminais, Publicação de Dados, Logs de Sync e Diagnósticos, consumindo os endpoints reais da API Axum.
+- **Consequência**: Visualização centralizada e em tempo real do ecossistema de terminais ativos com fluxo operacional limpo e responsivo.

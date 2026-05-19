@@ -1,0 +1,73 @@
+@page "/configuracoes/sync/logs"
+@using System.Net.Http.Json
+@inject HttpClient Http
+
+<h3>Logs de Sincronização</h3>
+
+@if (logs == null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Terminal</th>
+                <th>Tipo Evento</th>
+                <th>Status</th>
+                <th>Mensagem</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var log in logs)
+            {
+                <tr>
+                    <td>@log.CriadoEm</td>
+                    <td>@log.TerminalId</td>
+                    <td>@log.TipoEvento</td>
+                    <td>@log.Status</td>
+                    <td>@log.Mensagem</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private SyncLog[]? logs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var res = await Http.GetFromJsonAsync<RespostaBase<SyncLog[]>>("http://localhost:7000/sync/logs");
+            if (res != null && res.Sucesso)
+            {
+                logs = res.Dados;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            logs = Array.Empty<SyncLog>();
+        }
+    }
+
+    public class SyncLog
+    {
+        public Guid? TerminalId { get; set; }
+        public string TipoEvento { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string Mensagem { get; set; } = "";
+        public DateTime CriadoEm { get; set; }
+    }
+
+    public class RespostaBase<T>
+    {
+        public string Mensagem { get; set; } = "";
+        public bool Sucesso { get; set; }
+        public T? Dados { get; set; }
+    }
+}

@@ -28,6 +28,30 @@
                     </li>
 
                     <div class="sidebar-header" style="padding: 16px 24px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--cor-texto-disabled); font-weight: 600; margin-top: 16px;">
+                        Sincronização
+                    </div>
+                    <li class="sidebar-item @(IsActive("/configuracoes/sync/terminais") ? "ativo" : "")">
+                        <a href="/configuracoes/sync/terminais">
+                            <span>🖥️</span> Status dos Terminais
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/configuracoes/sync/publicacao") ? "ativo" : "")">
+                        <a href="/configuracoes/sync/publicacao">
+                            <span>📤</span> Publicação de Dados
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/configuracoes/sync/logs") ? "ativo" : "")">
+                        <a href="/configuracoes/sync/logs">
+                            <span>📋</span> Logs de Sync
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/configuracoes/sync/diagnostico") ? "ativo" : "")">
+                        <a href="/configuracoes/sync/diagnostico">
+                            <span>🔍</span> Diagnóstico de Sync
+                        </a>
+                    </li>
+
+                    <div class="sidebar-header" style="padding: 16px 24px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--cor-texto-disabled); font-weight: 600; margin-top: 16px;">
                         Cadastros
                     </div>
                     

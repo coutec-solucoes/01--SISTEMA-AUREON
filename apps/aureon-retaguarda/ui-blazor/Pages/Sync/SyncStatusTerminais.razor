@@ -1,0 +1,70 @@
+@page "/configuracoes/sync/terminais"
+@using System.Net.Http.Json
+@inject HttpClient Http
+
+<h3>Status de Sincronização dos Terminais</h3>
+
+@if (terminais == null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Terminal ID</th>
+                <th>Status</th>
+                <th>Última Sincronização</th>
+                <th>Última Tentativa</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var term in terminais)
+            {
+                <tr>
+                    <td>@term.TerminalId</td>
+                    <td>@term.Status</td>
+                    <td>@term.UltimaSincronizacao</td>
+                    <td>@term.UltimaTentativa</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private TerminalSyncStatus[]? terminais;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var res = await Http.GetFromJsonAsync<RespostaBase<TerminalSyncStatus[]>>("http://localhost:7000/sync/status");
+            if (res != null && res.Sucesso)
+            {
+                terminais = res.Dados;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            terminais = Array.Empty<TerminalSyncStatus>();
+        }
+    }
+
+    public class TerminalSyncStatus
+    {
+        public Guid TerminalId { get; set; }
+        public string Status { get; set; } = "";
+        public DateTime? UltimaSincronizacao { get; set; }
+        public DateTime? UltimaTentativa { get; set; }
+    }
+
+    public class RespostaBase<T>
+    {
+        public string Mensagem { get; set; } = "";
+        public bool Sucesso { get; set; }
+        public T? Dados { get; set; }
+    }
+}
