@@ -1,0 +1,533 @@
+@page "/pdv"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+
+<PageTitle>Frente de Caixa (PDV)</PageTitle>
+
+<div class="pdv-container fade-in">
+    @if (CarregandoGeral)
+    {
+        <div style="text-align:center; padding: 40px; color: var(--cor-texto-sub);">Carregando PDV...</div>
+    }
+    else if (!CaixaAberto)
+    {
+        <div class="card" style="text-align: center; border-left: 4px solid #ff9800; padding: 40px;">
+            <h2 style="margin-bottom: 16px; color: #ff9800;">Caixa Fechado</h2>
+            <p style="color: var(--cor-texto-sub); margin-bottom: 24px;">Para iniciar uma venda, o caixa deve estar aberto.</p>
+            <a href="/caixa" class="btn btn-primario">Ir para o Caixa</a>
+        </div>
+    }
+    else
+    {
+        <!-- PDV Aberto -->
+        <div class="pdv-grid">
+            
+            <!-- ESQUERDA: Busca e Itens -->
+            <div class="pdv-col-esquerda">
+                
+                @if (VendaAtual == null)
+                {
+                    <div class="card" style="text-align: center; padding: 40px; flex-grow: 1; display:flex; flex-direction:column; justify-content:center;">
+                        <h2 style="margin-bottom: 16px;">Caixa Livre</h2>
+                        <button class="btn btn-primario" style="align-self: center; font-size: 16px; padding: 12px 32px;" @onclick="IniciarVenda" disabled="@Processando">
+                            INICIAR VENDA (F2)
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <!-- Status da Venda -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <div style="font-size: 14px; font-weight: 600; color: #00e676;">VENDA EM ANDAMENTO</div>
+                        <div style="font-size: 12px; color: var(--cor-texto-sub); font-family: monospace;">ID: @VendaAtual.Id.Substring(0, 8)...</div>
+                    </div>
+
+                    <!-- Input de Busca -->
+                    <div class="card pdv-busca-card" style="margin-bottom: 16px;">
+                        <form @onsubmit="AdicionarProdutoSubmit" style="display: flex; gap: 12px;">
+                            <input type="text" class="input-moderno" placeholder="Código de Barras ou Interno" 
+                                   @bind="BuscaCodigo" @bind:event="oninput" 
+                                   disabled="@(ExibindoPagamento || Processando)" autofocus style="flex-grow: 1; font-size: 16px;" />
+                            
+                            <input type="number" class="input-moderno" style="width: 100px; text-align: center;" 
+                                   @bind="BuscaQtd" step="0.001" min="0.001" 
+                                   disabled="@(ExibindoPagamento || Processando)" />
+                            
+                            <button type="submit" class="btn btn-primario" disabled="@(ExibindoPagamento || Processando || string.IsNullOrWhiteSpace(BuscaCodigo))">
+                                ADICIONAR
+                            </button>
+                        </form>
+                        @if (ErroBusca != null)
+                        {
+                            <div style="color: #f44336; font-size: 12px; margin-top: 8px;">@ErroBusca</div>
+                        }
+                    </div>
+
+                    <!-- Lista de Itens -->
+                    <div class="card pdv-itens-lista" style="flex-grow: 1; overflow-y: auto;">
+                        @if (ItensVenda.Count == 0)
+                        {
+                            <div style="color: var(--cor-texto-sub); text-align: center; padding: 20px;">Nenhum item adicionado.</div>
+                        }
+                        else
+                        {
+                            <table style="width: 100%; text-align: left; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--cor-texto-sub); font-size: 12px;">
+                                        <th style="padding: 8px 0;">Item</th>
+                                        <th style="padding: 8px 0; text-align:right;">Qtd</th>
+                                        <th style="padding: 8px 0; text-align:right;">Unid</th>
+                                        <th style="padding: 8px 0; text-align:right;">Total</th>
+                                        <th style="padding: 8px 0; text-align:center;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = ItensVenda.Count - 1; i >= 0; i--) // Ordem inversa (ultimo no topo)
+                                    {
+                                        var item = ItensVenda[i];
+                                        var idx = i + 1;
+                                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); @(item.Cancelado ? "opacity:0.4; text-decoration:line-through;" : "")">
+                                            <td style="padding: 12px 0;">
+                                                <div style="font-weight: 600; font-size: 14px;">@String.Format("{0:00}", idx). @item.DescricaoProduto</div>
+                                                <div style="font-size: 11px; color: var(--cor-texto-sub); font-family: monospace;">@item.CodigoProduto</div>
+                                            </td>
+                                            <td style="padding: 12px 0; text-align:right;">@FormatarQtd(item.QuantidadeEscala3)</td>
+                                            <td style="padding: 12px 0; text-align:right;">@FormatarValor(item.PrecoUnitarioMinor)</td>
+                                            <td style="padding: 12px 0; text-align:right; font-weight:600;">@FormatarValor(item.TotalItemMinor)</td>
+                                            <td style="padding: 12px 0; text-align:center;">
+                                                @if (!item.Cancelado && !ExibindoPagamento)
+                                                {
+                                                    <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(244,67,54,0.1); color: #f44336;"
+                                                            @onclick="() => CancelarItem(item.Id)">Excluir</button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- DIREITA: Totais e Pagamento -->
+            <div class="pdv-col-direita card" style="display: flex; flex-direction: column;">
+                
+                <div style="flex-grow: 1;">
+                    <h3 style="font-size: 14px; color: var(--cor-texto-sub); margin-bottom: 24px;">Resumo da Venda</h3>
+
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px;">
+                        <span>Subtotal</span>
+                        <span>@(VendaAtual != null ? FormatarValor(VendaAtual.SubtotalMinor) : "0.00")</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; color: #ff9800;">
+                        <span>Descontos</span>
+                        <span>@(VendaAtual != null ? FormatarValor(VendaAtual.DescontoTotalMinor) : "0.00")</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 14px;">
+                        <span>Acréscimos</span>
+                        <span>@(VendaAtual != null ? FormatarValor(VendaAtual.AcrescimoTotalMinor) : "0.00")</span>
+                    </div>
+
+                    <div style="border-top: 1px dashed rgba(255,255,255,0.2); margin-bottom: 24px;"></div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 32px;">
+                        <span style="font-size: 18px; font-weight: 600;">TOTAL</span>
+                        <span style="font-size: 32px; font-weight: 700; color: #00e676;">
+                            @(VendaAtual != null ? FormatarValor(VendaAtual.TotalMinor) : "0.00")
+                        </span>
+                    </div>
+
+                    @if (VendaAtual != null && !ExibindoPagamento)
+                    {
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
+                            <button class="btn btn-primario" style="font-size: 18px; padding: 16px;" 
+                                    disabled="@(VendaAtual.TotalMinor == 0 || Processando)"
+                                    @onclick="AbrirPagamento">
+                                Pagar (F3)
+                            </button>
+                            <button class="btn" style="background: rgba(244,67,54,0.1); color: #f44336; padding: 12px;"
+                                    disabled="@Processando" @onclick="CancelarVenda">
+                                Cancelar Venda
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                <!-- PAINEL DE PAGAMENTO (OVERLAY / IN-PLACE) -->
+                @if (ExibindoPagamento)
+                {
+                    <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.1);">
+                        <h3 style="font-size: 16px; margin-bottom: 16px;">Pagamento Multimoeda</h3>
+
+                        @if (ErroPagamento != null)
+                        {
+                            <div style="color: #f44336; font-size: 13px; margin-bottom: 16px;">@ErroPagamento</div>
+                        }
+
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+                            <span>Falta Pagar</span>
+                            <span style="color: #ff9800; font-weight: bold;">@FormatarValor(FaltaPagarMinor)</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 14px;">
+                            <span>Troco</span>
+                            <span style="color: #00e676; font-weight: bold;">@FormatarValor(TrocoAtualMinor)</span>
+                        </div>
+
+                        <!-- Lançamentos de Pagamento -->
+                        @if (Pagamentos.Count > 0)
+                        {
+                            <div style="margin-bottom: 16px; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 8px;">
+                                @foreach(var p in Pagamentos)
+                                {
+                                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                                        <span>@p.FormaPagamento (@p.MoedaCodigo)</span>
+                                        <span>@FormatarValorMoeda(p.MoedaCodigo, p.ValorInformadoMinor) <small>-> BRL @FormatarValor(p.ValorConvertidoMinor)</small></span>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @if (PodeFinalizar)
+                        {
+                            <button class="btn btn-primario" style="width: 100%; font-size: 18px; padding: 16px;" 
+                                    @onclick="FinalizarVenda" disabled="@Processando">
+                                FINALIZAR VENDA
+                            </button>
+                        }
+                        else
+                        {
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                <div>
+                                    <label style="font-size: 11px; color: var(--cor-texto-sub);">Moeda</label>
+                                    <select class="input-moderno" @bind="PagMoeda">
+                                        <option value="BRL">BRL</option>
+                                        <option value="USD">USD</option>
+                                        <option value="PYG">PYG</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size: 11px; color: var(--cor-texto-sub);">Forma</label>
+                                    <select class="input-moderno" @bind="PagForma">
+                                        <option value="DINHEIRO">Dinheiro</option>
+                                        <option value="PIX">Pix</option>
+                                        <option value="CARTAO_DEBITO">Débito</option>
+                                        <option value="CARTAO_CREDITO">Crédito</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="margin-bottom: 16px;">
+                                <label style="font-size: 11px; color: var(--cor-texto-sub);">Valor Informado</label>
+                                <input type="number" class="input-moderno" style="font-size: 18px; font-weight: bold;"
+                                       @bind="PagValor" step="0.01" min="0.01" />
+                            </div>
+
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-primario" style="flex-grow: 1;" @onclick="LancarPagamento" disabled="@Processando">
+                                    Lançar Pagamento
+                                </button>
+                                <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="CancelarPagamento" disabled="@Processando">
+                                    Voltar
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+
+            </div>
+
+        </div>
+    }
+</div>
+
+<!-- Estilos exclusivos do grid PDV -->
+<style>
+    .pdv-container { height: calc(100vh - 120px); display: flex; flex-direction: column; }
+    .pdv-grid { display: flex; gap: 24px; flex-grow: 1; min-height: 0; }
+    .pdv-col-esquerda { flex: 2; display: flex; flex-direction: column; min-width: 0; }
+    .pdv-col-direita { flex: 1; min-width: 300px; display: flex; flex-direction: column; }
+    .pdv-itens-lista { padding: 0 16px; }
+</style>
+
+@code {
+    private bool CarregandoGeral = true;
+    private bool Processando = false;
+    private bool CaixaAberto = false;
+    private string SessaoId = "";
+    private string _usuarioId = "USR-001"; // Fixo para teste
+
+    // Venda
+    private VendaResumoResp? VendaAtual;
+    private List<VendaItemResp> ItensVenda = new();
+    
+    // Busca
+    private string BuscaCodigo = "";
+    private decimal BuscaQtd = 1m;
+    private string? ErroBusca;
+
+    // Pagamento
+    private bool ExibindoPagamento = false;
+    private List<PagamentoResp> Pagamentos = new();
+    private string PagMoeda = "BRL";
+    private string PagForma = "DINHEIRO";
+    private decimal PagValor = 0m;
+    private string? ErroPagamento;
+
+    private long FaltaPagarMinor = 0;
+    private long TrocoAtualMinor = 0;
+    private bool PodeFinalizar = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await VerificarCaixa();
+    }
+
+    private async Task VerificarCaixa()
+    {
+        CarregandoGeral = true;
+        var res = await Tauri.InvocarAsync<RespostaBase<SessaoCaixaResp?>>("obter_sessao_ativa", new { registradora_id = "TERM-1" });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            CaixaAberto = true;
+            SessaoId = res.Dados.Id;
+        }
+        else
+        {
+            CaixaAberto = false;
+        }
+        CarregandoGeral = false;
+    }
+
+    private async Task IniciarVenda()
+    {
+        Processando = true;
+        var res = await Tauri.InvocarAsync<RespostaBase<VendaResumoResp>>("iniciar_venda", new { 
+            sessao_caixa_id = SessaoId,
+            usuario_id = _usuarioId,
+            tipo_venda = "BALCAO"
+        });
+
+        if (res?.Sucesso == true)
+        {
+            VendaAtual = res.Dados;
+            ItensVenda.Clear();
+            Pagamentos.Clear();
+            ExibindoPagamento = false;
+        }
+        Processando = false;
+    }
+
+    private async Task AdicionarProdutoSubmit()
+    {
+        if (VendaAtual == null || string.IsNullOrWhiteSpace(BuscaCodigo)) return;
+        Processando = true;
+        ErroBusca = null;
+
+        try
+        {
+            // 1. Buscar produto no cache
+            var resProd = await Tauri.InvocarAsync<RespostaBase<ProdutoPdvResp?>>("buscar_produto_pdv", new { codigo = BuscaCodigo });
+            
+            if (resProd?.Sucesso == true && resProd.Dados != null)
+            {
+                var prod = resProd.Dados;
+                
+                // Conversão de decimais para inteiro
+                long qtdEscala3 = (long)Math.Round(BuscaQtd * 1000m);
+                
+                // 2. Adicionar Item
+                var req = new AdicionarItemReq(
+                    venda_id: VendaAtual.Id,
+                    produto_id: prod.ProdutoId,
+                    descricao_produto: prod.Nome,
+                    codigo_produto: prod.Codigo,
+                    codigo_barras: prod.CodigoBarras,
+                    quantidade_escala3: qtdEscala3,
+                    preco_unitario_minor: prod.PrecoVendaMinor,
+                    desconto_item_minor: 0
+                );
+
+                var resAdd = await Tauri.InvocarAsync<RespostaBase<VendaResumoResp>>("adicionar_item_venda", new { dto = req });
+
+                if (resAdd?.Sucesso == true && resAdd.Dados != null)
+                {
+                    VendaAtual = resAdd.Dados;
+                    await RecarregarItens();
+                    BuscaCodigo = "";
+                    BuscaQtd = 1m;
+                }
+                else
+                {
+                    ErroBusca = resAdd?.Mensagem ?? "Erro ao adicionar.";
+                }
+            }
+            else
+            {
+                ErroBusca = "Produto não encontrado.";
+            }
+        }
+        finally
+        {
+            Processando = false;
+        }
+    }
+
+    private async Task CancelarItem(string itemId)
+    {
+        Processando = true;
+        var req = new CancelarItemReq(itemId, _usuarioId, "Cancelamento PDV", null, null);
+        var res = await Tauri.InvocarAsync<RespostaBase<VendaResumoResp>>("cancelar_item_venda", new { dto = req });
+        
+        if (res?.Sucesso == true)
+        {
+            VendaAtual = res.Dados;
+            await RecarregarItens();
+        }
+        Processando = false;
+    }
+
+    private async Task CancelarVenda()
+    {
+        Processando = true;
+        var req = new CancelarVendaReq(VendaAtual!.Id, _usuarioId, "Cancelada no PDV", null, null);
+        await Tauri.InvocarAsync<RespostaBase<bool>>("cancelar_venda", new { dto = req });
+        
+        // Limpar tela para nova venda
+        VendaAtual = null;
+        ItensVenda.Clear();
+        Processando = false;
+    }
+
+    private async Task RecarregarItens()
+    {
+        var res = await Tauri.InvocarAsync<RespostaBase<VendaDetalheResp>>("obter_venda", new { venda_id = VendaAtual!.Id });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            ItensVenda = res.Dados.Itens;
+        }
+    }
+
+    // === LÓGICA DE PAGAMENTO ===
+
+    private async Task AbrirPagamento()
+    {
+        if (VendaAtual == null || VendaAtual.TotalMinor == 0) return;
+        ExibindoPagamento = true;
+        Pagamentos.Clear();
+        PagMoeda = "BRL";
+        PagForma = "DINHEIRO";
+        
+        // Sugere o total inteiro em decimal BRL
+        PagValor = VendaAtual.TotalMinor / 100m; 
+        
+        await AtualizarTroco();
+    }
+
+    private void CancelarPagamento()
+    {
+        ExibindoPagamento = false;
+        ErroPagamento = null;
+    }
+
+    private async Task LancarPagamento()
+    {
+        if (PagValor <= 0) return;
+        Processando = true;
+        ErroPagamento = null;
+
+        try
+        {
+            long valorInformadoMinor = ConverterParaMinor(PagMoeda, PagValor);
+
+            var req = new RegistrarPagamentoReq(VendaAtual!.Id, PagForma, PagMoeda, valorInformadoMinor, "BRL");
+            var res = await Tauri.InvocarAsync<RespostaBase<PagamentoResp>>("registrar_pagamento", new { dto = req });
+
+            if (res?.Sucesso == true && res.Dados != null)
+            {
+                Pagamentos.Add(res.Dados);
+                await AtualizarTroco();
+            }
+            else
+            {
+                ErroPagamento = res?.Mensagem ?? "Erro ao registrar pagamento.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErroPagamento = ex.Message;
+        }
+        finally
+        {
+            Processando = false;
+        }
+    }
+
+    private async Task AtualizarTroco()
+    {
+        var res = await Tauri.InvocarAsync<RespostaBase<TrocoResp>>("calcular_troco", new { venda_id = VendaAtual!.Id });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            var t = res.Dados;
+            TrocoAtualMinor = t.TrocoMinor;
+            FaltaPagarMinor = Math.Max(0, t.TotalVendaMinor - t.TotalPagoMinor);
+            PodeFinalizar = t.Quitado;
+
+            // Sugerir o que falta (se a moeda ainda for BRL)
+            if (!PodeFinalizar && PagMoeda == "BRL")
+            {
+                PagValor = FaltaPagarMinor / 100m;
+            }
+            else if (PodeFinalizar)
+            {
+                PagValor = 0;
+            }
+        }
+    }
+
+    private async Task FinalizarVenda()
+    {
+        Processando = true;
+        var res = await Tauri.InvocarAsync<RespostaBase<VendaResumoResp>>("finalizar_venda", new { venda_id = VendaAtual!.Id });
+        
+        if (res?.Sucesso == true)
+        {
+            // Venda concluida!
+            VendaAtual = null;
+            ItensVenda.Clear();
+            Pagamentos.Clear();
+            ExibindoPagamento = false;
+        }
+        else
+        {
+            ErroPagamento = res?.Mensagem ?? "Erro ao finalizar.";
+        }
+        Processando = false;
+    }
+
+    // === Helpers de Formatação da UI ===
+
+    private long ConverterParaMinor(string moeda, decimal valorInformado)
+    {
+        if (moeda.ToUpper() == "PYG" || moeda.ToUpper() == "JPY") return (long)Math.Round(valorInformado);
+        return (long)Math.Round(valorInformado * 100m);
+    }
+
+    private string FormatarValor(long valorMinor)
+    {
+        // Sempre exibe como moeda base (BRL) para o total
+        return (valorMinor / 100m).ToString("F2", CultureInfo.InvariantCulture);
+    }
+
+    private string FormatarValorMoeda(string moeda, long valorMinor)
+    {
+        if (moeda.ToUpper() == "PYG" || moeda.ToUpper() == "JPY")
+            return $"{valorMinor}";
+        return (valorMinor / 100m).ToString("F2", CultureInfo.InvariantCulture);
+    }
+
+    private string FormatarQtd(long qtdEscala3)
+    {
+        return (qtdEscala3 / 1000m).ToString("0.###", CultureInfo.InvariantCulture);
+    }
+}

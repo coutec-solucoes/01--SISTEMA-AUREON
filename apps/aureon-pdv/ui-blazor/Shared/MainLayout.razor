@@ -4,7 +4,14 @@
 
     <!-- Cabeçalho -->
     <header class="cabecalho">
-        <div class="cabecalho-logo">⚡ AUREON PDV</div>
+        <div style="display: flex; align-items: center; gap: 24px;">
+            <div class="cabecalho-logo">⚡ AUREON PDV</div>
+            <nav style="display: flex; gap: 16px; font-size: 14px; font-weight: 500;">
+                <a href="/" style="color: white; text-decoration: none; opacity: 0.8;">Dashboard</a>
+                <a href="/caixa" style="color: white; text-decoration: none; opacity: 0.8;">Caixa</a>
+                <a href="/pdv" style="color: #00e676; text-decoration: none; font-weight: 600;">PDV</a>
+            </nav>
+        </div>
         <div class="cabecalho-status">
             <span class="dot-status @(_sistemaOk ? "" : "erro")"></span>
             <span>@_statusTexto</span>

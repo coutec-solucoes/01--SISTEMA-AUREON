@@ -1,0 +1,274 @@
+@page "/caixa"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<PageTitle>Caixa — Aureon PDV</PageTitle>
+
+<div class="fade-in">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h1 style="font-size:24px; font-weight:700;">Gerenciamento de Caixa</h1>
+        <span class="badge @(SessaoAtiva != null ? "badge-ok" : "badge-erro")">
+            @(SessaoAtiva != null ? "CAIXA ABERTO" : "CAIXA FECHADO")
+        </span>
+    </div>
+
+    @if (Carregando)
+    {
+        <div style="text-align: center; margin-top: 40px; color: var(--cor-texto-sub);">Carregando status do caixa...</div>
+    }
+    else
+    {
+        @if (ErroMsg != null)
+        {
+            <div class="card" style="border-left: 4px solid #f44336; margin-bottom: 24px;">
+                <div style="color: #f44336; font-weight: bold;">Erro</div>
+                <div style="color: var(--cor-texto-sub); font-size: 14px;">@ErroMsg</div>
+                <button class="btn btn-primario" style="margin-top: 12px;" @onclick="LimparErro">OK</button>
+            </div>
+        }
+
+        @if (SessaoAtiva == null)
+        {
+            <!-- ABERTURA DE CAIXA -->
+            <div class="card" style="max-width: 600px;">
+                <div class="card-titulo" style="margin-bottom: 16px;">Abertura de Caixa</div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 13px; color: var(--cor-texto-sub); margin-bottom: 4px;">Moeda</label>
+                        <select class="input-moderno" @bind="NovaAberturaMoeda">
+                            <option value="BRL">BRL - Real Brasileiro</option>
+                            <option value="USD">USD - Dólar Americano</option>
+                            <option value="PYG">PYG - Guarani Paraguaio</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 13px; color: var(--cor-texto-sub); margin-bottom: 4px;">Fundo de Caixa Informado</label>
+                        <input type="number" class="input-moderno" @bind="NovaAberturaValor" step="0.01" min="0" placeholder="0.00" />
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: flex-end; align-items: center;">
+                    <div style="flex-grow: 1; font-size: 13px; color: var(--cor-texto-sub);">
+                        Nota: No momento abrindo apenas com 1 moeda (será evoluído para múltiplo).
+                    </div>
+                    <button class="btn btn-primario" @onclick="AbrirCaixa" disabled="@Processando">
+                        @(Processando ? "Abrindo..." : "Abrir Caixa")
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- FECHAMENTO DE CAIXA -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                <!-- Infos -->
+                <div class="card">
+                    <div class="card-titulo">Sessão Atual</div>
+                    
+                    <div style="margin-bottom: 16px;">
+                        <div style="font-size: 12px; color: var(--cor-texto-sub);">ID Sessão</div>
+                        <div style="font-family: monospace; font-size: 13px;">@SessaoAtiva.Id</div>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <div style="font-size: 12px; color: var(--cor-texto-sub);">Abertura</div>
+                        <div style="font-size: 14px;">@SessaoAtiva.AbertoEm</div>
+                    </div>
+
+                    <div style="font-size: 14px; font-weight: 600; margin-bottom: 8px;">Saldos de Abertura:</div>
+                    @foreach(var s in SessaoAtiva.Saldos)
+                    {
+                        <div style="display: flex; justify-content: space-between; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-bottom: 8px;">
+                            <span>@s.MoedaCodigo</span>
+                            <span style="font-family: monospace;">@(FormatarValor(s.MoedaCodigo, s.ValorAberturaMinor))</span>
+                        </div>
+                    }
+                </div>
+
+                <!-- Ação -->
+                <div class="card">
+                    <div class="card-titulo" style="margin-bottom: 16px;">Fechamento Físico</div>
+                    <div style="font-size: 13px; color: var(--cor-texto-sub); margin-bottom: 16px;">
+                        Informe os valores contados fisicamente na gaveta para cada moeda.
+                    </div>
+
+                    @foreach(var s in SessaoAtiva.Saldos)
+                    {
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-size: 13px; color: var(--cor-texto-sub); margin-bottom: 4px;">Valor em gaveta (@s.MoedaCodigo)</label>
+                            <input type="number" class="input-moderno" step="0.01" min="0" placeholder="0.00"
+                                   value="@_fechamentoValores[s.MoedaCodigo]"
+                                   @onchange="@(e => AtualizarFechamento(s.MoedaCodigo, e.Value?.ToString()))" />
+                        </div>
+                    }
+
+                    <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+                        <button class="btn btn-primario" style="background-color: #f44336; color: white;" @onclick="FecharCaixa" disabled="@Processando">
+                            @(Processando ? "Fechando..." : "Encerrar Turno")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool Carregando = true;
+    private bool Processando = false;
+    private string? ErroMsg = null;
+    private SessaoCaixaResp? SessaoAtiva;
+
+    // Abertura
+    private string NovaAberturaMoeda = "BRL";
+    private decimal NovaAberturaValor = 0m;
+
+    // Fechamento (MoedaCodigo -> Valor informado em decimal pelo usuario)
+    private Dictionary<string, decimal> _fechamentoValores = new();
+
+    private string _terminalId = "TERM-1"; // Fixo para teste
+    private string _usuarioId = "USR-001"; // Fixo para teste
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarSessao();
+    }
+
+    private async Task CarregarSessao()
+    {
+        Carregando = true;
+        ErroMsg = null;
+        try
+        {
+            var res = await Tauri.InvocarAsync<RespostaBase<SessaoCaixaResp?>>("obter_sessao_ativa", new { registradora_id = _terminalId });
+            if (res?.Sucesso == true)
+            {
+                SessaoAtiva = res.Dados;
+                _fechamentoValores.Clear();
+                if (SessaoAtiva != null)
+                {
+                    foreach(var s in SessaoAtiva.Saldos)
+                    {
+                        _fechamentoValores[s.MoedaCodigo] = 0m;
+                    }
+                }
+            }
+            else
+            {
+                ErroMsg = res?.Mensagem ?? "Erro ao comunicar com backend.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErroMsg = ex.Message;
+        }
+        finally
+        {
+            Carregando = false;
+        }
+    }
+
+    private async Task AbrirCaixa()
+    {
+        if (NovaAberturaValor < 0)
+        {
+            ErroMsg = "O valor não pode ser negativo.";
+            return;
+        }
+
+        Processando = true;
+        ErroMsg = null;
+        try
+        {
+            // Converter decimal informado na UI para minor unit (i64/long) enviado ao Rust
+            long valorMinor = ConverterParaMinor(NovaAberturaMoeda, NovaAberturaValor);
+
+            var saldos = new List<SaldoMoedaReq> { new SaldoMoedaReq(NovaAberturaMoeda, valorMinor) };
+            var req = new AbrirCaixaReq(_terminalId, _usuarioId, saldos);
+
+            var res = await Tauri.InvocarAsync<RespostaBase<SessaoCaixaResp>>("abrir_caixa", new { dto = req });
+            
+            if (res?.Sucesso == true)
+            {
+                await CarregarSessao();
+            }
+            else
+            {
+                ErroMsg = res?.Mensagem ?? "Erro desconhecido";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErroMsg = ex.Message;
+        }
+        finally
+        {
+            Processando = false;
+        }
+    }
+
+    private async Task FecharCaixa()
+    {
+        if (SessaoAtiva == null) return;
+
+        Processando = true;
+        ErroMsg = null;
+        try
+        {
+            var saldosFechamento = new List<SaldoMoedaReq>();
+            foreach(var kv in _fechamentoValores)
+            {
+                long minor = ConverterParaMinor(kv.Key, kv.Value);
+                saldosFechamento.Add(new SaldoMoedaReq(kv.Key, minor));
+            }
+
+            var req = new FecharCaixaReq(SessaoAtiva.Id, _usuarioId, saldosFechamento, "Fechamento UI");
+            
+            var res = await Tauri.InvocarAsync<RespostaBase<SessaoCaixaResp>>("fechar_caixa", new { dto = req });
+            
+            if (res?.Sucesso == true)
+            {
+                await CarregarSessao(); // recarrega, SessaoAtiva vai ficar null
+            }
+            else
+            {
+                ErroMsg = res?.Mensagem ?? "Erro desconhecido";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErroMsg = ex.Message;
+        }
+        finally
+        {
+            Processando = false;
+        }
+    }
+
+    private void AtualizarFechamento(string moeda, string? valorStr)
+    {
+        if (decimal.TryParse(valorStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            _fechamentoValores[moeda] = v;
+        }
+    }
+
+    private void LimparErro() => ErroMsg = null;
+
+    // === Helpers Financeiros na UI ===
+    // O Blazor APENAS converte entre input do usuario (decimal) e backend (minor unit)
+    
+    private long ConverterParaMinor(string moeda, decimal valorInformado)
+    {
+        if (moeda.ToUpper() == "PYG" || moeda.ToUpper() == "JPY")
+            return (long)Math.Round(valorInformado); // Moeda sem centavos
+        return (long)Math.Round(valorInformado * 100m);
+    }
+
+    private string FormatarValor(string moeda, long valorMinor)
+    {
+        if (moeda.ToUpper() == "PYG" || moeda.ToUpper() == "JPY")
+            return $"{valorMinor}";
+        return (valorMinor / 100m).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+    }
+}
