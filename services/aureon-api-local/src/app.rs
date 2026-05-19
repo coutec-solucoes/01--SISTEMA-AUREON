@@ -21,6 +21,16 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
     let rotas_protegidas = Router::new()
         .route("/auth/logout", post(auth::logout))
         .route("/auth/me", get(auth::me))
+        
+        // Módulo de Segurança (Fase 3 - Bloco 3)
+        .route("/seguranca/usuarios", get(crate::routes::seguranca::listar_usuarios).post(crate::routes::seguranca::criar_usuario))
+        .route("/seguranca/usuarios/:id", put(crate::routes::seguranca::atualizar_usuario))
+        .route("/seguranca/usuarios/:id/senha", put(crate::routes::seguranca::redefinir_senha))
+        
+        .route("/seguranca/perfis", get(crate::routes::seguranca::listar_perfis).post(crate::routes::seguranca::criar_perfil))
+        .route("/seguranca/perfis/:id", put(crate::routes::seguranca::atualizar_perfil))
+        .route("/seguranca/perfis/:id/permissoes", get(crate::routes::seguranca::obter_permissoes).put(crate::routes::seguranca::salvar_permissoes))
+        
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     Router::new()

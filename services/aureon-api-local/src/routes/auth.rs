@@ -236,13 +236,35 @@ pub async fn me(
     (StatusCode::OK, Json(RespostaBase::ok("Dados do usuário logado", dados))).into_response()
 }
 
+#[derive(Deserialize)]
+pub struct SetupAdminDto {
+    pub nome: String,
+    pub login: String,
+    pub senha: String,
+    pub confirmar_senha: String,
+}
+
 pub async fn setup_admin(
     State(state): State<AppState>,
+    Json(dados): Json<SetupAdminDto>,
 ) -> impl IntoResponse {
     let pool = match &state.pool {
         Some(p) => p,
         None => return ErroApi::indisponivel("Banco de dados não configurado.").into_response(),
     };
+
+    // Validações
+    if dados.nome.trim().is_empty() || dados.login.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, Json(RespostaBase::<()>::falha_manual("Dados incompletos.", "ERRO_SETUP_DADOS", "Nome e login são obrigatórios."))).into_response();
+    }
+    
+    if dados.senha != dados.confirmar_senha {
+        return (StatusCode::BAD_REQUEST, Json(RespostaBase::<()>::falha_manual("As senhas não conferem.", "ERRO_SETUP_SENHA", "A senha e a confirmação devem ser iguais."))).into_response();
+    }
+    
+    if dados.senha.len() < 8 {
+        return (StatusCode::BAD_REQUEST, Json(RespostaBase::<()>::falha_manual("Senha muito fraca.", "ERRO_SETUP_SENHA_FRACA", "A senha deve ter pelo menos 8 caracteres."))).into_response();
+    }
 
     // Verificar se já foi rodado
     let setup_status = match sqlx::query("SELECT valor FROM configuracao_setup WHERE chave = 'admin_inicial_criado'")
@@ -261,7 +283,19 @@ pub async fn setup_admin(
         return (StatusCode::BAD_REQUEST, Json(RespostaBase::<()>::falha_manual("Banco de dados não preparado.", "ERRO_SETUP_FALHO", "A chave de controle não existe."))).into_response();
     }
 
-    let senha_hash = match hash_senha("Aureon@2026") {
+    // Verificar também se já existe algum admin ativo por segurança extra
+    let admins = sqlx::query("SELECT count(*) as total FROM usuarios WHERE is_admin = true")
+        .fetch_one(pool)
+        .await;
+        
+    if let Ok(r) = admins {
+        let total: i64 = r.get("total");
+        if total > 0 {
+            return (StatusCode::BAD_REQUEST, Json(RespostaBase::<()>::falha_manual("Setup não permitido.", "ERRO_SETUP_BLOQUEADO", "Já existe um administrador no sistema."))).into_response();
+        }
+    }
+
+    let senha_hash = match hash_senha(&dados.senha) {
         Ok(h) => h,
         Err(e) => return e.into_response(),
     };
@@ -283,12 +317,11 @@ pub async fn setup_admin(
 
     let user_id = Uuid::new_v4();
 
-    if let Err(e) = sqlx::query("INSERT INTO usuarios (id, login, nome, senha_hash, email, status, bloqueado, is_admin, acessa_retaguarda, acessa_pdv) VALUES ($1, $2, $3, $4, $5, 'ATIVO', false, true, true, false)")
+    if let Err(e) = sqlx::query("INSERT INTO usuarios (id, login, nome, senha_hash, status, bloqueado, is_admin, acessa_retaguarda, acessa_pdv) VALUES ($1, $2, $3, $4, 'ATIVO', false, true, true, false)")
         .bind(user_id)
-        .bind("admin")
-        .bind("Administrador do Sistema")
+        .bind(&dados.login)
+        .bind(&dados.nome)
         .bind(&senha_hash)
-        .bind("admin@aureon.local")
         .execute(&mut *tx)
         .await {
         return ErroApi::interno(e.to_string()).into_response();
@@ -307,10 +340,18 @@ pub async fn setup_admin(
         .await {
         return ErroApi::interno(e.to_string()).into_response();
     }
+    
+    // Log do sistema
+    if let Err(e) = sqlx::query("INSERT INTO logs_seguranca (tipo_evento, mensagem, severidade, usuario_id) VALUES ('SETUP_INICIAL', 'Administrador inicial criado', 'Info', $1)")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await {
+        return ErroApi::interno(e.to_string()).into_response();
+    }
 
     if let Err(e) = tx.commit().await {
         return ErroApi::interno(e.to_string()).into_response();
     }
 
-    (StatusCode::OK, Json(RespostaBase::ok("Administrador inicial criado com sucesso. Login: admin / Senha: Aureon@2026", ()))).into_response()
+    (StatusCode::OK, Json(RespostaBase::ok("Administrador inicial criado com sucesso.", ()))).into_response()
 }
