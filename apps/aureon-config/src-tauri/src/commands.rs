@@ -173,11 +173,12 @@ pub struct AppServerConfig {
     pub postgres_banco: String,
 }
 
-const MIGRATIONS_PG: [(&str, &str); 4] = [
+const MIGRATIONS_PG: [(&str, &str); 5] = [
     ("001_schema_inicial", include_str!("../../../../database/migrations/postgresql/001_schema_inicial.sql")),
     ("002_tabelas_fase1", include_str!("../../../../database/migrations/postgresql/002_tabelas_fase1.sql")),
     ("003_seeds_iniciais", include_str!("../../../../database/migrations/postgresql/003_seeds_iniciais.sql")),
     ("004_configuracao_empresa", include_str!("../../../../database/migrations/postgresql/004_configuracao_empresa.sql")),
+    ("005_seguranca", include_str!("../../../../database/migrations/postgresql/005_seguranca.sql")),
 ];
 
 #[tauri::command]
