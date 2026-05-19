@@ -126,3 +126,27 @@
 **Decisão:** Persistência de alterações de moedas, cotações e parâmetros em uma tabela de outbox (`eventos_publicacao_configuracao`) e gravação detalhada na tabela `auditoria_eventos` com estado anterior/novo.  
 **Motivo:** Facilita a auditoria de alterações operacionais críticas e fornece um canal idempotente para o sincronizador offline ler e propagar alterações de cotações para os caixas locais.  
 **Consequência:** Logs de segurança completos de auditoria e conformidade de sincronização futura garantida.
+
+---
+
+## DT-009 — Duas tabelas de publicação (eventos_publicacao_configuracao vs eventos_publicacao)
+
+**Data:** 2026-05-19  
+**Decisão:** Manter `eventos_publicacao_configuracao` (Fase 2) para eventos de empresa/configuração e criar `eventos_publicacao` (Fase 4) como fila genérica para eventos de negócio (pessoas, produtos, etc.).  
+**Motivo:** A tabela original era acoplada a `empresa_id` e específica para configurações. A Fase 4 precisava de uma fila extensível para qualquer entidade de negócio (produto, pessoa, grupo) sem recriar/quebrar a estrutura existente.  
+**Consequência:** Existem duas tabelas com propósitos distintos e complementares. Na **Fase 6 (Sincronização)**, avaliar unificação em uma única fila genérica. Não criar novas tabelas paralelas de publicação sem decisão explícita documentada aqui.
+
+| Tabela | Escopo | Criada em |
+|---|---|---|
+| `eventos_publicacao_configuracao` | Configurações da empresa (moedas, parâmetros) | Fase 2 |
+| `eventos_publicacao` | Entidades de negócio (pessoas, produtos, grupos) | Fase 4 |
+
+---
+
+## DT-010 — auditoria_cadastros separada de logs_seguranca
+
+**Data:** 2026-05-19  
+**Decisão:** Criar tabela `auditoria_cadastros` para registrar alterações de negócio (pessoas, produtos, preços), separada de `logs_seguranca` que é exclusiva para eventos de autenticação e segurança.  
+**Motivo:** Misturar eventos de negócio com eventos de segurança dificultaria consultas, relatórios e triagem de incidentes.  
+**Consequência:** Dois pontos de auditoria com propósitos claros. `logs_seguranca` = segurança/acesso. `auditoria_cadastros` = negócio/dados.
+
