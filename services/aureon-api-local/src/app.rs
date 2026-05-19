@@ -4,7 +4,7 @@ use axum::{
 };
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
-use crate::routes::{health, diagnostico, empresa, auth, cadastros::{pessoas, grupos, produtos}, configuracoes::operacionais};
+use crate::routes::{health, diagnostico, empresa, auth, cadastros::{pessoas, grupos, produtos}, configuracoes::operacionais, sync::{terminais, pacotes, publicacao, diagnostico as sync_diag}};
 use crate::middleware::auth_middleware;
 
 
@@ -118,6 +118,17 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         
         .route("/configuracoes/operacionais/senhas-chamadas", get(operacionais::obter_senhas_chamadas).post(operacionais::salvar_senhas_chamadas).put(operacionais::salvar_senhas_chamadas))
         
+        // Módulo de Sync Fase 6 (Retaguarda)
+        .route("/sync/terminais/status", get(terminais::status_geral_terminais))
+        .route("/sync/terminais/:id/diagnostico", get(terminais::diagnostico_terminal))
+        .route("/sync/versoes", get(pacotes::listar_versoes))
+        .route("/sync/publicar", post(publicacao::publicar))
+        .route("/sync/publicacoes", get(publicacao::listar_publicacoes))
+        .route("/sync/publicacoes/:id", get(publicacao::obter_publicacao))
+        .route("/sync/publicacoes/:id/reprocessar", post(publicacao::reprocessar_publicacao))
+        .route("/sync/diagnostico", get(sync_diag::diagnostico_geral))
+        .route("/sync/logs", get(sync_diag::listar_logs))
+        
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
 
@@ -141,6 +152,15 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         .route("/empresa/parametros-operacionais", get(empresa::obter_parametros).put(empresa::salvar_parametros))
         .route("/empresa/auditoria", get(empresa::obter_auditoria))
         .route("/empresa/status-configuracao", get(empresa::status_configuracao))
+        
+        // Módulo de Sync Fase 6 (Endpoints do PDV)
+        .route("/sync/terminais/registrar", post(terminais::registrar_terminal))
+        .route("/sync/terminais/:codigo_terminal/status", get(terminais::status_terminal))
+        .route("/sync/terminais/:id/confirmar-autorizacao", put(terminais::confirmar_autorizacao))
+        .route("/sync/primeira-sincronizacao", post(pacotes::primeira_sincronizacao))
+        .route("/sync/confirmar-aplicacao", post(pacotes::confirmar_aplicacao))
+        .route("/sync/eventos-pendentes/:terminal_id", get(publicacao::eventos_pendentes))
+        .route("/sync/eventos-confirmar", post(publicacao::confirmar_evento))
         
         .merge(rotas_protegidas)
         .with_state(state)
