@@ -129,7 +129,7 @@
 
 ---
 
-## DT-009 — Duas tabelas de publicação (eventos_publicacao_configuracao vs eventos_publicacao)
+## DT-015 — Duas tabelas de publicação (eventos_publicacao_configuracao vs eventos_publicacao)
 
 **Data:** 2026-05-19  
 **Decisão:** Manter `eventos_publicacao_configuracao` (Fase 2) para eventos de empresa/configuração e criar `eventos_publicacao` (Fase 4) como fila genérica para eventos de negócio (pessoas, produtos, etc.).  
@@ -143,10 +143,29 @@
 
 ---
 
-## DT-010 — auditoria_cadastros separada de logs_seguranca
+## DT-016 — auditoria_cadastros separada de logs_seguranca
 
 **Data:** 2026-05-19  
 **Decisão:** Criar tabela `auditoria_cadastros` para registrar alterações de negócio (pessoas, produtos, preços), separada de `logs_seguranca` que é exclusiva para eventos de autenticação e segurança.  
 **Motivo:** Misturar eventos de negócio com eventos de segurança dificultaria consultas, relatórios e triagem de incidentes.  
 **Consequência:** Dois pontos de auditoria com propósitos claros. `logs_seguranca` = segurança/acesso. `auditoria_cadastros` = negócio/dados.
+
+---
+
+## DT-017 — Preço do Produto na Moeda Principal da Empresa
+
+**Data:** 2026-05-19  
+**Decisão:** Fixar a precificação dos produtos exclusivamente na moeda principal selecionada no cadastro de empresa (BRL ou PYG).  
+**Motivo:** Evita a complexidade excessiva de conversões dinâmicas de tabelas e canais no cadastro de produtos para um sistema offline-first na primeira fase de infraestrutura.  
+**Consequência:** As conversões ocorrem apenas no momento do fechamento do caixa no PDV e na apuração de relatórios consolidados de vendas.
+
+---
+
+## DT-018 — UI de Pessoas com Componente Único e Filtros por Papel
+
+**Data:** 2026-05-19  
+**Decisão:** Centralizar o gerenciamento de todos os papéis (clientes, fornecedores, etc.) em uma única tela de `Pessoas.razor`, compartilhando DTOs de envio ao Rust e aplicando filtros dinâmicos de renderização.  
+**Motivo:** Reduz em mais de 70% o tamanho do bundle e a duplicação de códigos HTML de tabelas, paginação e modais de dados comuns como endereços e contatos.  
+**Consequência:** Manutenção e expansão de novos atributos de contato extremamente simplificadas em um único arquivo Blazor.
+
 
