@@ -1,0 +1,1048 @@
+@page "/cadastros/pessoas"
+@page "/cadastros/clientes"
+@page "/cadastros/fornecedores"
+@page "/cadastros/funcionarios"
+@page "/cadastros/vendedores"
+@page "/cadastros/entregadores"
+@page "/cadastros/transportadoras"
+
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Pessoas e Papéis — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Pessoas & Parceiros</h1>
+        <p class="subtitulo-pagina">Cadastro centralizado de clientes, fornecedores, funcionários, vendedores, entregadores e transportadoras.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Cadastrar Pessoa
+    </button>
+</div>
+
+<!-- Barra de Filtros Premium -->
+<div class="card-glass fade-in" style="padding: 20px; margin-bottom: 24px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
+        <div style="flex: 1; min-width: 250px;">
+            <input type="text" class="form-control" @bind-value="buscaTexto" @bind-value:event="oninput" placeholder="Buscar por nome, CPF, CNPJ, CI ou RUC..." style="width: 100%;" />
+        </div>
+        
+        <div style="width: 200px;">
+            <select class="form-control" @bind="papelFiltro" style="width: 100%;">
+                <option value="TODOS">Todos os Papéis</option>
+                <option value="CLIENTE">Clientes</option>
+                <option value="FORNECEDOR">Fornecedores</option>
+                <option value="FUNCIONARIO">Funcionários</option>
+                <option value="VENDEDOR">Vendedores</option>
+                <option value="ENTREGADOR">Entregadores</option>
+                <option value="TRANSPORTADORA">Transportadoras</option>
+            </select>
+        </div>
+
+        <div style="width: 160px;">
+            <select class="form-control" @bind="statusFiltro" style="width: 100%;">
+                <option value="ATIVOS">Somente Ativos</option>
+                <option value="INATIVOS">Somente Inativos</option>
+                <option value="TODOS">Todos</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando parceiros cadastrados...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nome / Razão Social</th>
+                    <th>Documento</th>
+                    <th>Tipo</th>
+                    <th>Papéis</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in PessoasFiltradas)
+                {
+                    <tr>
+                        <td style="font-weight: 600; color: #fff;">
+                            <div>@p.nome_razao_social</div>
+                            @if (!string.IsNullOrEmpty(p.nome_fantasia))
+                            {
+                                <span style="font-size: 11px; color: var(--cor-texto-sub);">@p.nome_fantasia</span>
+                            }
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(p.cpf)) { <span>CPF: @p.cpf</span> }
+                            else if (!string.IsNullOrEmpty(p.cnpj)) { <span>CNPJ: @p.cnpj</span> }
+                            else if (!string.IsNullOrEmpty(p.ci)) { <span>CI: @p.ci</span> }
+                            else if (!string.IsNullOrEmpty(p.ruc)) { <span>RUC: @p.ruc</span> }
+                            else { <span style="color: var(--cor-texto-disabled);">Nenhum</span> }
+                        </td>
+                        <td>
+                            <span class="badge" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1);">
+                                @(p.tipo_pessoa == "FISICA" ? "Física" : "Jurídica")
+                            </span>
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                @foreach (var papel in p.papeis)
+                                {
+                                    <span class="badge badge-papel">@papel</span>
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            @if (p.ativo)
+                            {
+                                <span class="badge badge-success">Ativo</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-error">Inativo</span>
+                            }
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(p.id)">Editar</button>
+                                @if (p.ativo)
+                                {
+                                    <button class="btn btn-sm btn-outline btn-perigo-outline" @onclick="() => InativarPessoa(p.id)">Inativar</button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!PessoasFiltradas.Any())
+                {
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: var(--cor-texto-sub); padding: 48px;">
+                            Nenhuma pessoa encontrada com os filtros selecionados.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal de Cadastro / Edição -->
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card-glass" style="max-width: 850px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                <h2 class="modal-title" style="margin: 0; color: #fff;">
+                    @(editandoId == Guid.Empty ? "Cadastrar Nova Pessoa" : "Editar Cadastro")
+                </h2>
+                <button style="background: none; border: none; color: var(--cor-texto-sub); font-size: 20px; cursor: pointer;" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 20px;">@erroModal</div>
+            }
+            @if (!string.IsNullOrEmpty(sucessoModal))
+            {
+                <div class="alert-success-box" style="margin-bottom: 20px;">@sucessoModal</div>
+            }
+
+            <!-- Navegação de Abas do Modal -->
+            <div class="abas-container" style="margin-bottom: 24px;">
+                <button class="aba-botao @(abaAtiva == "GERAL" ? "ativa" : "")" @onclick='() => SetAba("GERAL")'>
+                    <span>👤</span> Dados Gerais
+                </button>
+                <button class="aba-botao @(abaAtiva == "ENDERECO" ? "ativa" : "")" @onclick='() => SetAba("ENDERECO")'>
+                    <span>📍</span> Endereço Principal
+                </button>
+                @if (model.papeis.Any())
+                {
+                    <button class="aba-botao @(abaAtiva == "CONFIG_PAPEIS" ? "ativa" : "")" @onclick='() => SetAba("CONFIG_PAPEIS")'>
+                        <span>⚙️</span> Configurações de Papéis
+                    </button>
+                }
+            </div>
+
+            <div class="modal-body-scroll">
+                @if (abaAtiva == "GERAL")
+                {
+                    <div class="form-grid fade-in">
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Tipo de Pessoa *</label>
+                            <select class="form-control" @bind="model.tipo_pessoa">
+                                <option value="FISICA">Pessoa Física</option>
+                                <option value="JURIDICA">Pessoa Jurídica</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-grupo" style="grid-column: span 8;">
+                            <label>Nome ou Razão Social *</label>
+                            <input type="text" class="form-control" @bind="model.nome_razao_social" placeholder="Digite o nome completo ou razão social..." />
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>Nome Fantasia / Apelido</label>
+                            <input type="text" class="form-control" @bind="model.nome_fantasia" placeholder="Nome fantasia..." />
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>Data de Nascimento</label>
+                            <input type="date" class="form-control" @bind="model.data_nascimento" />
+                        </div>
+
+                        <!-- Documentos dinâmicos por Tipo de Pessoa -->
+                        @if (model.tipo_pessoa == "FISICA")
+                        {
+                            <div class="form-grupo" style="grid-column: span 3;">
+                                <label>CPF</label>
+                                <input type="text" class="form-control" @bind="model.cpf" placeholder="000.000.000-00" />
+                            </div>
+                            <div class="form-grupo" style="grid-column: span 3;">
+                                <label>RG</label>
+                                <input type="text" class="form-control" @bind="model.rg" placeholder="RG..." />
+                            </div>
+                            <div class="form-grupo" style="grid-column: span 3;">
+                                <label>Cédula de Identidade (PY)</label>
+                                <input type="text" class="form-control" @bind="model.ci" placeholder="C.I. paraguaia..." />
+                            </div>
+                            <div class="form-grupo" style="grid-column: span 3;">
+                                <label>RUC (PY)</label>
+                                <input type="text" class="form-control" @bind="model.ruc" placeholder="RUC paraguaio..." />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="form-grupo" style="grid-column: span 3;">
+                                <label>CNPJ</label>
+                                <input type="text" class="form-control" @bind="model.cnpj" placeholder="00.000.000/0000-00" />
+                            </div>
+                            <div class="form-grupo" style="grid-column: span 3;">
+                                <label>Inscrição Estadual</label>
+                                <input type="text" class="form-control" @bind="model.inscricao_estadual" placeholder="I.E..." />
+                            </div>
+                            <div class="form-grupo" style="grid-column: span 3;">
+                                <label>RUC (PY)</label>
+                                <input type="text" class="form-control" @bind="model.ruc" placeholder="RUC paraguaio..." />
+                            </div>
+                            <div class="form-grupo" style="grid-column: span 3;">
+                                <label>Inscrição Municipal</label>
+                                <input type="text" class="form-control" @bind="model.inscricao_municipal" placeholder="I.M..." />
+                            </div>
+                        }
+
+                        <!-- Contatos -->
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Telefone Principal</label>
+                            <input type="text" class="form-control" @bind="model.contato.telefone_principal" placeholder="(00) 0000-0000" />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>WhatsApp</label>
+                            <input type="text" class="form-control" @bind="model.contato.whatsapp" placeholder="(00) 90000-0000" />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>E-mail</label>
+                            <input type="email" class="form-control" @bind="model.contato.email" placeholder="nome@exemplo.com" />
+                        </div>
+
+                        <!-- Papéis da Pessoa -->
+                        <div class="form-grupo" style="grid-column: span 12; margin-top: 12px; border-top: 1px solid var(--cor-borda); padding-top: 16px;">
+                            <label style="margin-bottom: 12px; display: block; font-weight: bold; color: var(--cor-primaria);">Papéis no Sistema (Marque quantos forem necessários)</label>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;">
+                                <label class="checkbox-premium">
+                                    <input type="checkbox" checked='@model.papeis.Contains("CLIENTE")' @onchange='(e) => TogglePapel("CLIENTE", e.Value)' />
+                                    <span>Cliente</span>
+                                </label>
+                                <label class="checkbox-premium">
+                                    <input type="checkbox" checked='@model.papeis.Contains("FORNECEDOR")' @onchange='(e) => TogglePapel("FORNECEDOR", e.Value)' />
+                                    <span>Fornecedor</span>
+                                </label>
+                                <label class="checkbox-premium">
+                                    <input type="checkbox" checked='@model.papeis.Contains("FUNCIONARIO")' @onchange='(e) => TogglePapel("FUNCIONARIO", e.Value)' />
+                                    <span>Funcionário</span>
+                                </label>
+                                <label class="checkbox-premium">
+                                    <input type="checkbox" checked='@model.papeis.Contains("VENDEDOR")' @onchange='(e) => TogglePapel("VENDEDOR", e.Value)' />
+                                    <span>Vendedor</span>
+                                </label>
+                                <label class="checkbox-premium">
+                                    <input type="checkbox" checked='@model.papeis.Contains("ENTREGADOR")' @onchange='(e) => TogglePapel("ENTREGADOR", e.Value)' />
+                                    <span>Entregador</span>
+                                </label>
+                                <label class="checkbox-premium">
+                                    <input type="checkbox" checked='@model.papeis.Contains("TRANSPORTADORA")' @onchange='(e) => TogglePapel("TRANSPORTADORA", e.Value)' />
+                                    <span>Transportadora</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 12;">
+                            <label>Observações do Cadastro</label>
+                            <textarea class="form-control" @bind="model.observacao" rows="3" placeholder="Observações internas..."></textarea>
+                        </div>
+                    </div>
+                }
+                else if (abaAtiva == "ENDERECO")
+                {
+                    <div class="form-grid fade-in">
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>País</label>
+                            <select class="form-control" @bind="model.endereco.pais">
+                                <option value="BR">Brasil</option>
+                                <option value="PY">Paraguai</option>
+                            </select>
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>CEP / Código Postal</label>
+                            <input type="text" class="form-control" @bind="model.endereco.cep_codigo_postal" placeholder="00000-000" />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 4;">
+                            <label>Estado / Departamento</label>
+                            <input type="text" class="form-control" @bind="model.endereco.estado_departamento" placeholder="Ex: PR, SP, Alto Paraná..." />
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>Cidade</label>
+                            <input type="text" class="form-control" @bind="model.endereco.cidade" placeholder="Cidade..." />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>Bairro</label>
+                            <input type="text" class="form-control" @bind="model.endereco.bairro" placeholder="Bairro..." />
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 9;">
+                            <label>Logradouro / Rua</label>
+                            <input type="text" class="form-control" @bind="model.endereco.logradouro" placeholder="Rua, Avenida..." />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 3;">
+                            <label>Número</label>
+                            <input type="text" class="form-control" @bind="model.endereco.numero" placeholder="Nº..." />
+                        </div>
+
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>Complemento</label>
+                            <input type="text" class="form-control" @bind="model.endereco.complemento" placeholder="Apt, Bloco..." />
+                        </div>
+                        <div class="form-grupo" style="grid-column: span 6;">
+                            <label>Referência de Localização</label>
+                            <input type="text" class="form-control" @bind="model.endereco.referencia" placeholder="Próximo a..." />
+                        </div>
+                    </div>
+                }
+                else if (abaAtiva == "CONFIG_PAPEIS")
+                {
+                    <div class="fade-in" style="display: flex; flex-direction: column; gap: 24px;">
+                        
+                        <!-- CLIENTE CONFIG -->
+                        @if (model.papeis.Contains("CLIENTE"))
+                        {
+                            <div style="border: 1px solid var(--cor-borda); border-radius: 12px; padding: 20px; background: rgba(0, 198, 255, 0.02);">
+                                <h3 style="color: var(--primaria); margin-bottom: 16px; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                                    <span>🛒</span> Configurações de Cliente
+                                </h3>
+                                <div class="form-grid">
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Limite de Crédito</label>
+                                        <input type="number" class="form-control" @bind="model.cliente_config.limite_credito" min="0" step="0.01" />
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Status do Crédito</label>
+                                        <select class="form-control" @bind="model.cliente_config.status_cliente">
+                                            <option value="ATIVO">Crédito Ativo</option>
+                                            <option value="BLOQUEADO">Crédito Bloqueado</option>
+                                            <option value="INATIVO">Inativo</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                                        <label class="checkbox-premium">
+                                            <input type="checkbox" @bind="model.cliente_config.permitir_crediario" />
+                                            <span>Permitir Crediário</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                                        <label class="checkbox-premium">
+                                            <input type="checkbox" @bind="model.cliente_config.bloquear_venda_prazo" />
+                                            <span>Bloquear Venda a Prazo</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 8;">
+                                        <label>Observações do Crédito</label>
+                                        <input type="text" class="form-control" @bind="model.cliente_config.observacao_credito" placeholder="Ex: Liberar somente sob supervisão..." />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- FORNECEDOR CONFIG -->
+                        @if (model.papeis.Contains("FORNECEDOR"))
+                        {
+                            <div style="border: 1px solid var(--cor-borda); border-radius: 12px; padding: 20px; background: rgba(127, 0, 255, 0.02);">
+                                <h3 style="color: #a855f7; margin-bottom: 16px; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                                    <span>📦</span> Configurações de Fornecedor
+                                </h3>
+                                <div class="form-grid">
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Prazo de Pagto. Padrão (Dias)</label>
+                                        <input type="number" class="form-control" @bind="model.fornecedor_config.prazo_pagamento_padrao" min="0" />
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Moeda Padrão de Compra</label>
+                                        <select class="form-control" @bind="model.fornecedor_config.moeda_padrao_compra">
+                                            <option value="BRL">BRL (R$)</option>
+                                            <option value="PYG">PYG (₲)</option>
+                                            <option value="USD">USD ($)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Status Fornecedor</label>
+                                        <select class="form-control" @bind="model.fornecedor_config.status_fornecedor">
+                                            <option value="ATIVO">Ativo</option>
+                                            <option value="INATIVO">Inativo</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 12;">
+                                        <label>Observação Comercial / Representante</label>
+                                        <input type="text" class="form-control" @bind="model.fornecedor_config.observacao_comercial" placeholder="Contato do representante..." />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- FUNCIONARIO CONFIG -->
+                        @if (model.papeis.Contains("FUNCIONARIO"))
+                        {
+                            <div style="border: 1px solid var(--cor-borda); border-radius: 12px; padding: 20px; background: rgba(56, 239, 125, 0.02);">
+                                <h3 style="color: var(--sucesso); margin-bottom: 16px; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                                    <span>👔</span> Configurações de Funcionário
+                                </h3>
+                                <div class="form-grid">
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Cargo / Função</label>
+                                        <input type="text" class="form-control" @bind="model.funcionario_config.cargo" placeholder="Ex: Operador de Caixa..." />
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Salário Base</label>
+                                        <input type="number" class="form-control" @bind="model.funcionario_config.salario_base" min="0" step="0.01" />
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                                        <label class="checkbox-premium">
+                                            <input type="checkbox" @bind="model.funcionario_config.ativo_funcionario" />
+                                            <span>Funcionário Ativo</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Data de Admissão</label>
+                                        <input type="date" class="form-control" @bind="model.funcionario_config.data_admissao" />
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Data de Demissão</label>
+                                        <input type="date" class="form-control" @bind="model.funcionario_config.data_demissao" />
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 12;">
+                                        <label>Observações do Contrato / Interno</label>
+                                        <input type="text" class="form-control" @bind="model.funcionario_config.observacao_funcionario" placeholder="Detalhes do contrato..." />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- VENDEDOR CONFIG -->
+                        @if (model.papeis.Contains("VENDEDOR"))
+                        {
+                            <div style="border: 1px solid var(--cor-borda); border-radius: 12px; padding: 20px; background: rgba(245, 175, 25, 0.02);">
+                                <h3 style="color: var(--alerta); margin-bottom: 16px; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                                    <span>🏷️</span> Configurações de Vendedor
+                                </h3>
+                                <div class="form-grid">
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Código do Vendedor</label>
+                                        <input type="text" class="form-control" @bind="model.vendedor_config.codigo_vendedor" placeholder="Cód. único..." />
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Tipo de Comissão</label>
+                                        <select class="form-control" @bind="model.vendedor_config.tipo_comissao">
+                                            <option value="SEM_COMISSAO">Sem Comissão</option>
+                                            <option value="PERCENTUAL">Percentual (%)</option>
+                                            <option value="VALOR_FIXO">Valor Fixo ($)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                                        <label class="checkbox-premium">
+                                            <input type="checkbox" @bind="model.vendedor_config.comissao_ativa" />
+                                            <span>Comissão Ativa</span>
+                                        </label>
+                                    </div>
+                                    @if (model.vendedor_config.tipo_comissao == "PERCENTUAL")
+                                    {
+                                        <div class="form-grupo" style="grid-column: span 4;">
+                                            <label>Percentual da Comissão (%)</label>
+                                            <input type="number" class="form-control" @bind="model.vendedor_config.percentual_comissao" min="0" max="100" step="0.01" />
+                                        </div>
+                                    }
+                                    @if (model.vendedor_config.tipo_comissao == "VALOR_FIXO")
+                                    {
+                                        <div class="form-grupo" style="grid-column: span 4;">
+                                            <label>Valor de Comissão Fixa ($)</label>
+                                            <input type="number" class="form-control" @bind="model.vendedor_config.valor_comissao_fixa" min="0" step="0.01" />
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <!-- ENTREGADOR CONFIG -->
+                        @if (model.papeis.Contains("ENTREGADOR"))
+                        {
+                            <div style="border: 1px solid var(--cor-borda); border-radius: 12px; padding: 20px; background: rgba(0, 198, 255, 0.02);">
+                                <h3 style="color: var(--primaria); margin-bottom: 16px; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                                    <span>🏍️</span> Configurações de Entregador
+                                </h3>
+                                <div class="form-grid">
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Tipo de Entregador</label>
+                                        <select class="form-control" @bind="model.entregador_config.tipo_entregador">
+                                            <option value="PROPRIO">Próprio / CLT</option>
+                                            <option value="TERCEIRIZADO">Terceirizado / Freelancer</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Veículo de Entrega</label>
+                                        <input type="text" class="form-control" @bind="model.entregador_config.veiculo" placeholder="Ex: CG 160 Fan..." />
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 4;">
+                                        <label>Placa do Veículo</label>
+                                        <input type="text" class="form-control" @bind="model.entregador_config.placa" placeholder="ABC-1234 / Mercosul..." />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- TRANSPORTADORA CONFIG -->
+                        @if (model.papeis.Contains("TRANSPORTADORA"))
+                        {
+                            <div style="border: 1px solid var(--cor-borda); border-radius: 12px; padding: 20px; background: rgba(255, 255, 255, 0.02);">
+                                <h3 style="color: #fff; margin-bottom: 16px; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                                    <span>🚚</span> Configurações de Transportadora
+                                </h3>
+                                <div class="form-grid">
+                                    <div class="form-grupo" style="grid-column: span 6;">
+                                        <label>Contato Logística / Expedição</label>
+                                        <input type="text" class="form-control" @bind="model.transportadora_config.contato_logistica" placeholder="Nome do encarregado..." />
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 6; justify-content: center; display: flex; flex-direction: column;">
+                                        <label class="checkbox-premium">
+                                            <input type="checkbox" @bind="model.transportadora_config.ativa_transportadora" />
+                                            <span>Transportadora Ativa</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-grupo" style="grid-column: span 12;">
+                                        <label>Observação de Logística / Rotas</label>
+                                        <input type="text" class="form-control" @bind="model.transportadora_config.observacao_logistica" placeholder="Horários de coleta, rotas específicas..." />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                    </div>
+                }
+            </div>
+
+            <div class="modal-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Cadastro</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-error { background: rgba(239,68,68,0.12); color: #ff4b2b; border: 1px solid rgba(239,68,68,0.25); }
+    .badge-papel { background: rgba(0,198,255,0.08); color: #00c6ff; border: 1px solid rgba(0,198,255,0.18); font-size: 10px; }
+
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-outline { background: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto-sub); transition: all 0.2s ease; cursor: pointer; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); }
+    
+    .btn-perigo-outline { border-color: rgba(255,75,43,0.3); color: #ff4b2b; }
+    .btn-perigo-outline:hover { background: rgba(255,75,43,0.1); border-color: #ff4b2b; color: #fff; }
+
+    .checkbox-premium {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--cor-borda);
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .checkbox-premium:hover {
+        background: rgba(0, 198, 255, 0.03);
+        border-color: var(--cor-borda-glow);
+    }
+    .checkbox-premium input[type=checkbox] {
+        width: 18px;
+        height: 18px;
+        accent-color: #00c6ff;
+        cursor: pointer;
+    }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .alert-success-box { background: rgba(56,239,125,0.1); color: #38ef7d; border: 1px solid rgba(56,239,125,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral, erroModal, sucessoModal;
+    
+    private string buscaTexto = "";
+    private string papelFiltro = "TODOS";
+    private string statusFiltro = "ATIVOS";
+
+    private List<PessoaDto> pessoas = new();
+    
+    private Guid editandoId = Guid.Empty;
+    private bool mostrarModal = false;
+    private string abaAtiva = "GERAL";
+    private PessoaModel model = new();
+
+    // Filtros e busca no Cliente (Offline-First Performance)
+    private IEnumerable<PessoaDto> PessoasFiltradas
+    {
+        get
+        {
+            var res = pessoas.AsEnumerable();
+
+            if (papelFiltro != "TODOS")
+            {
+                res = res.Where(p => p.papeis.Contains(papelFiltro));
+            }
+
+            if (statusFiltro == "ATIVOS")
+            {
+                res = res.Where(p => p.ativo);
+            }
+            else if (statusFiltro == "INATIVOS")
+            {
+                res = res.Where(p => !p.ativo);
+            }
+
+            if (!string.IsNullOrEmpty(buscaTexto))
+            {
+                var t = buscaTexto.ToLower().Trim();
+                res = res.Where(p => p.nome_razao_social.ToLower().Contains(t) || 
+                                     (p.nome_fantasia != null && p.nome_fantasia.ToLower().Contains(t)) ||
+                                     (p.cpf != null && p.cpf.Contains(t)) ||
+                                     (p.cnpj != null && p.cnpj.Contains(t)) ||
+                                     (p.ci != null && p.ci.Contains(t)) ||
+                                     (p.ruc != null && p.ruc.Contains(t)));
+            }
+
+            return res;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await CarregarDados();
+
+    protected override void OnParametersSet()
+    {
+        var uri = Navigation.Uri.ToLower();
+        if (uri.Contains("clientes")) papelFiltro = "CLIENTE";
+        else if (uri.Contains("fornecedores")) papelFiltro = "FORNECEDOR";
+        else if (uri.Contains("funcionarios")) papelFiltro = "FUNCIONARIO";
+        else if (uri.Contains("vendedores")) papelFiltro = "VENDEDOR";
+        else if (uri.Contains("entregadores")) papelFiltro = "ENTREGADOR";
+        else if (uri.Contains("transportadoras")) papelFiltro = "TRANSPORTADORA";
+        else papelFiltro = "TODOS";
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<List<PessoaDto>>>("/cadastros/pessoas");
+            if (res?.sucesso == true)
+            {
+                pessoas = res.dados ?? new();
+            }
+            else
+            {
+                erroGeral = res?.mensagem ?? "Erro desconhecido ao carregar.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void SetAba(string aba) => abaAtiva = aba;
+
+    private void TogglePapel(string papel, object? checkedValue)
+    {
+        bool marcou = checkedValue is bool b && b;
+        if (marcou)
+        {
+            if (!model.papeis.Contains(papel)) model.papeis.Add(papel);
+        }
+        else
+        {
+            model.papeis.Remove(papel);
+        }
+    }
+
+    private void AbrirModalNovo()
+    {
+        editandoId = Guid.Empty;
+        model = new PessoaModel();
+        
+        // Se estiver em uma rota de papel pré-definida, adiciona automaticamente o papel
+        if (papelFiltro != "TODOS")
+        {
+            model.papeis.Add(papelFiltro);
+        }
+        
+        erroModal = null; sucessoModal = null;
+        abaAtiva = "GERAL";
+        mostrarModal = true;
+    }
+
+    private async Task AbrirModalEditar(Guid id)
+    {
+        editandoId = id; erroModal = null; sucessoModal = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<PessoaDetalheDto>>($"/cadastros/pessoas/{id}");
+            if (res?.sucesso == true && res.dados != null)
+            {
+                var d = res.dados;
+                model = new PessoaModel
+                {
+                    tipo_pessoa = d.tipo_pessoa,
+                    nome_razao_social = d.nome_razao_social,
+                    nome_fantasia = d.nome_fantasia,
+                    cpf = d.cpf,
+                    cnpj = d.cnpj,
+                    ci = d.ci,
+                    ruc = d.ruc,
+                    rg = d.rg,
+                    inscricao_estadual = d.inscricao_estadual,
+                    inscricao_municipal = d.inscricao_municipal,
+                    data_nascimento = d.data_nascimento,
+                    observacao = d.observacao,
+                    papeis = d.papeis,
+                    
+                    contato = d.contato ?? new ContatoModel(),
+                    endereco = d.endereco ?? new EnderecoModel(),
+                    cliente_config = d.cliente_config ?? new ClienteConfigModel(),
+                    fornecedor_config = d.fornecedor_config ?? new FornecedorConfigModel(),
+                    funcionario_config = d.funcionario_config ?? new FuncionarioConfigModel(),
+                    vendedor_config = d.vendedor_config ?? new VendedorConfigModel(),
+                    entregador_config = d.entregador_config ?? new EntregadorConfigModel(),
+                    transportadora_config = d.transportadora_config ?? new TransportadoraConfigModel()
+                };
+                
+                abaAtiva = "GERAL";
+                mostrarModal = true;
+            }
+            else
+            {
+                erroGeral = res?.mensagem ?? "Erro ao carregar detalhes do registro.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de rede: " + ex.Message;
+        }
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null; sucessoModal = null;
+        
+        // Validações visuais locais
+        if (string.IsNullOrWhiteSpace(model.nome_razao_social))
+        {
+            erroModal = "O Nome ou Razão Social é de preenchimento obrigatório.";
+            abaAtiva = "GERAL";
+            return;
+        }
+
+        if (model.papeis.Count == 0)
+        {
+            erroModal = "Marque pelo menos um Papel para esta pessoa (ex: Cliente, Fornecedor).";
+            abaAtiva = "GERAL";
+            return;
+        }
+
+        // Validação de email básica
+        if (!string.IsNullOrWhiteSpace(model.contato.email) && (!model.contato.email.Contains("@") || !model.contato.email.Contains(".")))
+        {
+            erroModal = "O e-mail digitado possui formato inválido.";
+            abaAtiva = "GERAL";
+            return;
+        }
+
+        // Validação limite de crédito
+        if (model.cliente_config.limite_credito < 0)
+        {
+            erroModal = "O Limite de Crédito do cliente não pode ser negativo.";
+            abaAtiva = "CONFIG_PAPEIS";
+            return;
+        }
+
+        // Validação comissão vendedor
+        if (model.vendedor_config.tipo_comissao == "PERCENTUAL" && (model.vendedor_config.percentual_comissao < 0 || model.vendedor_config.percentual_comissao > 100))
+        {
+            erroModal = "A comissão do vendedor deve estar entre 0% e 100%.";
+            abaAtiva = "CONFIG_PAPEIS";
+            return;
+        }
+
+        try
+        {
+            HttpResponseMessage res;
+            if (editandoId == Guid.Empty)
+            {
+                res = await Http.PostAsJsonAsync("/cadastros/pessoas", model);
+            }
+            else
+            {
+                res = await Http.PutAsJsonAsync($"/cadastros/pessoas/{editandoId}", model);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                sucessoModal = "Cadastro realizado com sucesso!";
+                
+                // Limpar campos sensíveis
+                model.cpf = ""; model.cnpj = ""; model.ci = ""; model.ruc = "";
+                
+                await Task.Delay(1000);
+                mostrarModal = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroModal = err?.mensagem ?? "Erro ao salvar as informações.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = "Ocorreu uma falha na requisição: " + ex.Message;
+        }
+    }
+
+    private async Task InativarPessoa(Guid id)
+    {
+        bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", "Tem certeza que deseja inativar esta pessoa?");
+        if (!confirm) return;
+
+        try
+        {
+            var res = await Http.PutAsync($"/cadastros/pessoas/{id}/inativar", null);
+            if (res.IsSuccessStatusCode)
+            {
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                await JSRuntime.InvokeVoidAsync("alert", err?.mensagem ?? "Falha ao inativar.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Erro de conexão: " + ex.Message);
+        }
+    }
+
+    private void FecharModal() => mostrarModal = false;
+
+    // ================================================================
+    // DTOs & Models locais do Front-End Blazor
+    // ================================================================
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class PessoaDto
+    {
+        public Guid id { get; set; }
+        public string tipo_pessoa { get; set; } = "FISICA";
+        public string nome_razao_social { get; set; } = "";
+        public string? nome_fantasia { get; set; }
+        public string? cpf { get; set; }
+        public string? cnpj { get; set; }
+        public string? ci { get; set; }
+        public string? ruc { get; set; }
+        public bool ativo { get; set; }
+        public List<string> papeis { get; set; } = new();
+    }
+
+    public class PessoaDetalheDto
+    {
+        public Guid id { get; set; }
+        public string tipo_pessoa { get; set; } = "FISICA";
+        public string nome_razao_social { get; set; } = "";
+        public string? nome_fantasia { get; set; }
+        public string? cpf { get; set; }
+        public string? cnpj { get; set; }
+        public string? ci { get; set; }
+        public string? ruc { get; set; }
+        public string? rg { get; set; }
+        public string? inscricao_estadual { get; set; }
+        public string? inscricao_municipal { get; set; }
+        public DateTime? data_nascimento { get; set; }
+        public string? observacao { get; set; }
+        public bool ativo { get; set; }
+        public List<string> papeis { get; set; } = new();
+        
+        public ContatoModel? contato { get; set; }
+        public EnderecoModel? endereco { get; set; }
+        public ClienteConfigModel? cliente_config { get; set; }
+        public FornecedorConfigModel? fornecedor_config { get; set; }
+        public FuncionarioConfigModel? funcionario_config { get; set; }
+        public VendedorConfigModel? vendedor_config { get; set; }
+        public EntregadorConfigModel? entregador_config { get; set; }
+        public TransportadoraConfigModel? transportadora_config { get; set; }
+    }
+
+    public class PessoaModel
+    {
+        public string tipo_pessoa { get; set; } = "FISICA";
+        public string nome_razao_social { get; set; } = "";
+        public string? nome_fantasia { get; set; }
+        public string? cpf { get; set; }
+        public string? cnpj { get; set; }
+        public string? ci { get; set; }
+        public string? ruc { get; set; }
+        public string? rg { get; set; }
+        public string? inscricao_estadual { get; set; }
+        public string? inscricao_municipal { get; set; }
+        public DateTime? data_nascimento { get; set; }
+        public string? observacao { get; set; }
+        public List<string> papeis { get; set; } = new();
+        
+        public ContatoModel contato { get; set; } = new();
+        public EnderecoModel endereco { get; set; } = new();
+        public ClienteConfigModel cliente_config { get; set; } = new();
+        public FornecedorConfigModel fornecedor_config { get; set; } = new();
+        public FuncionarioConfigModel funcionario_config { get; set; } = new();
+        public VendedorConfigModel vendedor_config { get; set; } = new();
+        public EntregadorConfigModel entregador_config { get; set; } = new();
+        public TransportadoraConfigModel transportadora_config { get; set; } = new();
+    }
+
+    public class ContatoModel
+    {
+        public string? telefone_principal { get; set; }
+        public string? whatsapp { get; set; }
+        public string? telefone_secundario { get; set; }
+        public string? email { get; set; }
+        public string? site { get; set; }
+        public string? responsavel { get; set; }
+        public string? observacao { get; set; }
+    }
+
+    public class EnderecoModel
+    {
+        public string tipo_endereco { get; set; } = "PRINCIPAL";
+        public string pais { get; set; } = "BR";
+        public string? estado_departamento { get; set; }
+        public string? cidade { get; set; }
+        public string? bairro { get; set; }
+        public string? logradouro { get; set; }
+        public string? numero { get; set; }
+        public string? complemento { get; set; }
+        public string? cep_codigo_postal { get; set; }
+        public string? referencia { get; set; }
+        public bool principal { get; set; } = true;
+    }
+
+    public class ClienteConfigModel
+    {
+        public decimal limite_credito { get; set; } = 0;
+        public bool permitir_crediario { get; set; } = false;
+        public bool bloquear_venda_prazo { get; set; } = false;
+        public string? observacao_credito { get; set; }
+        public string status_cliente { get; set; } = "ATIVO";
+    }
+
+    public class FornecedorConfigModel
+    {
+        public int? prazo_pagamento_padrao { get; set; } = 30;
+        public string moeda_padrao_compra { get; set; } = "BRL";
+        public string? observacao_comercial { get; set; }
+        public string status_fornecedor { get; set; } = "ATIVO";
+    }
+
+    public class FuncionarioConfigModel
+    {
+        public string? cargo { get; set; }
+        public DateTime? data_admissao { get; set; }
+        public DateTime? data_demissao { get; set; }
+        public decimal? salario_base { get; set; } = 0;
+        public bool ativo_funcionario { get; set; } = true;
+        public string? observacao_funcionario { get; set; }
+    }
+
+    public class VendedorConfigModel
+    {
+        public string? codigo_vendedor { get; set; }
+        public string tipo_comissao { get; set; } = "SEM_COMISSAO";
+        public decimal percentual_comissao { get; set; } = 0;
+        public decimal valor_comissao_fixa { get; set; } = 0;
+        public bool comissao_ativa { get; set; } = true;
+    }
+
+    public class EntregadorConfigModel
+    {
+        public string? tipo_entregador { get; set; } = "PROPRIO";
+        public string? veiculo { get; set; }
+        public string? placa { get; set; }
+        public bool ativo_entregador { get; set; } = true;
+    }
+
+    public class TransportadoraConfigModel
+    {
+        public string? contato_logistica { get; set; }
+        public string? observacao_logistica { get; set; }
+        public bool ativa_transportadora { get; set; } = true;
+    }
+}

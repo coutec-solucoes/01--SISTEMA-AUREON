@@ -21,6 +21,16 @@
                             <span>⚙️</span> Empresa & Moedas
                         </a>
                     </li>
+
+                    <div class="sidebar-header" style="padding: 16px 24px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--cor-texto-disabled); font-weight: 600; margin-top: 16px;">
+                        Cadastros
+                    </div>
+                    
+                    <li class="sidebar-item @(IsActive("/cadastros/pessoas") || IsActive("/cadastros/clientes") || IsActive("/cadastros/fornecedores") || IsActive("/cadastros/funcionarios") || IsActive("/cadastros/vendedores") || IsActive("/cadastros/entregadores") || IsActive("/cadastros/transportadoras") ? "ativo" : "")">
+                        <a href="/cadastros/pessoas">
+                            <span>👥</span> Pessoas & Papéis
+                        </a>
+                    </li>
                     
                     <div class="sidebar-header" style="padding: 16px 24px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--cor-texto-disabled); font-weight: 600; margin-top: 16px;">
                         Segurança
