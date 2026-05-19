@@ -4,7 +4,7 @@ use axum::{
 };
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
-use crate::routes::{health, diagnostico, empresa, auth, cadastros::{pessoas, grupos, produtos}};
+use crate::routes::{health, diagnostico, empresa, auth, cadastros::{pessoas, grupos, produtos}, configuracoes::operacionais};
 use crate::middleware::auth_middleware;
 
 
@@ -72,6 +72,51 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         
         .route("/cadastros/produtos/locais-producao", get(produtos::listar_locais_producao).post(produtos::criar_local_producao))
         .route("/cadastros/produtos/locais-producao/:id", put(produtos::atualizar_local_producao))
+        
+        // Módulo de Configurações Operacionais (Fase 5 - Bloco 2)
+        .route("/configuracoes/operacionais/pdv", get(operacionais::obter_configuracao_pdv).post(operacionais::salvar_configuracao_pdv).put(operacionais::salvar_configuracao_pdv))
+        
+        .route("/configuracoes/operacionais/terminais", get(operacionais::listar_terminais).post(operacionais::criar_terminal))
+        .route("/configuracoes/operacionais/terminais/:id", put(operacionais::atualizar_terminal))
+        .route("/configuracoes/operacionais/terminais/:id/inativar", put(operacionais::inativar_terminal))
+        .route("/configuracoes/operacionais/terminais/:id/autorizar", put(operacionais::autorizar_terminal))
+        
+        .route("/configuracoes/operacionais/registradoras", get(operacionais::listar_registradoras).post(operacionais::criar_registradora))
+        .route("/configuracoes/operacionais/registradoras/:id", put(operacionais::atualizar_registradora))
+        .route("/configuracoes/operacionais/registradoras/:id/inativar", put(operacionais::inativar_registradora))
+        
+        .route("/configuracoes/operacionais/mesas/configuracao", get(operacionais::obter_mesas_configuracao).post(operacionais::salvar_mesas_configuracao).put(operacionais::salvar_mesas_configuracao))
+        .route("/configuracoes/operacionais/mesas", get(operacionais::listar_mesas).post(operacionais::criar_mesa))
+        .route("/configuracoes/operacionais/mesas/:id", put(operacionais::atualizar_mesa))
+        
+        .route("/configuracoes/operacionais/comandas/configuracao", get(operacionais::obter_comandas_configuracao).post(operacionais::salvar_comandas_configuracao).put(operacionais::salvar_comandas_configuracao))
+        .route("/configuracoes/operacionais/comandas", get(operacionais::listar_comandas).post(operacionais::criar_comanda))
+        .route("/configuracoes/operacionais/comandas/:id", put(operacionais::atualizar_comanda))
+        
+        .route("/configuracoes/operacionais/pre-vendas", get(operacionais::obter_prevendas).post(operacionais::salvar_prevendas).put(operacionais::salvar_prevendas))
+        .route("/configuracoes/operacionais/orcamentos", get(operacionais::obter_orcamentos).post(operacionais::salvar_orcamentos).put(operacionais::salvar_orcamentos))
+        
+        .route("/configuracoes/operacionais/regras-venda", get(operacionais::obter_regras_venda).post(operacionais::salvar_regras_venda).put(operacionais::salvar_regras_venda))
+        
+        .route("/configuracoes/operacionais/series-numeracao", get(operacionais::listar_series_numeracao).post(operacionais::criar_serie_numeracao))
+        .route("/configuracoes/operacionais/series-numeracao/:id", put(operacionais::atualizar_serie_numeracao))
+        
+        .route("/configuracoes/operacionais/impressoras", get(operacionais::listar_impressoras).post(operacionais::criar_impressora))
+        .route("/configuracoes/operacionais/impressoras/:id", put(operacionais::atualizar_impressora))
+        
+        .route("/configuracoes/operacionais/setores-producao", get(operacionais::listar_setores_producao).post(operacionais::criar_setor_producao))
+        .route("/configuracoes/operacionais/setores-producao/:id", put(operacionais::atualizar_setor_producao))
+        
+        .route("/configuracoes/operacionais/balancas", get(operacionais::listar_balancas).post(operacionais::criar_balanca))
+        .route("/configuracoes/operacionais/balancas/:id", put(operacionais::atualizar_balanca))
+        
+        .route("/configuracoes/operacionais/etiquetas-balanca", get(operacionais::listar_etiquetas_balanca).post(operacionais::criar_etiqueta_balanca))
+        .route("/configuracoes/operacionais/etiquetas-balanca/:id", put(operacionais::atualizar_etiqueta_balanca))
+        
+        .route("/configuracoes/operacionais/perifericos", get(operacionais::listar_perifericos).post(operacionais::criar_periferico))
+        .route("/configuracoes/operacionais/perifericos/:id", put(operacionais::atualizar_periferico))
+        
+        .route("/configuracoes/operacionais/senhas-chamadas", get(operacionais::obter_senhas_chamadas).post(operacionais::salvar_senhas_chamadas).put(operacionais::salvar_senhas_chamadas))
         
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
