@@ -11,6 +11,15 @@ pub struct Config {
     pub versao:      String,
 }
 
+#[derive(serde::Deserialize)]
+struct AppServerConfig {
+    postgres_host: String,
+    postgres_porta: u16,
+    postgres_usuario: String,
+    postgres_senha: String,
+    postgres_banco: String,
+}
+
 impl Config {
     /// Carrega configuração de variáveis de ambiente.
     /// Tenta carregar .env se existir (apenas em desenvolvimento).
@@ -22,8 +31,28 @@ impl Config {
             .parse::<u16>()
             .map_err(|_| AureonError::Configuracao("Porta inválida".to_string()))?;
 
-        // DATABASE_URL nunca é logada
-        let database_url = env::var("DATABASE_URL").ok();
+        // DATABASE_URL nunca é logada. Tenta do ambiente, senão decripta do cofre técnico
+        let mut database_url = env::var("DATABASE_URL").ok();
+
+        if database_url.is_none() {
+            let config_path = std::path::Path::new("C:/Aureon/config/server.config.enc");
+            let keystore_path = std::path::Path::new("C:/Aureon/config/.keystore");
+            if config_path.exists() && keystore_path.exists() {
+                if let Ok(server_config) = aureon_shared::config_store::ler_config_criptografada::<AppServerConfig>(
+                    config_path,
+                    keystore_path,
+                ) {
+                    database_url = Some(format!(
+                        "postgres://{}:{}@{}:{}/{}",
+                        server_config.postgres_usuario,
+                        server_config.postgres_senha,
+                        server_config.postgres_host,
+                        server_config.postgres_porta,
+                        server_config.postgres_banco
+                    ));
+                }
+            }
+        }
 
         let ambiente = env::var("AUREON_AMBIENTE")
             .unwrap_or_else(|_| "desenvolvimento".to_string());
