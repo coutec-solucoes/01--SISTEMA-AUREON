@@ -1,39 +1,79 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
+@inject AuthService AuthService
 
-<div class="layout-principal">
+<AuthorizeView>
+    <Authorized>
+        <div class="layout-principal">
+            <aside class="sidebar">
+                <div class="sidebar-logo">
+                    <span>⚡</span> AUREON GESTOR
+                </div>
 
-    <!-- Sidebar de Navegação Premium -->
-    <aside class="sidebar">
-        <div class="sidebar-logo">
-            <span>⚡</span> AUREON GESTOR
+                <ul class="sidebar-menu">
+                    <li class="sidebar-item @(IsActive("/") ? "ativo" : "")">
+                        <a href="/">
+                            <span>📊</span> Dashboard
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/configuracoes/empresa") ? "ativo" : "")">
+                        <a href="/configuracoes/empresa">
+                            <span>⚙️</span> Empresa & Moedas
+                        </a>
+                    </li>
+                    
+                    <div class="sidebar-header" style="padding: 16px 24px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--cor-texto-disabled); font-weight: 600; margin-top: 16px;">
+                        Segurança
+                    </div>
+                    
+                    <li class="sidebar-item @(IsActive("/seguranca/usuarios") ? "ativo" : "")">
+                        <a href="/seguranca/usuarios">
+                            <span>👥</span> Usuários
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/seguranca/perfis") ? "ativo" : "")">
+                        <a href="/seguranca/perfis">
+                            <span>🛡️</span> Perfis & Permissões
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/seguranca/supervisores") ? "ativo" : "")">
+                        <a href="/seguranca/supervisores">
+                            <span>🔑</span> Supervisores
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/seguranca/autorizacoes") ? "ativo" : "")">
+                        <a href="/seguranca/autorizacoes">
+                            <span>✅</span> Autorizações
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/seguranca/auditoria") ? "ativo" : "")">
+                        <a href="/seguranca/auditoria">
+                            <span>📋</span> Auditoria & Logs
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="sidebar-footer">
+                    <div style="margin-bottom: 12px; font-size: 12px; font-weight: bold; color: var(--cor-primaria);">
+                        @context.User.Identity?.Name
+                    </div>
+                    <button class="btn btn-outline" style="width: 100%; padding: 8px; font-size: 12px;" @onclick="Sair">Sair</button>
+                    <p style="margin-top: 16px;">Aureon Gestor © 2026</p>
+                    <p style="font-size: 10px; margin-top: 4px; color: var(--cor-texto-disabled);">Versão 1.0.0 (Fase 3)</p>
+                </div>
+            </aside>
+
+            <main class="conteudo-principal">
+                @Body
+            </main>
         </div>
-
-        <ul class="sidebar-menu">
-            <li class="sidebar-item @(IsActive("/") ? "ativo" : "")">
-                <a href="/">
-                    <span>📊</span> Dashboard
-                </a>
-            </li>
-            <li class="sidebar-item @(IsActive("/configuracoes/empresa") ? "ativo" : "")">
-                <a href="/configuracoes/empresa">
-                    <span>⚙️</span> Empresa & Moedas
-                </a>
-            </li>
-        </ul>
-
-        <div class="sidebar-footer">
-            <p>Aureon Gestor © 2026</p>
-            <p style="font-size: 10px; margin-top: 4px; color: var(--cor-texto-disabled);">Versão 1.0.0 (Fase 2)</p>
+    </Authorized>
+    <NotAuthorized>
+        <div class="layout-login-fullscreen">
+            @Body
         </div>
-    </aside>
-
-    <!-- Área Principal de Conteúdo -->
-    <main class="conteudo-principal">
-        @Body
-    </main>
-
-</div>
+    </NotAuthorized>
+</AuthorizeView>
 
 @code {
     private bool IsActive(string rota)
@@ -46,5 +86,11 @@
         }
         
         return uri.StartsWith(rota.TrimStart('/'), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task Sair()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login");
     }
 }

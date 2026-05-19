@@ -1,0 +1,113 @@
+@page "/seguranca/autorizacoes"
+@inject HttpClient Http
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Autorizações — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Autorizações de Supervisão</h1>
+        <p class="subtitulo-pagina">Histórico de todas as autorizações especiais realizadas no PDV.</p>
+    </div>
+    <button class="btn btn-outline" @onclick="Carregar">↻ Atualizar</button>
+</div>
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando autorizações...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box">@erroGeral</div>
+}
+else
+{
+    <div class="card fade-in" style="overflow-x: auto;">
+        @if (!autorizacoes.Any())
+        {
+            <div class="empty-state" style="padding: 48px;">
+                <span style="font-size: 40px;">✅</span>
+                <p style="color: var(--cor-texto-secundario);">Nenhuma autorização registrada.</p>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Operação</th>
+                        <th>Solicitante</th>
+                        <th>Supervisor</th>
+                        <th>Motivo</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in autorizacoes)
+                    {
+                        <tr>
+                            <td style="font-size: 12px; color: var(--cor-texto-secundario);">@a.criado_em.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>
+                                <span class="badge-op">@a.operacao.Replace("_", " ")</span>
+                            </td>
+                            <td>@(a.solicitante ?? "—")</td>
+                            <td>@(a.supervisor ?? "—")</td>
+                            <td style="max-width: 200px; font-size: 13px; color: var(--cor-texto-secundario);">@a.motivo</td>
+                            <td>
+                                @if (a.status == "APROVADA")
+                                { <span class="badge badge-success">Aprovada</span> }
+                                else if (a.status == "NEGADA")
+                                { <span class="badge badge-error">Negada</span> }
+                                else
+                                { <span class="badge badge-warning">@a.status</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<style>
+    .badge { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+    .badge-error { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+    .badge-warning { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+    .badge-op { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.2); font-weight: 600; }
+    .alert-error-box { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral;
+    private List<AutorizacaoDto> autorizacoes = new();
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    private async Task Carregar()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<List<AutorizacaoDto>>>("/seguranca/autorizacoes");
+            if (res?.sucesso == true) autorizacoes = res.dados ?? new();
+        }
+        catch (Exception ex) { erroGeral = "Erro ao carregar: " + ex.Message; }
+        finally { carregando = false; }
+    }
+
+    public class Resposta<T> { public bool sucesso { get; set; } public string mensagem { get; set; } = ""; public T? dados { get; set; } }
+    public class AutorizacaoDto
+    {
+        public Guid id { get; set; }
+        public string operacao { get; set; } = "";
+        public string? solicitante { get; set; }
+        public string? supervisor { get; set; }
+        public string motivo { get; set; } = "";
+        public string status { get; set; } = "";
+        public DateTime criado_em { get; set; }
+    }
+}

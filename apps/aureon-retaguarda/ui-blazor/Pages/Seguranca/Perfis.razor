@@ -1,0 +1,257 @@
+@page "/seguranca/perfis"
+@inject HttpClient Http
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Perfis & Permissões — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Perfis & Permissões</h1>
+        <p class="subtitulo-pagina">Controle o que cada grupo de usuários pode ver e executar no sistema.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Novo Perfil
+    </button>
+</div>
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando perfis...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box">@erroGeral</div>
+}
+else
+{
+    <div class="layout-perfis fade-in">
+        <!-- Lista de Perfis -->
+        <div class="card lista-perfis">
+            <h3 class="secao-titulo">Perfis Cadastrados</h3>
+            @foreach (var p in perfis)
+            {
+                <div class="item-perfil @(perfilSelecionado?.id == p.id ? "ativo" : "")" @onclick="() => SelecionarPerfil(p)">
+                    <div class="perfil-nome">
+                        @p.nome
+                        @if (p.nome == "ADMINISTRADOR") { <span class="badge-admin">SISTEMA</span> }
+                    </div>
+                    <div class="perfil-descricao">@(p.descricao ?? "Sem descrição")</div>
+                </div>
+            }
+        </div>
+
+        <!-- Painel de Permissões do Perfil -->
+        <div class="card painel-permissoes">
+            @if (perfilSelecionado == null)
+            {
+                <div class="empty-state">
+                    <span>🛡️</span>
+                    <p>Selecione um perfil para gerenciar as permissões.</p>
+                </div>
+            }
+            else
+            {
+                <div class="permissoes-header">
+                    <div>
+                        <h3 class="secao-titulo">@perfilSelecionado.nome</h3>
+                        <p class="subtitulo-pagina" style="margin:0; font-size: 13px;">@(perfilSelecionado.descricao ?? "Sem descrição")</p>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        @if (perfilSelecionado.nome != "ADMINISTRADOR")
+                        {
+                            <button class="btn btn-outline" @onclick="() => AbrirModalEditar(perfilSelecionado)">Editar Perfil</button>
+                            <button class="btn btn-primary" @onclick="SalvarPermissoes">Salvar Permissões</button>
+                        }
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(erroPermissao))
+                {
+                    <div class="alert-error-box" style="margin: 12px 0;">@erroPermissao</div>
+                }
+                @if (!string.IsNullOrEmpty(sucessoPermissao))
+                {
+                    <div class="alert-success-box" style="margin: 12px 0;">@sucessoPermissao</div>
+                }
+
+                @if (perfilSelecionado.nome == "ADMINISTRADOR")
+                {
+                    <div class="alert-info-box" style="margin: 12px 0;">
+                        🔒 O perfil <strong>ADMINISTRADOR</strong> tem acesso irrestrito a todos os módulos e não pode ser editado.
+                    </div>
+                }
+                else
+                {
+                    <div class="tabela-permissoes">
+                        <div class="tabela-cabecalho">
+                            <span>Módulo / Menu</span>
+                            <span>Ler</span>
+                            <span>Criar</span>
+                            <span>Editar</span>
+                            <span>Excluir</span>
+                            <span>Exportar</span>
+                        </div>
+                        @foreach (var perm in permissoes)
+                        {
+                            <div class="tabela-linha">
+                                <span class="menu-nome">@perm.menu</span>
+                                <span><input type="checkbox" @bind="perm.ler" /></span>
+                                <span><input type="checkbox" @bind="perm.criar" /></span>
+                                <span><input type="checkbox" @bind="perm.editar" /></span>
+                                <span><input type="checkbox" @bind="perm.excluir" /></span>
+                                <span><input type="checkbox" @bind="perm.exportar" /></span>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card">
+            <h2 class="modal-title">@(editandoPerfil?.id == Guid.Empty ? "Novo Perfil" : "Editar Perfil")</h2>
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 16px;">@erroModal</div>
+            }
+            <div class="form-group">
+                <label>Nome do Perfil</label>
+                <input type="text" class="form-control" @bind="editandoPerfil!.nome" placeholder="Ex: GERENTE" />
+            </div>
+            <div class="form-group" style="margin-top: 12px;">
+                <label>Descrição</label>
+                <input type="text" class="form-control" @bind="editandoPerfil!.descricao" placeholder="Descrição do perfil..." />
+            </div>
+            <div class="modal-actions" style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" @onclick="() => mostrarModal = false">Cancelar</button>
+                <button class="btn btn-primary" @onclick="SalvarPerfil">Salvar</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .layout-perfis {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 16px;
+        align-items: start;
+    }
+    .lista-perfis { padding: 16px; }
+    .secao-titulo { font-size: 14px; font-weight: 600; color: var(--cor-texto-secundario); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+    .item-perfil {
+        padding: 12px 16px; border-radius: 8px; cursor: pointer;
+        border: 1px solid transparent; transition: all 0.2s; margin-bottom: 6px;
+    }
+    .item-perfil:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08); }
+    .item-perfil.ativo { background: rgba(0, 198, 255, 0.08); border-color: rgba(0, 198, 255, 0.3); }
+    .perfil-nome { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .perfil-descricao { font-size: 12px; color: var(--cor-texto-secundario); margin-top: 2px; }
+    .badge-admin { font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .painel-permissoes { padding: 20px; }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; gap: 12px; color: var(--cor-texto-secundario); font-size: 13px; }
+    .empty-state span { font-size: 40px; }
+    .permissoes-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    .tabela-permissoes { border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; overflow: hidden; }
+    .tabela-cabecalho { display: grid; grid-template-columns: 1fr repeat(5, 70px); padding: 10px 16px; background: rgba(255,255,255,0.04); font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--cor-texto-secundario); letter-spacing: 0.5px; text-align: center; }
+    .tabela-cabecalho span:first-child { text-align: left; }
+    .tabela-linha { display: grid; grid-template-columns: 1fr repeat(5, 70px); padding: 10px 16px; border-top: 1px solid rgba(255,255,255,0.04); align-items: center; text-align: center; transition: background 0.15s; }
+    .tabela-linha:hover { background: rgba(255,255,255,0.02); }
+    .menu-nome { font-size: 13px; text-align: left; font-weight: 500; }
+    .tabela-linha input[type=checkbox] { width: 16px; height: 16px; accent-color: #00c6ff; cursor: pointer; }
+    .alert-error-box { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+    .alert-success-box { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+    .alert-info-box { background: rgba(99, 102, 241, 0.1); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { width: 100%; max-width: 480px; padding: 24px; }
+    .form-group label { display: block; margin-bottom: 8px; font-size: 13px; color: var(--cor-texto-secundario); font-weight: 500; }
+    .form-control { width: 100%; padding: 10px 14px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; font-size: 14px; }
+    .form-control:focus { outline: none; border-color: #00c6ff; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral, erroModal, erroPermissao, sucessoPermissao;
+    private bool mostrarModal = false;
+
+    private List<PerfilDto> perfis = new();
+    private PerfilDto? perfilSelecionado;
+    private List<PermissaoItem> permissoes = new();
+    private PerfilEditModel? editandoPerfil;
+
+    protected override async Task OnInitializedAsync() => await CarregarPerfis();
+
+    private async Task CarregarPerfis()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<List<PerfilDto>>>("/seguranca/perfis");
+            if (res?.sucesso == true) perfis = res.dados ?? new();
+        }
+        catch (Exception ex) { erroGeral = "Erro ao carregar perfis: " + ex.Message; }
+        finally { carregando = false; }
+    }
+
+    private async Task SelecionarPerfil(PerfilDto p)
+    {
+        perfilSelecionado = p;
+        erroPermissao = null; sucessoPermissao = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<List<PermissaoItem>>>($"/seguranca/perfis/{p.id}/permissoes");
+            permissoes = res?.dados ?? new();
+        }
+        catch (Exception ex) { erroPermissao = "Erro ao carregar permissões: " + ex.Message; }
+    }
+
+    private async Task SalvarPermissoes()
+    {
+        erroPermissao = null; sucessoPermissao = null;
+        try
+        {
+            var res = await Http.PutAsJsonAsync($"/seguranca/perfis/{perfilSelecionado!.id}/permissoes", permissoes);
+            if (res.IsSuccessStatusCode) sucessoPermissao = "Permissões salvas com sucesso!";
+            else { var e = await res.Content.ReadFromJsonAsync<Resposta<object>>(); erroPermissao = e?.mensagem ?? "Erro ao salvar."; }
+        }
+        catch (Exception ex) { erroPermissao = ex.Message; }
+    }
+
+    private void AbrirModalNovo()
+    {
+        editandoPerfil = new PerfilEditModel { id = Guid.Empty };
+        erroModal = null; mostrarModal = true;
+    }
+
+    private void AbrirModalEditar(PerfilDto p)
+    {
+        editandoPerfil = new PerfilEditModel { id = p.id, nome = p.nome, descricao = p.descricao };
+        erroModal = null; mostrarModal = true;
+    }
+
+    private async Task SalvarPerfil()
+    {
+        erroModal = null;
+        try
+        {
+            HttpResponseMessage res;
+            if (editandoPerfil!.id == Guid.Empty)
+                res = await Http.PostAsJsonAsync("/seguranca/perfis", editandoPerfil);
+            else
+                res = await Http.PutAsJsonAsync($"/seguranca/perfis/{editandoPerfil.id}", editandoPerfil);
+
+            if (res.IsSuccessStatusCode) { mostrarModal = false; await CarregarPerfis(); }
+            else { var e = await res.Content.ReadFromJsonAsync<Resposta<object>>(); erroModal = e?.mensagem ?? "Erro ao salvar perfil."; }
+        }
+        catch (Exception ex) { erroModal = ex.Message; }
+    }
+
+    public class Resposta<T> { public bool sucesso { get; set; } public string mensagem { get; set; } = ""; public T? dados { get; set; } }
+    public class PerfilDto { public Guid id { get; set; } public string nome { get; set; } = ""; public string? descricao { get; set; } }
+    public class PerfilEditModel { public Guid id { get; set; } public string nome { get; set; } = ""; public string? descricao { get; set; } }
+    public class PermissaoItem { public string menu { get; set; } = ""; public bool ler { get; set; } public bool criar { get; set; } public bool editar { get; set; } public bool excluir { get; set; } public bool exportar { get; set; } }
+}

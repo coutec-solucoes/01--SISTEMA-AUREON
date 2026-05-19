@@ -1,0 +1,165 @@
+@page "/login"
+@page "/auth/login"
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@layout Shared.MainLayout
+
+<PageTitle>Login — Aureon Gestor</PageTitle>
+
+<div class="login-container fade-in">
+    <div class="login-box">
+        <div class="login-logo">
+            <span class="icon">⚡</span> AUREON
+        </div>
+        <h2 class="login-title">Acesso Seguro</h2>
+        <p class="login-subtitle">Bem-vindo à Retaguarda do sistema Aureon.</p>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-error fade-in">
+                <span>⚠️</span> @errorMessage
+            </div>
+        }
+
+        <form @onsubmit="EfetuarLogin" class="form-login">
+            <div class="form-group">
+                <label>Usuário ou Email</label>
+                <input type="text" @bind="login" @bind:event="oninput" placeholder="Digite seu usuário..." class="form-control" required autocomplete="username" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label>Senha Segura</label>
+                <input type="password" @bind="senha" @bind:event="oninput" placeholder="••••••••" class="form-control" required autocomplete="current-password" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@carregando" style="width: 100%; padding: 14px; font-size: 16px;">
+                @if (carregando)
+                {
+                    <span>Processando...</span>
+                }
+                else
+                {
+                    <span>Entrar no Sistema</span>
+                }
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .login-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #09090b, #18181b);
+        color: white;
+    }
+
+    .login-box {
+        width: 100%;
+        max-width: 400px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(20px);
+        border-radius: 16px;
+        padding: 40px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .login-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        margin-bottom: 24px;
+        color: #fff;
+    }
+
+    .login-logo .icon {
+        color: #00c6ff;
+        margin-right: 8px;
+    }
+
+    .login-title {
+        font-size: 20px;
+        text-align: center;
+        margin: 0 0 8px;
+        font-weight: 600;
+    }
+
+    .login-subtitle {
+        text-align: center;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 14px;
+        margin-bottom: 32px;
+    }
+
+    .alert-error {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.7);
+        font-weight: 500;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px 16px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: white;
+        font-size: 15px;
+        transition: all 0.2s;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #00c6ff;
+        background: rgba(0, 0, 0, 0.4);
+        box-shadow: 0 0 0 2px rgba(0, 198, 255, 0.2);
+    }
+</style>
+
+@code {
+    private string login = "";
+    private string senha = "";
+    private string? errorMessage = null;
+    private bool carregando = false;
+
+    private async Task EfetuarLogin()
+    {
+        errorMessage = null;
+        carregando = true;
+
+        var error = await AuthService.LoginAsync(login, senha);
+
+        if (error == null)
+        {
+            // Login success
+            senha = ""; // limpa a senha da memória do componente
+            Navigation.NavigateTo("/", forceLoad: false);
+        }
+        else
+        {
+            errorMessage = error;
+            carregando = false;
+        }
+    }
+}

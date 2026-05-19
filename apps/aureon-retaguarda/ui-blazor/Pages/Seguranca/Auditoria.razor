@@ -1,0 +1,278 @@
+@page "/seguranca/auditoria"
+@inject HttpClient Http
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Auditoria & Logs — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Auditoria & Logs de Segurança</h1>
+        <p class="subtitulo-pagina">Rastreabilidade completa de eventos críticos e acessos ao sistema.</p>
+    </div>
+    <button class="btn btn-outline" @onclick="Carregar">↻ Atualizar</button>
+</div>
+
+<!-- Tabs -->
+<div class="tabs fade-in">
+    <button class="tab @(abaAtiva == "logs" ? "ativo" : "")" @onclick='() => MudarAba("logs")'>
+        📋 Logs de Segurança
+    </button>
+    <button class="tab @(abaAtiva == "autorizacoes" ? "ativo" : "")" @onclick='() => MudarAba("autorizacoes")'>
+        ✅ Autorizações do PDV
+    </button>
+</div>
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando dados...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alerta-erro">⚠️ @erroGeral</div>
+}
+
+<!-- ABA: LOGS DE SEGURANÇA -->
+@if (!carregando && abaAtiva == "logs")
+{
+    <!-- Filtros -->
+    <div class="filtros-bar card fade-in">
+        <div class="filtro-grupo">
+            <label>Severidade</label>
+            <select class="form-control-sm" @bind="filtroSeveridade" @bind:after="FiltrarLogs">
+                <option value="">Todas</option>
+                <option value="INFO">Info</option>
+                <option value="AVISO">Aviso</option>
+                <option value="CRITICO">Crítico</option>
+            </select>
+        </div>
+        <div class="filtro-grupo">
+            <label>Tipo de Evento</label>
+            <select class="form-control-sm" @bind="filtroTipo" @bind:after="FiltrarLogs">
+                <option value="">Todos</option>
+                <option value="LOGIN">Login</option>
+                <option value="LOGOUT">Logout</option>
+                <option value="FALHA_LOGIN">Falha de Login</option>
+                <option value="CRIAR_USUARIO">Criar Usuário</option>
+                <option value="ALTERAR_PERMISSAO">Alterar Permissão</option>
+                <option value="REDEFINIR_SENHA">Redefinir Senha</option>
+                <option value="SETUP_ADMIN">Setup Admin</option>
+            </select>
+        </div>
+        <div class="filtro-grupo" style="flex: 1;">
+            <label>Buscar Usuário</label>
+            <input type="text" class="form-control-sm" placeholder="Nome..." @bind="filtroUsuario" @bind:after="FiltrarLogs" />
+        </div>
+        <div class="filtro-grupo" style="align-self: flex-end;">
+            <span class="contador-resultados">@logsFiltrados.Count registro(s)</span>
+        </div>
+    </div>
+
+    <div class="card fade-in" style="overflow-x: auto; margin-top: 0;">
+        @if (!logsFiltrados.Any())
+        {
+            <div class="empty-state">
+                <span>📋</span>
+                <p>Nenhum log encontrado.</p>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Usuário</th>
+                        <th>Tipo de Evento</th>
+                        <th>Mensagem</th>
+                        <th>Severidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var log in logsFiltrados)
+                    {
+                        <tr class="linha-log-@log.severidade.ToLower()">
+                            <td style="font-size: 12px; white-space: nowrap; color: var(--cor-texto-secundario);">
+                                @log.criado_em.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+                            </td>
+                            <td style="font-size: 13px; font-weight: 500;">@(log.usuario_nome ?? "Sistema")</td>
+                            <td>
+                                <span class="badge-evento">@log.tipo_evento.Replace("_", " ")</span>
+                            </td>
+                            <td style="font-size: 13px; max-width: 300px;">@log.mensagem</td>
+                            <td>
+                                @switch (log.severidade)
+                                {
+                                    case "CRITICO":
+                                        <span class="badge sev-critico">🔴 Crítico</span>
+                                        break;
+                                    case "AVISO":
+                                        <span class="badge sev-aviso">🟡 Aviso</span>
+                                        break;
+                                    default:
+                                        <span class="badge sev-info">🔵 Info</span>
+                                        break;
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<!-- ABA: AUTORIZAÇÕES DO PDV -->
+@if (!carregando && abaAtiva == "autorizacoes")
+{
+    <div class="card fade-in" style="overflow-x: auto; margin-top: 0;">
+        @if (!autorizacoes.Any())
+        {
+            <div class="empty-state">
+                <span>✅</span>
+                <p>Nenhuma autorização de supervisão registrada.</p>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Operação</th>
+                        <th>Solicitante</th>
+                        <th>Supervisor</th>
+                        <th>Motivo</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in autorizacoes)
+                    {
+                        <tr>
+                            <td style="font-size: 12px; white-space: nowrap; color: var(--cor-texto-secundario);">
+                                @a.criado_em.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                            </td>
+                            <td><span class="badge-evento">@a.operacao.Replace("_", " ")</span></td>
+                            <td>@(a.solicitante ?? "—")</td>
+                            <td>@(a.supervisor ?? "—")</td>
+                            <td style="font-size: 13px; color: var(--cor-texto-secundario); max-width: 200px;">@a.motivo</td>
+                            <td>
+                                @switch (a.status)
+                                {
+                                    case "APROVADA":
+                                        <span class="badge sev-info" style="background: rgba(16,185,129,0.15); color: #10b981; border-color: rgba(16,185,129,0.3);">✅ Aprovada</span>
+                                        break;
+                                    case "NEGADA":
+                                        <span class="badge sev-critico">❌ Negada</span>
+                                        break;
+                                    default:
+                                        <span class="badge sev-aviso">@a.status</span>
+                                        break;
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<style>
+    .tabs { display: flex; gap: 4px; margin-bottom: -1px; }
+    .tab {
+        padding: 10px 20px; background: transparent; border: 1px solid transparent;
+        border-bottom: none; border-radius: 8px 8px 0 0; color: var(--cor-texto-secundario);
+        cursor: pointer; font-size: 14px; transition: all 0.2s;
+    }
+    .tab:hover { background: rgba(255,255,255,0.04); color: white; }
+    .tab.ativo { background: var(--cor-card, rgba(255,255,255,0.03)); border-color: rgba(255,255,255,0.08); color: #00c6ff; font-weight: 600; }
+    .card { border-radius: 0 8px 8px 8px; }
+
+    .filtros-bar { padding: 14px 20px; display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 0; border-radius: 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .filtro-grupo { display: flex; flex-direction: column; gap: 6px; }
+    .filtro-grupo label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--cor-texto-secundario); font-weight: 600; }
+    .form-control-sm { padding: 7px 12px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: white; font-size: 13px; }
+    .form-control-sm:focus { outline: none; border-color: #00c6ff; }
+    .contador-resultados { font-size: 13px; color: var(--cor-texto-secundario); padding: 7px 0; }
+
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; }
+    .badge-evento { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: rgba(99,102,241,0.12); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.2); font-weight: 600; }
+    .sev-info { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2); }
+    .sev-aviso { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+    .sev-critico { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+
+    .linha-log-critico { border-left: 2px solid #f87171; }
+    .linha-log-aviso { border-left: 2px solid #fbbf24; }
+
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 48px; color: var(--cor-texto-secundario); font-size: 14px; }
+    .empty-state span { font-size: 36px; }
+    .alerta-erro { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral;
+    private string abaAtiva = "logs";
+
+    private List<LogDto> logsOriginais = new();
+    private List<LogDto> logsFiltrados = new();
+    private List<AutorizacaoDto> autorizacoes = new();
+
+    private string filtroSeveridade = "";
+    private string filtroTipo = "";
+    private string filtroUsuario = "";
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    private async Task Carregar()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var resLogs = await Http.GetFromJsonAsync<Resposta<List<LogDto>>>("/seguranca/logs");
+            if (resLogs?.sucesso == true) logsOriginais = resLogs.dados ?? new();
+
+            var resAut = await Http.GetFromJsonAsync<Resposta<List<AutorizacaoDto>>>("/seguranca/autorizacoes");
+            if (resAut?.sucesso == true) autorizacoes = resAut.dados ?? new();
+
+            FiltrarLogs();
+        }
+        catch (Exception ex) { erroGeral = "Erro ao carregar dados: " + ex.Message; }
+        finally { carregando = false; }
+    }
+
+    private void MudarAba(string aba) => abaAtiva = aba;
+
+    private void FiltrarLogs()
+    {
+        logsFiltrados = logsOriginais.Where(l =>
+            (string.IsNullOrEmpty(filtroSeveridade) || l.severidade == filtroSeveridade) &&
+            (string.IsNullOrEmpty(filtroTipo) || l.tipo_evento == filtroTipo) &&
+            (string.IsNullOrEmpty(filtroUsuario) || (l.usuario_nome ?? "").Contains(filtroUsuario, StringComparison.OrdinalIgnoreCase))
+        ).ToList();
+    }
+
+    public class Resposta<T> { public bool sucesso { get; set; } public string mensagem { get; set; } = ""; public T? dados { get; set; } }
+
+    public class LogDto
+    {
+        public long id { get; set; }
+        public string? usuario_nome { get; set; }
+        public string tipo_evento { get; set; } = "";
+        public string mensagem { get; set; } = "";
+        public string severidade { get; set; } = "INFO";
+        public DateTime criado_em { get; set; }
+    }
+
+    public class AutorizacaoDto
+    {
+        public Guid id { get; set; }
+        public string operacao { get; set; } = "";
+        public string? solicitante { get; set; }
+        public string? supervisor { get; set; }
+        public string motivo { get; set; } = "";
+        public string status { get; set; } = "";
+        public DateTime criado_em { get; set; }
+    }
+}

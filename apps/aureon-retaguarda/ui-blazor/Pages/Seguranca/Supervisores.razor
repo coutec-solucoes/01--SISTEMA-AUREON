@@ -1,0 +1,261 @@
+@page "/seguranca/supervisores"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Supervisores — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Supervisores</h1>
+        <p class="subtitulo-pagina">Defina quais usuários podem autorizar operações especiais no PDV.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Novo Supervisor
+    </button>
+</div>
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando supervisores...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box">@erroGeral</div>
+}
+else
+{
+    <div class="card fade-in" style="overflow-x: auto;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Usuário</th>
+                    <th>Status</th>
+                    <th>Desc. Máx.</th>
+                    <th>Limite Sangria</th>
+                    <th>Autorizações</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in supervisores)
+                {
+                    <tr>
+                        <td style="font-weight: 500;">@s.usuario_nome</td>
+                        <td>
+                            @if (s.ativo)
+                            { <span class="badge badge-success">Ativo</span> }
+                            else
+                            { <span class="badge badge-error">Inativo</span> }
+                        </td>
+                        <td>@s.limite_desconto_percentual%</td>
+                        <td>@s.limite_sangria.ToString("N2")</td>
+                        <td style="font-size: 18px; letter-spacing: 2px;">
+                            @if (s.autoriza_cancelamento_item) { <span title="Cancelar Item">🗑️</span> }
+                            @if (s.autoriza_cancelamento_venda) { <span title="Cancelar Venda">🚫</span> }
+                            @if (s.autoriza_alteracao_preco) { <span title="Alterar Preço">💲</span> }
+                            @if (s.autoriza_ajuste_estoque) { <span title="Ajuste de Estoque">📦</span> }
+                            @if (s.autoriza_fechamento_divergencia) { <span title="Fechar com Divergência">⚖️</span> }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(s)">Editar</button>
+                        </td>
+                    </tr>
+                }
+                @if (!supervisores.Any())
+                {
+                    <tr><td colspan="6" style="text-align: center; color: var(--cor-texto-secundario); padding: 32px;">Nenhum supervisor cadastrado.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card" style="max-width: 640px;">
+            <h2 class="modal-title">@(editando?.usuario_id == Guid.Empty ? "Novo Supervisor" : "Editar Supervisor")</h2>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 16px;">@erroModal</div>
+            }
+
+            <div class="form-grid">
+                @if (editando?.usuario_id == Guid.Empty)
+                {
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Usuário do Sistema</label>
+                        <select class="form-control" @bind="editando.usuario_id">
+                            <option value="">Selecione...</option>
+                            @foreach (var u in usuarios)
+                            {
+                                <option value="@u.id">@u.nome (@u.login)</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label>PIN de Supervisão @(editando?.usuario_id != Guid.Empty ? "(deixe vazio para não alterar)" : "(obrigatório)")</label>
+                    <input type="password" class="form-control" @bind="editando!.pin_plano" placeholder="••••" autocomplete="new-password" maxlength="8" />
+                </div>
+
+                <div class="form-group">
+                    <label>Desconto Máximo (%)</label>
+                    <input type="number" class="form-control" @bind="editando!.limite_desconto_percentual" min="0" max="100" step="0.5" />
+                </div>
+                <div class="form-group">
+                    <label>Limite de Sangria</label>
+                    <input type="number" class="form-control" @bind="editando!.limite_sangria" min="0" step="0.01" />
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 16px;">
+                <p style="font-size: 13px; font-weight: 600; color: var(--cor-texto-secundario); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px;">Autorizações Permitidas</p>
+                <div class="perms-grid">
+                    <label class="perm-item"><input type="checkbox" @bind="editando!.autoriza_cancelamento_item" /> Cancelar Item</label>
+                    <label class="perm-item"><input type="checkbox" @bind="editando!.autoriza_cancelamento_venda" /> Cancelar Venda</label>
+                    <label class="perm-item"><input type="checkbox" @bind="editando!.autoriza_exclusao_item" /> Excluir Item</label>
+                    <label class="perm-item"><input type="checkbox" @bind="editando!.autoriza_alteracao_preco" /> Alterar Preço</label>
+                    <label class="perm-item"><input type="checkbox" @bind="editando!.autoriza_ajuste_estoque" /> Ajuste de Estoque</label>
+                    <label class="perm-item"><input type="checkbox" @bind="editando!.autoriza_estoque_negativo" /> Estoque Negativo</label>
+                    <label class="perm-item"><input type="checkbox" @bind="editando!.autoriza_fechamento_divergencia" /> Fechar com Divergência</label>
+                    <label class="perm-item">
+                        <input type="checkbox" @bind="editando!.ativo" />
+                        <span style="font-weight: 600; color: @(editando.ativo ? "#10b981" : "#ef4444");">Supervisor Ativo</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" @onclick="() => mostrarModal = false">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Supervisor</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .badge { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+    .badge-error { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+    .btn-sm { padding: 4px 12px; font-size: 12px; }
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { width: 100%; padding: 24px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--cor-texto-secundario); font-weight: 500; }
+    .form-control { width: 100%; padding: 10px 14px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; font-size: 14px; }
+    .form-control:focus { outline: none; border-color: #00c6ff; }
+    .perms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .perm-item { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    .perm-item input[type=checkbox] { width: 16px; height: 16px; accent-color: #00c6ff; cursor: pointer; }
+    .alert-error-box { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral, erroModal;
+    private bool mostrarModal = false;
+
+    private List<SupervisorDto> supervisores = new();
+    private List<UsuarioDto> usuarios = new();
+    private SupervisorModel? editando;
+    private Guid editandoId = Guid.Empty;
+
+    protected override async Task OnInitializedAsync() => await CarregarDados();
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var resSup = await Http.GetFromJsonAsync<Resposta<List<SupervisorDto>>>("/seguranca/supervisores");
+            if (resSup?.sucesso == true) supervisores = resSup.dados ?? new();
+
+            var resUsr = await Http.GetFromJsonAsync<Resposta<List<UsuarioDto>>>("/seguranca/usuarios");
+            if (resUsr?.sucesso == true) usuarios = resUsr.dados ?? new();
+        }
+        catch (Exception ex) { erroGeral = "Erro ao carregar dados: " + ex.Message; }
+        finally { carregando = false; }
+    }
+
+    private void AbrirModalNovo()
+    {
+        editandoId = Guid.Empty;
+        editando = new SupervisorModel { usuario_id = Guid.Empty, ativo = true };
+        erroModal = null; mostrarModal = true;
+    }
+
+    private void AbrirModalEditar(SupervisorDto s)
+    {
+        editandoId = s.id;
+        editando = new SupervisorModel
+        {
+            usuario_id = s.usuario_id,
+            ativo = s.ativo,
+            limite_desconto_percentual = s.limite_desconto_percentual,
+            limite_sangria = s.limite_sangria,
+            autoriza_cancelamento_item = s.autoriza_cancelamento_item,
+            autoriza_cancelamento_venda = s.autoriza_cancelamento_venda,
+            autoriza_exclusao_item = s.autoriza_exclusao_item,
+            autoriza_alteracao_preco = s.autoriza_alteracao_preco,
+            autoriza_ajuste_estoque = s.autoriza_ajuste_estoque,
+            autoriza_estoque_negativo = s.autoriza_estoque_negativo,
+            autoriza_fechamento_divergencia = s.autoriza_fechamento_divergencia,
+        };
+        erroModal = null; mostrarModal = true;
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null;
+        try
+        {
+            HttpResponseMessage res;
+            if (editandoId == Guid.Empty)
+                res = await Http.PostAsJsonAsync("/seguranca/supervisores", editando);
+            else
+                res = await Http.PutAsJsonAsync($"/seguranca/supervisores/{editandoId}", editando);
+
+            if (res.IsSuccessStatusCode) { mostrarModal = false; editando = null; await CarregarDados(); }
+            else { var e = await res.Content.ReadFromJsonAsync<Resposta<object>>(); erroModal = e?.mensagem ?? "Erro ao salvar."; }
+        }
+        catch (Exception ex) { erroModal = ex.Message; }
+    }
+
+    public class Resposta<T> { public bool sucesso { get; set; } public string mensagem { get; set; } = ""; public T? dados { get; set; } }
+    public class UsuarioDto { public Guid id { get; set; } public string nome { get; set; } = ""; public string login { get; set; } = ""; }
+    public class SupervisorDto
+    {
+        public Guid id { get; set; }
+        public Guid usuario_id { get; set; }
+        public string usuario_nome { get; set; } = "";
+        public bool ativo { get; set; }
+        public decimal limite_desconto_percentual { get; set; }
+        public decimal limite_sangria { get; set; }
+        public bool autoriza_cancelamento_item { get; set; }
+        public bool autoriza_cancelamento_venda { get; set; }
+        public bool autoriza_exclusao_item { get; set; }
+        public bool autoriza_alteracao_preco { get; set; }
+        public bool autoriza_ajuste_estoque { get; set; }
+        public bool autoriza_estoque_negativo { get; set; }
+        public bool autoriza_fechamento_divergencia { get; set; }
+    }
+    public class SupervisorModel
+    {
+        public Guid usuario_id { get; set; }
+        public string? pin_plano { get; set; }
+        public bool ativo { get; set; }
+        public decimal limite_desconto_percentual { get; set; }
+        public decimal limite_sangria { get; set; }
+        public bool autoriza_cancelamento_item { get; set; }
+        public bool autoriza_cancelamento_venda { get; set; }
+        public bool autoriza_exclusao_item { get; set; }
+        public bool autoriza_alteracao_preco { get; set; }
+        public bool autoriza_ajuste_estoque { get; set; }
+        public bool autoriza_estoque_negativo { get; set; }
+        public bool autoriza_fechamento_divergencia { get; set; }
+    }
+}

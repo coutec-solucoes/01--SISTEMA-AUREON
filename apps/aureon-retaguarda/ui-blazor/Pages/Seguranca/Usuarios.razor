@@ -1,0 +1,390 @@
+@page "/seguranca/usuarios"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Usuários — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Gestão de Usuários</h1>
+        <p class="subtitulo-pagina">Controle de acessos, status e privilégios dos usuários do sistema.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Novo Usuário
+    </button>
+</div>
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando usuários...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert alert-error">@erroGeral</div>
+}
+else
+{
+    <div class="card fade-in" style="overflow-x: auto;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Login</th>
+                    <th>Perfil</th>
+                    <th>Status</th>
+                    <th>Acessos</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in usuarios)
+                {
+                    <tr>
+                        <td style="font-weight: 500;">
+                            @user.nome
+                            @if (user.is_admin) { <span class="badge badge-admin">ADMIN</span> }
+                        </td>
+                        <td>@user.login</td>
+                        <td>@user.perfil_nome</td>
+                        <td>
+                            @if (user.bloqueado)
+                            {
+                                <span class="badge badge-error">Bloqueado</span>
+                            }
+                            else if (user.status == "ATIVO")
+                            {
+                                <span class="badge badge-success">Ativo</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-warning">Inativo</span>
+                            }
+                        </td>
+                        <td>
+                            @if (user.acessa_retaguarda) { <span title="Retaguarda">🖥️</span> }
+                            @if (user.acessa_pdv) { <span title="PDV">🛒</span> }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(user)">Editar</button>
+                            <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalSenha(user)">Senha</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (mostrarModalEditar)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card">
+            <h2 class="modal-title">@(usuarioAtual.id == Guid.Empty ? "Novo Usuário" : "Editar Usuário")</h2>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert alert-error" style="margin-bottom: 16px;">@erroModal</div>
+            }
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" class="form-control" @bind="usuarioAtual.nome" />
+                </div>
+                <div class="form-group">
+                    <label>Login</label>
+                    <input type="text" class="form-control" @bind="usuarioAtual.login" />
+                </div>
+                
+                @if (usuarioAtual.id == Guid.Empty)
+                {
+                    <div class="form-group">
+                        <label>Senha Provisória</label>
+                        <input type="password" class="form-control" @bind="usuarioAtual.senha_plana" placeholder="Mínimo 8 caracteres" autocomplete="new-password" />
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label>Perfil de Acesso</label>
+                    <select class="form-control" @bind="usuarioAtual.perfil_id">
+                        <option value="">Selecione um perfil...</option>
+                        @foreach(var p in perfis)
+                        {
+                            <option value="@p.id">@p.nome</option>
+                        }
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Status</label>
+                    <select class="form-control" @bind="usuarioAtual.status">
+                        <option value="ATIVO">Ativo</option>
+                        <option value="INATIVO">Inativo</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="checkbox-group" style="margin-top: 16px; display: flex; gap: 24px; flex-wrap: wrap;">
+                <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" @bind="usuarioAtual.is_admin" /> É Administrador Total
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" @bind="usuarioAtual.acessa_retaguarda" /> Acessa Retaguarda
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" @bind="usuarioAtual.acessa_pdv" /> Acessa PDV
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; color: #ef4444;">
+                    <input type="checkbox" @bind="usuarioAtual.bloqueado" /> Bloqueado
+                </label>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="SalvarUsuario">Salvar Usuário</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (mostrarModalSenha)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card" style="max-width: 400px;">
+            <h2 class="modal-title">Redefinir Senha</h2>
+            <p style="color: var(--cor-texto-secundario); margin-bottom: 16px; font-size: 14px;">
+                Redefinir a senha irá revogar imediatamente todas as sessões ativas de <strong>@usuarioAtual.nome</strong>.
+            </p>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert alert-error" style="margin-bottom: 16px;">@erroModal</div>
+            }
+
+            <div class="form-group">
+                <label>Nova Senha</label>
+                <input type="password" class="form-control" @bind="novaSenha" placeholder="Mínimo 8 caracteres" autocomplete="new-password" />
+            </div>
+
+            <div class="modal-actions" style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" @onclick="FecharModalSenha">Cancelar</button>
+                <button class="btn btn-primary" style="background: #ef4444; border-color: #ef4444;" @onclick="ConfirmarRedefinirSenha">Confirmar Redefinição</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: bold;
+        text-transform: uppercase;
+        margin-left: 8px;
+    }
+    .badge-admin { background: rgba(0, 198, 255, 0.2); color: #00c6ff; border: 1px solid rgba(0, 198, 255, 0.3); }
+    .badge-success { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-error { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-warning { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    .modal-backdrop {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px);
+        display: flex; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .modal-content {
+        width: 100%; max-width: 600px; padding: 24px;
+    }
+    .form-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .btn-sm { padding: 4px 12px; font-size: 12px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral = null;
+    private string? erroModal = null;
+    
+    private List<UsuarioDto> usuarios = new();
+    private List<PerfilDto> perfis = new();
+    
+    private bool mostrarModalEditar = false;
+    private bool mostrarModalSenha = false;
+    
+    private UsuarioModel usuarioAtual = new();
+    private string novaSenha = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true;
+        erroGeral = null;
+        try
+        {
+            var resUsuarios = await Http.GetFromJsonAsync<RespostaPadrao<List<UsuarioDto>>>("/seguranca/usuarios");
+            if (resUsuarios?.sucesso == true) usuarios = resUsuarios.dados ?? new();
+            
+            var resPerfis = await Http.GetFromJsonAsync<RespostaPadrao<List<PerfilDto>>>("/seguranca/perfis");
+            if (resPerfis?.sucesso == true) perfis = resPerfis.dados ?? new();
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro ao carregar dados: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void AbrirModalNovo()
+    {
+        usuarioAtual = new UsuarioModel { status = "ATIVO", acessa_retaguarda = true };
+        erroModal = null;
+        mostrarModalEditar = true;
+    }
+
+    private void AbrirModalEditar(UsuarioDto u)
+    {
+        usuarioAtual = new UsuarioModel
+        {
+            id = u.id,
+            nome = u.nome,
+            login = u.login,
+            email = u.email,
+            status = u.status,
+            bloqueado = u.bloqueado,
+            is_admin = u.is_admin,
+            acessa_retaguarda = u.acessa_retaguarda,
+            acessa_pdv = u.acessa_pdv,
+            perfil_id = u.perfil_id.ToString()
+        };
+        erroModal = null;
+        mostrarModalEditar = true;
+    }
+
+    private void FecharModal() => mostrarModalEditar = false;
+
+    private async Task SalvarUsuario()
+    {
+        erroModal = null;
+        try
+        {
+            HttpResponseMessage res;
+            if (usuarioAtual.id == Guid.Empty)
+            {
+                res = await Http.PostAsJsonAsync("/seguranca/usuarios", usuarioAtual);
+            }
+            else
+            {
+                res = await Http.PutAsJsonAsync($"/seguranca/usuarios/{usuarioAtual.id}", usuarioAtual);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                usuarioAtual = new UsuarioModel(); // Limpa senhas da memoria
+                mostrarModalEditar = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<RespostaPadrao<object>>();
+                erroModal = err?.mensagem ?? "Erro ao salvar usuário.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = ex.Message;
+        }
+    }
+
+    private void AbrirModalSenha(UsuarioDto u)
+    {
+        usuarioAtual = new UsuarioModel { id = u.id, nome = u.nome };
+        novaSenha = "";
+        erroModal = null;
+        mostrarModalSenha = true;
+    }
+
+    private void FecharModalSenha()
+    {
+        mostrarModalSenha = false;
+        novaSenha = "";
+    }
+
+    private async Task ConfirmarRedefinirSenha()
+    {
+        erroModal = null;
+        try
+        {
+            var res = await Http.PutAsJsonAsync($"/seguranca/usuarios/{usuarioAtual.id}/redefinir-senha", new { nova_senha = novaSenha });
+            if (res.IsSuccessStatusCode)
+            {
+                novaSenha = "";
+                usuarioAtual = new UsuarioModel();
+                mostrarModalSenha = false;
+                await JSRuntime.InvokeVoidAsync("alert", "Senha redefinida com sucesso. Sessões anteriores foram revogadas.");
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<RespostaPadrao<object>>();
+                erroModal = err?.mensagem ?? "Erro ao redefinir senha.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = ex.Message;
+        }
+    }
+
+    // Modelos DTO locais
+    public class RespostaPadrao<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class UsuarioDto
+    {
+        public Guid id { get; set; }
+        public string nome { get; set; } = "";
+        public string login { get; set; } = "";
+        public string? email { get; set; }
+        public string status { get; set; } = "";
+        public bool bloqueado { get; set; }
+        public bool is_admin { get; set; }
+        public bool acessa_retaguarda { get; set; }
+        public bool acessa_pdv { get; set; }
+        public Guid perfil_id { get; set; }
+        public string perfil_nome { get; set; } = "";
+    }
+
+    public class PerfilDto
+    {
+        public Guid id { get; set; }
+        public string nome { get; set; } = "";
+    }
+
+    public class UsuarioModel
+    {
+        public Guid id { get; set; }
+        public string nome { get; set; } = "";
+        public string login { get; set; } = "";
+        public string? email { get; set; }
+        public string senha_plana { get; set; } = "";
+        public string status { get; set; } = "ATIVO";
+        public bool bloqueado { get; set; }
+        public bool is_admin { get; set; }
+        public bool acessa_retaguarda { get; set; }
+        public bool acessa_pdv { get; set; }
+        public string perfil_id { get; set; } = "";
+    }
+}

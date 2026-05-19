@@ -575,3 +575,297 @@ pub async fn salvar_permissoes(
 
     (StatusCode::OK, Json(RespostaBase::ok("Permissões atualizadas com sucesso", ()))).into_response()
 }
+
+// ================================================================
+// Handlers de Supervisores
+// ================================================================
+
+#[derive(Serialize)]
+pub struct SupervisorListaDto {
+    pub id: Uuid,
+    pub usuario_id: Uuid,
+    pub usuario_nome: String,
+    pub ativo: bool,
+    pub limite_desconto_percentual: rust_decimal::Decimal,
+    pub limite_sangria: rust_decimal::Decimal,
+    pub autoriza_cancelamento_item: bool,
+    pub autoriza_cancelamento_venda: bool,
+    pub autoriza_exclusao_item: bool,
+    pub autoriza_alteracao_preco: bool,
+    pub autoriza_ajuste_estoque: bool,
+    pub autoriza_estoque_negativo: bool,
+    pub autoriza_fechamento_divergencia: bool,
+}
+
+#[derive(Deserialize)]
+pub struct SupervisorInputDto {
+    pub usuario_id: Uuid,
+    pub pin_plano: Option<String>,
+    pub ativo: bool,
+    pub limite_desconto_percentual: rust_decimal::Decimal,
+    pub limite_sangria: rust_decimal::Decimal,
+    pub autoriza_cancelamento_item: bool,
+    pub autoriza_cancelamento_venda: bool,
+    pub autoriza_exclusao_item: bool,
+    pub autoriza_alteracao_preco: bool,
+    pub autoriza_ajuste_estoque: bool,
+    pub autoriza_estoque_negativo: bool,
+    pub autoriza_fechamento_divergencia: bool,
+}
+
+pub async fn listar_supervisores(
+    State(state): State<AppState>,
+    axum::extract::Extension(usuario): axum::extract::Extension<UsuarioLogado>,
+) -> impl IntoResponse {
+    let pool = match &state.pool {
+        Some(p) => p,
+        None => return ErroApi::indisponivel("Banco não configurado.").into_response(),
+    };
+
+    match tem_permissao(pool, &usuario, "SEGURANCA_SUPERVISORES", "LER").await {
+        Ok(true) => (),
+        Ok(false) => return (StatusCode::FORBIDDEN, Json(RespostaBase::<()>::falha_manual("Acesso negado.", "ERRO_PERMISSAO", ""))).into_response(),
+        Err(e) => return e.into_response(),
+    };
+
+    let records = match sqlx::query(
+        "SELECT s.*, u.nome as usuario_nome FROM supervisores s JOIN usuarios u ON u.id = s.usuario_id ORDER BY u.nome"
+    )
+    .fetch_all(pool).await {
+        Ok(r) => r,
+        Err(e) => return ErroApi::interno(e.to_string()).into_response(),
+    };
+
+    let mut supervisores = Vec::new();
+    for row in records {
+        supervisores.push(SupervisorListaDto {
+            id: row.get("id"),
+            usuario_id: row.get("usuario_id"),
+            usuario_nome: row.get("usuario_nome"),
+            ativo: row.get("ativo"),
+            limite_desconto_percentual: row.get("limite_desconto_percentual"),
+            limite_sangria: row.get("limite_sangria"),
+            autoriza_cancelamento_item: row.get("autoriza_cancelamento_item"),
+            autoriza_cancelamento_venda: row.get("autoriza_cancelamento_venda"),
+            autoriza_exclusao_item: row.get("autoriza_exclusao_item"),
+            autoriza_alteracao_preco: row.get("autoriza_alteracao_preco"),
+            autoriza_ajuste_estoque: row.get("autoriza_ajuste_estoque"),
+            autoriza_estoque_negativo: row.get("autoriza_estoque_negativo"),
+            autoriza_fechamento_divergencia: row.get("autoriza_fechamento_divergencia"),
+        });
+    }
+
+    (StatusCode::OK, Json(RespostaBase::ok("Supervisores obtidos", supervisores))).into_response()
+}
+
+pub async fn criar_supervisor(
+    State(state): State<AppState>,
+    axum::extract::Extension(usuario): axum::extract::Extension<UsuarioLogado>,
+    Json(dados): Json<SupervisorInputDto>,
+) -> impl IntoResponse {
+    let pool = match &state.pool {
+        Some(p) => p,
+        None => return ErroApi::indisponivel("Banco não configurado.").into_response(),
+    };
+
+    match tem_permissao(pool, &usuario, "SEGURANCA_SUPERVISORES", "CRIAR").await {
+        Ok(true) => (),
+        Ok(false) => return (StatusCode::FORBIDDEN, Json(RespostaBase::<()>::falha_manual("Acesso negado.", "ERRO_PERMISSAO", ""))).into_response(),
+        Err(e) => return e.into_response(),
+    };
+
+    let pin = match dados.pin_plano {
+        Some(p) if !p.trim().is_empty() => p,
+        _ => return (StatusCode::BAD_REQUEST, Json(RespostaBase::<()>::falha_manual("PIN obrigatório", "ERRO_PIN_INVALIDO", "Um PIN deve ser fornecido para criar um supervisor."))).into_response(),
+    };
+
+    let pin_hash = match hash_senha(&pin) {
+        Ok(h) => h,
+        Err(e) => return e.into_response(),
+    };
+
+    let mut tx = match pool.begin().await {
+        Ok(t) => t,
+        Err(e) => return ErroApi::interno(e.to_string()).into_response(),
+    };
+
+    if let Err(e) = sqlx::query(
+        "INSERT INTO supervisores (usuario_id, pin_hash, ativo, limite_desconto_percentual, limite_sangria, 
+         autoriza_cancelamento_item, autoriza_cancelamento_venda, autoriza_exclusao_item, autoriza_alteracao_preco,
+         autoriza_ajuste_estoque, autoriza_estoque_negativo, autoriza_fechamento_divergencia) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"
+    )
+    .bind(dados.usuario_id).bind(&pin_hash).bind(dados.ativo).bind(dados.limite_desconto_percentual).bind(dados.limite_sangria)
+    .bind(dados.autoriza_cancelamento_item).bind(dados.autoriza_cancelamento_venda).bind(dados.autoriza_exclusao_item)
+    .bind(dados.autoriza_alteracao_preco).bind(dados.autoriza_ajuste_estoque).bind(dados.autoriza_estoque_negativo).bind(dados.autoriza_fechamento_divergencia)
+    .execute(&mut *tx).await {
+        return ErroApi::interno(format!("Erro ao criar supervisor: {}", e)).into_response();
+    }
+
+    if let Err(e) = tx.commit().await {
+        return ErroApi::interno(e.to_string()).into_response();
+    }
+
+    (StatusCode::CREATED, Json(RespostaBase::ok("Supervisor criado com sucesso", ()))).into_response()
+}
+
+pub async fn atualizar_supervisor(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    axum::extract::Extension(usuario): axum::extract::Extension<UsuarioLogado>,
+    Json(dados): Json<SupervisorInputDto>,
+) -> impl IntoResponse {
+    let pool = match &state.pool {
+        Some(p) => p,
+        None => return ErroApi::indisponivel("Banco não configurado.").into_response(),
+    };
+
+    match tem_permissao(pool, &usuario, "SEGURANCA_SUPERVISORES", "EDITAR").await {
+        Ok(true) => (),
+        Ok(false) => return (StatusCode::FORBIDDEN, Json(RespostaBase::<()>::falha_manual("Acesso negado.", "ERRO_PERMISSAO", ""))).into_response(),
+        Err(e) => return e.into_response(),
+    };
+
+    let mut tx = match pool.begin().await {
+        Ok(t) => t,
+        Err(e) => return ErroApi::interno(e.to_string()).into_response(),
+    };
+
+    // Se a senha (PIN) não for enviada, atualiza só permissões
+    if let Some(pin) = dados.pin_plano.filter(|p| !p.trim().is_empty()) {
+        let pin_hash = match hash_senha(&pin) {
+            Ok(h) => h,
+            Err(e) => return e.into_response(),
+        };
+
+        if let Err(e) = sqlx::query("UPDATE supervisores SET pin_hash = $1 WHERE id = $2").bind(&pin_hash).bind(id).execute(&mut *tx).await {
+            return ErroApi::interno(e.to_string()).into_response();
+        }
+    }
+
+    if let Err(e) = sqlx::query(
+        "UPDATE supervisores SET ativo = $1, limite_desconto_percentual = $2, limite_sangria = $3, 
+         autoriza_cancelamento_item = $4, autoriza_cancelamento_venda = $5, autoriza_exclusao_item = $6, autoriza_alteracao_preco = $7,
+         autoriza_ajuste_estoque = $8, autoriza_estoque_negativo = $9, autoriza_fechamento_divergencia = $10, atualizado_em = NOW()
+         WHERE id = $11"
+    )
+    .bind(dados.ativo).bind(dados.limite_desconto_percentual).bind(dados.limite_sangria)
+    .bind(dados.autoriza_cancelamento_item).bind(dados.autoriza_cancelamento_venda).bind(dados.autoriza_exclusao_item)
+    .bind(dados.autoriza_alteracao_preco).bind(dados.autoriza_ajuste_estoque).bind(dados.autoriza_estoque_negativo).bind(dados.autoriza_fechamento_divergencia)
+    .bind(id)
+    .execute(&mut *tx).await {
+        return ErroApi::interno(e.to_string()).into_response();
+    }
+
+    if let Err(e) = tx.commit().await {
+        return ErroApi::interno(e.to_string()).into_response();
+    }
+
+    (StatusCode::OK, Json(RespostaBase::ok("Supervisor atualizado com sucesso", ()))).into_response()
+}
+
+// ================================================================
+// Handlers de Autorizações (Apenas Leitura na Retaguarda)
+// ================================================================
+
+#[derive(Serialize)]
+pub struct AutorizacaoDto {
+    pub id: Uuid,
+    pub operacao: String,
+    pub solicitante: Option<String>,
+    pub supervisor: Option<String>,
+    pub motivo: String,
+    pub status: String,
+    pub criado_em: chrono::DateTime<Utc>,
+}
+
+pub async fn listar_autorizacoes(
+    State(state): State<AppState>,
+    axum::extract::Extension(usuario): axum::extract::Extension<UsuarioLogado>,
+) -> impl IntoResponse {
+    let pool = match &state.pool {
+        Some(p) => p,
+        None => return ErroApi::indisponivel("Banco não configurado.").into_response(),
+    };
+
+    match tem_permissao(pool, &usuario, "SEGURANCA_AUTORIZACOES", "LER").await {
+        Ok(true) => (),
+        Ok(false) => return (StatusCode::FORBIDDEN, Json(RespostaBase::<()>::falha_manual("Acesso negado.", "ERRO_PERMISSAO", ""))).into_response(),
+        Err(e) => return e.into_response(),
+    };
+
+    let records = match sqlx::query(
+        "SELECT a.id, a.operacao, u1.nome as solicitante, u2.nome as supervisor, a.motivo, a.status, a.criado_em 
+         FROM autorizacoes a 
+         LEFT JOIN usuarios u1 ON u1.id = a.usuario_solicitante 
+         LEFT JOIN supervisores s ON s.id = a.supervisor_id
+         LEFT JOIN usuarios u2 ON u2.id = s.usuario_id
+         ORDER BY a.criado_em DESC LIMIT 500"
+    ).fetch_all(pool).await {
+        Ok(r) => r,
+        Err(e) => return ErroApi::interno(e.to_string()).into_response(),
+    };
+
+    let lista: Vec<AutorizacaoDto> = records.into_iter().map(|row| AutorizacaoDto {
+        id: row.get("id"),
+        operacao: row.get("operacao"),
+        solicitante: row.try_get("solicitante").ok(),
+        supervisor: row.try_get("supervisor").ok(),
+        motivo: row.get("motivo"),
+        status: row.get("status"),
+        criado_em: row.get("criado_em"),
+    }).collect();
+
+    (StatusCode::OK, Json(RespostaBase::ok("Autorizações obtidas", lista))).into_response()
+}
+
+// ================================================================
+// Handlers de Logs de Segurança
+// ================================================================
+
+#[derive(Serialize)]
+pub struct LogSegurancaDto {
+    pub id: i64,
+    pub usuario_nome: Option<String>,
+    pub tipo_evento: String,
+    pub mensagem: String,
+    pub severidade: String,
+    pub criado_em: chrono::DateTime<Utc>,
+}
+
+pub async fn listar_logs(
+    State(state): State<AppState>,
+    axum::extract::Extension(usuario): axum::extract::Extension<UsuarioLogado>,
+) -> impl IntoResponse {
+    let pool = match &state.pool {
+        Some(p) => p,
+        None => return ErroApi::indisponivel("Banco não configurado.").into_response(),
+    };
+
+    match tem_permissao(pool, &usuario, "SEGURANCA_LOGS", "LER").await {
+        Ok(true) => (),
+        Ok(false) => return (StatusCode::FORBIDDEN, Json(RespostaBase::<()>::falha_manual("Acesso negado.", "ERRO_PERMISSAO", ""))).into_response(),
+        Err(e) => return e.into_response(),
+    };
+
+    let records = match sqlx::query(
+        "SELECT l.id, u.nome as usuario_nome, l.tipo_evento, l.mensagem, l.severidade, l.criado_em 
+         FROM logs_seguranca l
+         LEFT JOIN usuarios u ON u.id = l.usuario_id
+         ORDER BY l.criado_em DESC LIMIT 1000"
+    ).fetch_all(pool).await {
+        Ok(r) => r,
+        Err(e) => return ErroApi::interno(e.to_string()).into_response(),
+    };
+
+    let lista: Vec<LogSegurancaDto> = records.into_iter().map(|row| LogSegurancaDto {
+        id: row.get("id"),
+        usuario_nome: row.try_get("usuario_nome").ok(),
+        tipo_evento: row.get("tipo_evento"),
+        mensagem: row.get("mensagem"),
+        severidade: row.get("severidade"),
+        criado_em: row.get("criado_em"),
+    }).collect();
+
+    (StatusCode::OK, Json(RespostaBase::ok("Logs obtidos", lista))).into_response()
+}
