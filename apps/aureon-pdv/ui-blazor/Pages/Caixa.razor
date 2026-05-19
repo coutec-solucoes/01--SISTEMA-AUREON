@@ -111,6 +111,51 @@
             </div>
         }
     }
+
+    <!-- SEÇÃO DE HISTÓRICO DE FECHAMENTOS -->
+    @if (HistoricoSessoes.Count > 0)
+    {
+        <div style="margin-top: 40px;">
+            <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">Últimos Turnos Fechados (Auditoria)</h2>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                @foreach (var hist in HistoricoSessoes)
+                {
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 12px; color: var(--cor-texto-sub);">
+                            <span>ID: @hist.Id.Substring(0,8)</span>
+                            <span>Fechado em: @hist.FechadoEm</span>
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--cor-texto-sub);">
+                                    <th style="padding: 8px 4px; text-align: left;">Moeda</th>
+                                    <th style="padding: 8px 4px; text-align: right;">Abertura</th>
+                                    <th style="padding: 8px 4px; text-align: right;">Esperado (Calc)</th>
+                                    <th style="padding: 8px 4px; text-align: right;">Físico (Info)</th>
+                                    <th style="padding: 8px 4px; text-align: right;">Diferença</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var s in hist.Saldos)
+                                {
+                                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding: 8px 4px; font-weight: 600;">@s.MoedaCodigo</td>
+                                        <td style="padding: 8px 4px; text-align: right;">@FormatarValor(s.MoedaCodigo, s.ValorAberturaMinor)</td>
+                                        <td style="padding: 8px 4px; text-align: right; color:#00e676;">@FormatarValor(s.MoedaCodigo, s.ValorEsperadoMinor ?? 0)</td>
+                                        <td style="padding: 8px 4px; text-align: right;">@FormatarValor(s.MoedaCodigo, s.ValorFechamentoInformadoMinor ?? 0)</td>
+                                        <td style="padding: 8px 4px; text-align: right; color: @((s.DiferencaMinor ?? 0) < 0 ? "#f44336" : (s.DiferencaMinor ?? 0) > 0 ? "#00e676" : "inherit");">
+                                            @FormatarValor(s.MoedaCodigo, s.DiferencaMinor ?? 0)
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
 </div>
 
 @code {
@@ -118,6 +163,7 @@
     private bool Processando = false;
     private string? ErroMsg = null;
     private SessaoCaixaResp? SessaoAtiva;
+    private List<SessaoCaixaResp> HistoricoSessoes = new();
 
     // Abertura
     private string NovaAberturaMoeda = "BRL";
@@ -132,6 +178,7 @@
     protected override async Task OnInitializedAsync()
     {
         await CarregarSessao();
+        await CarregarHistorico();
     }
 
     private async Task CarregarSessao()
@@ -242,6 +289,15 @@
         finally
         {
             Processando = false;
+        }
+    }
+
+    private async Task CarregarHistorico()
+    {
+        var res = await Tauri.InvocarAsync<RespostaBase<List<SessaoCaixaResp>>>("listar_sessoes", new { limite = 5 });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            HistoricoSessoes = res.Dados.Where(s => s.Status == "FECHADO").ToList();
         }
     }
 

@@ -183,7 +183,12 @@
                                 {
                                     <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
                                         <span>@p.FormaPagamento (@p.MoedaCodigo)</span>
-                                        <span>@FormatarValorMoeda(p.MoedaCodigo, p.ValorInformadoMinor) <small>-> BRL @FormatarValor(p.ValorConvertidoMinor)</small></span>
+                                        <div style="text-align: right;">
+                                            <div>@FormatarValorMoeda(p.MoedaCodigo, p.ValorInformadoMinor)</div>
+                                            <div style="font-size: 10px; color: var(--cor-texto-sub);">
+                                                Cot: @((p.TaxaCambioEscala6 / 1_000_000m).ToString("0.######", CultureInfo.InvariantCulture)) -> BRL @FormatarValor(p.ValorConvertidoMinor)
+                                            </div>
+                                        </div>
                                     </div>
                                 }
                             </div>
