@@ -84,3 +84,30 @@ Decisões de arquitetura adotadas na Fase 6 — Sincronização Base e Publicaç
 - **Contexto**: A retaguarda necessita expor os status de sincronização e diagnóstico para controle gerencial dos administradores.
 - **Decisão**: Criada uma seção "Sincronização" no menu principal com 4 telas Blazor WebAssembly dedicadas: Status de Terminais, Publicação de Dados, Logs de Sync e Diagnósticos, consumindo os endpoints reais da API Axum.
 - **Consequência**: Visualização centralizada e em tempo real do ecossistema de terminais ativos com fluxo operacional limpo e responsivo.
+
+---
+
+# Registro de Decisões de Projeto (ADR) — Fase 7
+
+Decisões de arquitetura adotadas na Fase 7 — PDV Núcleo.
+
+---
+
+## 💰 ADR 12: Eliminação Absoluta de Ponto Flutuante (Matemática Inteira)
+- **Contexto**: O sistema precisa garantir exatidão em cálculos financeiros. O uso de `Float` (como em `f64` ou `REAL`) causa dízimas infinitas em cálculos binários, resultando em centavos perdidos no arredondamento durante pagamentos multimoeda.
+- **Decisão**: O banco de dados (SQLite), o Backend (Rust) e o Frontend (Blazor) aboliram tipos flutuantes para dinheiro. Adotou-se o formato *Minor Unit* onde `R$ 10,50` vira `1050` (inteiro `i64`). O `Float` é usado no C# apenas no instante de renderizar a máscara visual na interface gráfica. A escala de quantidade usa `escala3` e a taxa de câmbio usa `escala6`.
+- **Consequência**: Garantia financeira matemática provada de ponta a ponta sem risco de perda de transação por mismatch de arredondamento.
+
+---
+
+## 🔒 ADR 13: Proteção da Numeração Oficial (Seq. Idempotente)
+- **Contexto**: Cancelamentos de venda e abandono de carrinho na frente de caixa queimariam buracos na numeração legal/fiscal de vendas, proibido na maioria das legislações.
+- **Decisão**: O número definitivo de venda (`numero_venda`) foi desatrelado da criação da venda. Vendas abertas possuem apenas UUID. A numeração oficial fica blindada e só é requerida em bloco de transação atômica (`conn.transaction`) no exato momento da quitação de pagamento final (`finalizar_venda`).
+- **Consequência**: Prevenção total contra lacunas numéricas em relatórios fiscais sem necessidade de reaproveitamento complexo de números cancelados.
+
+---
+
+## 💱 ADR 14: Caixa Multimoeda Nativo
+- **Contexto**: A atuação em regiões de fronteira exige troco e pagamento em Reais, Dólar e Guarani no mesmo ticket e fechamento de caixa.
+- **Decisão**: A estrutura de caixa (`sessoes_caixa_moedas`) armazena abertura, esperado, informado e diferença para cada moeda independentemente. Pagamentos travam a cotação e realizam rateio exato para o banco.
+- **Consequência**: Dispensa integrações contábeis complexas na retaguarda, o PDV já devolve o DRE exato e as sobras de gaveta na respectiva moeda apurada.
