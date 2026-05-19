@@ -262,17 +262,16 @@ h1, h2, h3, h4, h5, h6 {
 /* 5. Abas de Configuração (Horizontal tabs) */
 .abas-container {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
-    overflow-x: auto;
     padding-bottom: 12px;
     margin-bottom: 32px;
     border-bottom: 1px solid var(--cor-borda);
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.1) transparent;
 }
 
 .aba-botao {
-    padding: 12px 20px;
+    padding: 8px 14px;
+    font-size: 13px;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--cor-borda);
     border-radius: 8px;
@@ -284,7 +283,7 @@ h1, h2, h3, h4, h5, h6 {
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .aba-botao:hover {
