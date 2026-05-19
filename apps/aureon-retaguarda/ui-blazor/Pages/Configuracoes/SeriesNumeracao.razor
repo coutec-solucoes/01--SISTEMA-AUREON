@@ -1,0 +1,321 @@
+@page "/configuracoes/operacionais/series-numeracao"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Séries & Numeração — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Séries & Numeração</h1>
+        <p class="subtitulo-pagina">Controle as séries de documentos fiscais e comerciais e configure a sequência de numeração de notas.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Nova Série
+    </button>
+</div>
+
+<SubmenuOperacionais />
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando séries e sequências fiscais...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box fade-in">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Tipo de Documento</th>
+                    <th>Série</th>
+                    <th>Próximo Número</th>
+                    <th>Número Final (Limite)</th>
+                    <th>Chave de Autorização</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in series)
+                {
+                    <tr>
+                        <td style="font-weight: bold; color: #fff;">@s.tipo_documento</td>
+                        <td style="font-size: 16px; font-weight: bold; color: var(--cor-primaria);">@s.serie</td>
+                        <td style="font-weight: bold; color: #38ef7d;">@s.proximo_numero</td>
+                        <td>@(s.numero_final.HasValue ? s.numero_final.Value.ToString() : "Ilimitado")</td>
+                        <td>@(string.IsNullOrEmpty(s.chave_autorizacao_futura) ? "Nenhuma" : s.chave_autorizacao_futura)</td>
+                        <td>
+                            @if (s.ativo)
+                            {
+                                <span class="badge badge-success">Ativo</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-error">Inativo</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(s)">Editar</button>
+                        </td>
+                    </tr>
+                }
+                @if (!series.Any())
+                {
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--cor-texto-sub); padding: 48px;">
+                            Nenhuma série de numeração cadastrada.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal de Cadastro / Edição -->
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card-glass" style="max-width: 550px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                <h2 class="modal-title" style="margin: 0; color: #fff;">
+                    @(modalEditandoId == Guid.Empty ? "Cadastrar Série" : "Editar Série")
+                </h2>
+                <button style="background: none; border: none; color: var(--cor-texto-sub); font-size: 20px; cursor: pointer;" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 20px;">@erroModal</div>
+            }
+
+            <div class="form-grid">
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Tipo de Documento *</label>
+                    <select class="form-control" @bind="model.tipo_documento">
+                        <option value="FATURA">Fatura / Nota Fiscal</option>
+                        <option value="TICKET">Ticket / Recibo</option>
+                        <option value="NOTA_CREDITO">Nota de Crédito</option>
+                        <option value="REMESSA">Nota de Remessa</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Série (Sigla/Número) *</label>
+                    <input type="text" class="form-control" @bind="model.serie" placeholder="Ex: 001, A, A01..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Próximo Número Sequencial *</label>
+                    <input type="number" class="form-control" @bind="model.proximo_numero" min="1" />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Número Final (Opcional)</label>
+                    <input type="number" class="form-control" @bind="model.numero_final" placeholder="Número limite..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 12;">
+                    <label>Chave de Homologação / Autorização Fisc.</label>
+                    <input type="text" class="form-control" @bind="model.chave_autorizacao_futura" placeholder="Chave do convênio/autorização tributária..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 12; margin-top: 10px;">
+                    <label class="checkbox-premium">
+                        <input type="checkbox" @bind="model.ativo" />
+                        <span>Série Ativa e Liberada para Emissão</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Série</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-error { background: rgba(239,68,68,0.12); color: #ff4b2b; border: 1px solid rgba(239,68,68,0.25); }
+
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-outline { background: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto-sub); transition: all 0.2s ease; cursor: pointer; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); }
+
+    .checkbox-premium {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--cor-borda);
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .checkbox-premium:hover {
+        background: rgba(0, 198, 255, 0.03);
+        border-color: var(--cor-borda-glow);
+    }
+    .checkbox-premium input[type=checkbox] {
+        width: 18px;
+        height: 18px;
+        accent-color: #00c6ff;
+        cursor: pointer;
+    }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral, erroModal;
+
+    private List<SerieDto> series = new();
+
+    private bool mostrarModal = false;
+    private Guid modalEditandoId = Guid.Empty;
+    private SerieInput model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<List<SerieDto>>>("/configuracoes/operacionais/series-numeracao");
+            if (res?.sucesso == true) series = res.dados ?? new();
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void AbrirModalNovo()
+    {
+        modalEditandoId = Guid.Empty;
+        model = new SerieInput { tipo_documento = "FATURA", proximo_numero = 1, ativo = true };
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditar(SerieDto s)
+    {
+        modalEditandoId = s.id;
+        model = new SerieInput
+        {
+            tipo_documento = s.tipo_documento,
+            serie = s.serie,
+            proximo_numero = s.proximo_numero,
+            numero_final = s.numero_final,
+            chave_autorizacao_futura = s.chave_autorizacao_futura,
+            ativo = s.ativo
+        };
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null;
+        if (string.IsNullOrWhiteSpace(model.serie))
+        {
+            erroModal = "A série é obrigatória.";
+            return;
+        }
+        if (model.proximo_numero <= 0)
+        {
+            erroModal = "Próximo número sequencial deve ser maior que zero.";
+            return;
+        }
+        if (model.numero_final.HasValue && model.numero_final.Value < model.proximo_numero)
+        {
+            erroModal = "O número final não pode ser menor do que o próximo número.";
+            return;
+        }
+
+        try
+        {
+            HttpResponseMessage res;
+            if (modalEditandoId == Guid.Empty)
+            {
+                res = await Http.PostAsJsonAsync("/configuracoes/operacionais/series-numeracao", model);
+            }
+            else
+            {
+                res = await Http.PutAsJsonAsync($"/configuracoes/operacionais/series-numeracao/{modalEditandoId}", model);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                mostrarModal = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroModal = err?.mensagem ?? "Ocorreu uma falha ao salvar a série.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = "Erro ao enviar requisição: " + ex.Message;
+        }
+    }
+
+    private void FecharModal() => mostrarModal = false;
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class SerieDto
+    {
+        public Guid id { get; set; }
+        public string tipo_documento { get; set; } = "FATURA";
+        public string serie { get; set; } = "";
+        public int proximo_numero { get; set; }
+        public int? numero_final { get; set; }
+        public string? chave_autorizacao_futura { get; set; }
+        public bool ativo { get; set; }
+    }
+
+    public class SerieInput
+    {
+        public string tipo_documento { get; set; } = "FATURA";
+        public string serie { get; set; } = "";
+        public int proximo_numero { get; set; } = 1;
+        public int? numero_final { get; set; }
+        public string? chave_autorizacao_futura { get; set; }
+        public bool ativo { get; set; } = true;
+    }
+}

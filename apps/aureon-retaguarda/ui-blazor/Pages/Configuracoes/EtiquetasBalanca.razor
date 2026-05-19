@@ -1,0 +1,342 @@
+@page "/configuracoes/operacionais/etiquetas-balanca"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Formatos de Etiquetas de Balança — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Etiquetas de Balança</h1>
+        <p class="subtitulo-pagina">Configure as regras de importação e layout de código de barras para produtos pesáveis na balança.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Novo Formato
+    </button>
+</div>
+
+<SubmenuOperacionais />
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando formatos de etiquetas operacionais...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box fade-in">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nome do Formato</th>
+                    <th>Prefixo do Código (EAN)</th>
+                    <th>Posição Código</th>
+                    <th>Informação Embutida</th>
+                    <th>Decimais</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var et in formatos)
+                {
+                    <tr>
+                        <td style="font-weight: bold; color: #fff; font-size: 15px;">@et.nome_formato</td>
+                        <td style="font-size: 16px; font-weight: bold; color: var(--cor-primaria);">"@et.prefixo_codigo_barras"</td>
+                        <td>Início: @et.codigo_inicial | Fim: @et.codigo_final (Posições)</td>
+                        <td>
+                            <span class="badge" style="background: rgba(0,198,255,0.1); color: #00c6ff; border: 1px solid rgba(0,198,255,0.25);">
+                                @(et.tipo_informacao == "PESO" ? "Peso (KG)" : "Preço Total ($)")
+                            </span>
+                        </td>
+                        <td>@et.casas_decimais decimais</td>
+                        <td>
+                            @if (et.ativo)
+                            {
+                                <span class="badge badge-success">Ativo</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-error">Inativo</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(et)">Editar</button>
+                        </td>
+                    </tr>
+                }
+                @if (!formatos.Any())
+                {
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--cor-texto-sub); padding: 48px;">
+                            Nenhum formato de etiqueta de balança cadastrado.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal de Cadastro / Edição -->
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card-glass" style="max-width: 550px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                <h2 class="modal-title" style="margin: 0; color: #fff;">
+                    @(modalEditandoId == Guid.Empty ? "Cadastrar Formato" : "Editar Formato")
+                </h2>
+                <button style="background: none; border: none; color: var(--cor-texto-sub); font-size: 20px; cursor: pointer;" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 20px;">@erroModal</div>
+            }
+
+            <div class="form-grid">
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Nome do Formato *</label>
+                    <input type="text" class="form-control" @bind="model.nome_formato" placeholder="Ex: Filizola 6 Dígitos..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Prefixo do EAN (Geralmente 2) *</label>
+                    <input type="text" class="form-control" @bind="model.prefixo_codigo_barras" placeholder="Ex: 2..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Posição Inicial Código *</label>
+                    <input type="number" class="form-control" @bind="model.codigo_inicial" min="1" max="12" />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Posição Final Código *</label>
+                    <input type="number" class="form-control" @bind="model.codigo_final" min="1" max="12" />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Informação do Código de Barras *</label>
+                    <select class="form-control" @bind="model.tipo_informacao">
+                        <option value="PESO">Peso Embutido (ex: 2.125 kg)</option>
+                        <option value="VALOR_TOTAL">Valor Total Embutido (ex: R$ 42,50)</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Casas Decimais de Peso/Valor *</label>
+                    <select class="form-control" @bind="model.casas_decimais">
+                        <option value="3">3 Casas (ex: Peso .000)</option>
+                        <option value="2">2 Casas (ex: Valor .00)</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 12; margin-top: 10px;">
+                    <label class="checkbox-premium">
+                        <input type="checkbox" @bind="model.ativo" />
+                        <span>Formato de Etiqueta Ativo</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Registro</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-error { background: rgba(239,68,68,0.12); color: #ff4b2b; border: 1px solid rgba(239,68,68,0.25); }
+
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-outline { background: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto-sub); transition: all 0.2s ease; cursor: pointer; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); }
+
+    .checkbox-premium {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--cor-borda);
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .checkbox-premium:hover {
+        background: rgba(0, 198, 255, 0.03);
+        border-color: var(--cor-borda-glow);
+    }
+    .checkbox-premium input[type=checkbox] {
+        width: 18px;
+        height: 18px;
+        accent-color: #00c6ff;
+        cursor: pointer;
+    }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral, erroModal;
+
+    private List<EtiquetaBalancaDto> formatos = new();
+
+    private bool mostrarModal = false;
+    private Guid modalEditandoId = Guid.Empty;
+    private EtiquetaBalancaInput model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<List<EtiquetaBalancaDto>>>("/configuracoes/operacionais/etiquetas-balanca");
+            if (res?.sucesso == true) formatos = res.dados ?? new();
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void AbrirModalNovo()
+    {
+        modalEditandoId = Guid.Empty;
+        model = new EtiquetaBalancaInput
+        {
+            prefixo_codigo_barras = "2",
+            codigo_inicial = 2,
+            codigo_final = 7,
+            tipo_informacao = "PESO",
+            casas_decimais = 3,
+            ativo = true
+        };
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditar(EtiquetaBalancaDto et)
+    {
+        modalEditandoId = et.id;
+        model = new EtiquetaBalancaInput
+        {
+            nome_formato = et.nome_formato,
+            prefixo_codigo_barras = et.prefixo_codigo_barras,
+            codigo_inicial = et.codigo_inicial,
+            codigo_final = et.codigo_final,
+            tipo_informacao = et.tipo_informacao,
+            casas_decimais = et.casas_decimais,
+            ativo = et.ativo
+        };
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null;
+        if (string.IsNullOrWhiteSpace(model.nome_formato))
+        {
+            erroModal = "Nome do formato é obrigatório.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(model.prefixo_codigo_barras))
+        {
+            erroModal = "Prefixo do código de barras é obrigatório.";
+            return;
+        }
+        if (model.codigo_inicial <= 0 || model.codigo_final <= 0 || model.codigo_inicial >= model.codigo_final)
+        {
+            erroModal = "Posição final deve ser maior que a posição inicial.";
+            return;
+        }
+
+        try
+        {
+            HttpResponseMessage res;
+            if (modalEditandoId == Guid.Empty)
+            {
+                res = await Http.PostAsJsonAsync("/configuracoes/operacionais/etiquetas-balanca", model);
+            }
+            else
+            {
+                res = await Http.PutAsJsonAsync($"/configuracoes/operacionais/etiquetas-balanca/{modalEditandoId}", model);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                mostrarModal = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroModal = err?.mensagem ?? "Ocorreu uma falha ao salvar o formato de etiqueta.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = "Erro ao enviar requisição: " + ex.Message;
+        }
+    }
+
+    private void FecharModal() => mostrarModal = false;
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class EtiquetaBalancaDto
+    {
+        public Guid id { get; set; }
+        public string nome_formato { get; set; } = "";
+        public string prefixo_codigo_barras { get; set; } = "2";
+        public int codigo_inicial { get; set; }
+        public int codigo_final { get; set; }
+        public string tipo_informacao { get; set; } = "PESO";
+        public int casas_decimais { get; set; } = 3;
+        public bool ativo { get; set; }
+    }
+
+    public class EtiquetaBalancaInput
+    {
+        public string nome_formato { get; set; } = "";
+        public string prefixo_codigo_barras { get; set; } = "2";
+        public int codigo_inicial { get; set; } = 2;
+        public int codigo_final { get; set; } = 7;
+        public string tipo_informacao { get; set; } = "PESO";
+        public int casas_decimais { get; set; } = 3;
+        public bool ativo { get; set; } = true;
+    }
+}

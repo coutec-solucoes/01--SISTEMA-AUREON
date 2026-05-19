@@ -1,0 +1,323 @@
+@page "/configuracoes/operacionais/setores-producao"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Setores de Produção — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Setores de Produção</h1>
+        <p class="subtitulo-pagina">Cadastre locais de preparação (Cozinha, Copa, Pizzaria, Churrasqueira) e vincule as respectivas impressoras de comanda.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Novo Setor
+    </button>
+</div>
+
+<SubmenuOperacionais />
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando setores de produção e preparo...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box fade-in">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Setor</th>
+                    <th>Descrição</th>
+                    <th>Impressora de Produção Vinculada</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in setores)
+                {
+                    <tr>
+                        <td style="font-weight: bold; color: #fff; font-size: 15px;">@s.nome</td>
+                        <td>@(string.IsNullOrEmpty(s.descricao) ? "-" : s.descricao)</td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(s.impressora_nome))
+                            {
+                                <span class="badge" style="background: rgba(0,198,255,0.1); color: #00c6ff; border: 1px solid rgba(0,198,255,0.25);">
+                                    🖨️ @s.impressora_nome
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge" style="background: rgba(255,255,255,0.02); color: var(--cor-texto-disabled); border: 1px solid var(--cor-borda);">Sem Impressora</span>
+                            }
+                        </td>
+                        <td>
+                            @if (s.ativo)
+                            {
+                                <span class="badge badge-success">Ativo</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-error">Inativo</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(s)">Editar</button>
+                        </td>
+                    </tr>
+                }
+                @if (!setores.Any())
+                {
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--cor-texto-sub); padding: 48px;">
+                            Nenhum setor de produção cadastrado.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal de Cadastro / Edição -->
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card-glass" style="max-width: 500px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                <h2 class="modal-title" style="margin: 0; color: #fff;">
+                    @(modalEditandoId == Guid.Empty ? "Cadastrar Setor" : "Editar Setor")
+                </h2>
+                <button style="background: none; border: none; color: var(--cor-texto-sub); font-size: 20px; cursor: pointer;" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 20px;">@erroModal</div>
+            }
+
+            <div class="form-grid">
+                <div class="form-grupo" style="grid-column: span 12;">
+                    <label>Nome do Setor *</label>
+                    <input type="text" class="form-control" @bind="model.nome" placeholder="Ex: Cozinha Quente, Bar, Pizzaria..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 12;">
+                    <label>Descrição</label>
+                    <input type="text" class="form-control" @bind="model.descricao" placeholder="O que é preparado neste setor..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 12;">
+                    <label>Impressora Térmica Vinculada</label>
+                    <select class="form-control" @bind="model.impressora_id">
+                        <option value="">Não Imprimir (Sem Impressora)</option>
+                        @foreach (var imp in impressoras)
+                        {
+                            <option value="@imp.id.ToString()">@imp.nome</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 12; margin-top: 10px;">
+                    <label class="checkbox-premium">
+                        <input type="checkbox" @bind="model.ativo" />
+                        <span>Setor de Produção Ativo</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Setor</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-error { background: rgba(239,68,68,0.12); color: #ff4b2b; border: 1px solid rgba(239,68,68,0.25); }
+
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-outline { background: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto-sub); transition: all 0.2s ease; cursor: pointer; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); }
+
+    .checkbox-premium {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--cor-borda);
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .checkbox-premium:hover {
+        background: rgba(0, 198, 255, 0.03);
+        border-color: var(--cor-borda-glow);
+    }
+    .checkbox-premium input[type=checkbox] {
+        width: 18px;
+        height: 18px;
+        accent-color: #00c6ff;
+        cursor: pointer;
+    }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral, erroModal;
+
+    private List<SetorProducaoDto> setores = new();
+    private List<ImpressoraDto> impressoras = new();
+
+    private bool mostrarModal = false;
+    private Guid modalEditandoId = Guid.Empty;
+    private SetorProducaoInput model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<List<SetorProducaoDto>>>("/configuracoes/operacionais/setores-producao");
+            if (res?.sucesso == true) setores = res.dados ?? new();
+
+            var resImp = await Http.GetFromJsonAsync<Resposta<List<ImpressoraDto>>>("/configuracoes/operacionais/impressoras");
+            if (resImp?.sucesso == true) impressoras = resImp.dados ?? new();
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void AbrirModalNovo()
+    {
+        modalEditandoId = Guid.Empty;
+        model = new SetorProducaoInput { ativo = true };
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditar(SetorProducaoDto s)
+    {
+        modalEditandoId = s.id;
+        model = new SetorProducaoInput
+        {
+            nome = s.nome,
+            descricao = s.descricao,
+            impressora_id = s.impressora_id?.ToString(),
+            ativo = s.ativo
+        };
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null;
+        if (string.IsNullOrWhiteSpace(model.nome))
+        {
+            erroModal = "Nome do setor é obrigatório.";
+            return;
+        }
+
+        try
+        {
+            Guid? impId = string.IsNullOrEmpty(model.impressora_id) ? null : Guid.Parse(model.impressora_id);
+            var payload = new
+            {
+                nome = model.nome,
+                descricao = model.descricao,
+                impressora_id = impId,
+                ativo = model.ativo
+            };
+
+            HttpResponseMessage res;
+            if (modalEditandoId == Guid.Empty)
+            {
+                res = await Http.PostAsJsonAsync("/configuracoes/operacionais/setores-producao", payload);
+            }
+            else
+            {
+                res = await Http.PutAsJsonAsync($"/configuracoes/operacionais/setores-producao/{modalEditandoId}", payload);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                mostrarModal = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroModal = err?.mensagem ?? "Ocorreu uma falha ao salvar o setor.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = "Erro ao enviar requisição: " + ex.Message;
+        }
+    }
+
+    private void FecharModal() => mostrarModal = false;
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class SetorProducaoDto
+    {
+        public Guid id { get; set; }
+        public string nome { get; set; } = "";
+        public string? descricao { get; set; }
+        public Guid? impressora_id { get; set; }
+        public string? impressora_nome { get; set; }
+        public bool ativo { get; set; }
+    }
+
+    public class ImpressoraDto
+    {
+        public Guid id { get; set; }
+        public string nome { get; set; } = "";
+    }
+
+    public class SetorProducaoInput
+    {
+        public string nome { get; set; } = "";
+        public string? descricao { get; set; }
+        public string? impressora_id { get; set; }
+        public bool ativo { get; set; } = true;
+    }
+}

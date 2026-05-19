@@ -1,0 +1,330 @@
+@page "/configuracoes/operacionais/pdv"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Configurações do PDV — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Configurações do PDV</h1>
+        <p class="subtitulo-pagina">Defina regras de venda, segurança, limites de desconto e parametrização do ponto de venda.</p>
+    </div>
+</div>
+
+<SubmenuOperacionais />
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando parâmetros operacionais do PDV...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box fade-in">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px; margin-bottom: 24px;">
+            <h3 style="color: #fff; margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <span>🖥️</span> Parâmetros do Ponto de Venda (PDV)
+            </h3>
+            @if (sucesso)
+            {
+                <span class="badge badge-success fade-in">✓ Parâmetros Salvos!</span>
+            }
+        </div>
+
+        <div class="form-grid">
+            <!-- Offline -->
+            <div style="grid-column: span 12; margin-bottom: 12px;">
+                <h4 style="color: var(--cor-primaria); margin: 0 0 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">1. Operação Offline e Estoque</h4>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.permitir_venda_offline" />
+                    <span>Permitir Venda Offline</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4;">
+                <label>Dias Máximos Offline</label>
+                <input type="number" class="form-control" @bind="config.dias_maximos_offline" min="1" max="90" />
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.exigir_cotacao_ao_abrir_caixa" />
+                    <span>Exigir Cotação ao Abrir Caixa</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.permitir_venda_sem_estoque" />
+                    <span>Venda Sem Estoque</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.bloquear_produto_vencido" />
+                    <span>Bloquear Produto Vencido</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.alertar_produto_proximo_vencer" />
+                    <span>Alertar Vencimento Próximo</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4;">
+                <label>Dias de Alerta Antes do Vencimento</label>
+                <input type="number" class="form-control" @bind="config.dias_alerta_vencimento" min="0" />
+            </div>
+
+            <!-- Descontos e Preços -->
+            <div style="grid-column: span 12; margin-top: 24px; margin-bottom: 12px; border-top: 1px solid var(--cor-borda); padding-top: 24px;">
+                <h4 style="color: var(--cor-primaria); margin: 0 0 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">2. Descontos, Preços e Segurança</h4>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.permitir_desconto_pdv" />
+                    <span>Permitir Desconto no PDV</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4;">
+                <label>Desconto Máximo Padrão (%)</label>
+                <input type="number" class="form-control" @bind="config.desconto_maximo_padrao_percentual" min="0" max="100" step="0.01" />
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.exigir_supervisor_desconto_acima_limite" />
+                    <span>Supervisor p/ Desconto Extra</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.exigir_supervisor_cancelamento_item" />
+                    <span>Supervisor p/ Cancelar Item</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.exigir_supervisor_cancelamento_venda" />
+                    <span>Supervisor p/ Cancelar Venda</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.permitir_alterar_preco_pdv" />
+                    <span>Permitir Alterar Preço Manual</span>
+                </label>
+            </div>
+
+            <!-- Clientes e Impressão -->
+            <div style="grid-column: span 12; margin-top: 24px; margin-bottom: 12px; border-top: 1px solid var(--cor-borda); padding-top: 24px;">
+                <h4 style="color: var(--cor-primaria); margin: 0 0 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">3. Regras de Clientes e Comprovantes</h4>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.permitir_cliente_sem_cadastro" />
+                    <span>Permitir Cliente Sem Cadastro</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.exigir_cliente_completo_crediario" />
+                    <span>Exigir Cadastro Completo p/ Crediário</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.permitir_cadastro_cliente_pdv" />
+                    <span>Permitir Cadastrar Cliente pelo PDV</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.permitir_reimpressao_comprovante" />
+                    <span>Permitir Reimpressão de Comprovante</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.exigir_supervisor_reimpressao" />
+                    <span>Exigir Supervisor p/ Reimpressão</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4; justify-content: center; display: flex; flex-direction: column;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.ativo" />
+                    <span>Parâmetros Ativos</span>
+                </label>
+            </div>
+        </div>
+
+        <div style="margin-top: 32px; display: flex; justify-content: flex-end; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+            <button class="btn btn-primary" style="padding: 12px 32px;" @onclick="Salvar">
+                Salvar Configurações
+            </button>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 4px 10px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+
+    .checkbox-premium {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--cor-borda);
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        height: 42px;
+    }
+    .checkbox-premium:hover {
+        background: rgba(0, 198, 255, 0.03);
+        border-color: var(--cor-borda-glow);
+    }
+    .checkbox-premium input[type=checkbox] {
+        width: 18px;
+        height: 18px;
+        accent-color: #00c6ff;
+        cursor: pointer;
+    }
+
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral;
+    private bool sucesso = false;
+
+    private PdvConfigDto config = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null; sucesso = false;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<PdvConfigDto>>("/configuracoes/operacionais/pdv");
+            if (res?.sucesso == true && res.dados != null)
+            {
+                config = res.dados;
+            }
+            else
+            {
+                erroGeral = res?.mensagem ?? "Erro ao carregar parâmetros do PDV.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private async Task Salvar()
+    {
+        erroGeral = null; sucesso = false;
+        if (config.dias_maximos_offline <= 0)
+        {
+            erroGeral = "Dias máximos offline deve ser maior que zero.";
+            return;
+        }
+        if (config.desconto_maximo_padrao_percentual < 0 || config.desconto_maximo_padrao_percentual > 100)
+        {
+            erroGeral = "Desconto padrão deve estar entre 0% e 100%.";
+            return;
+        }
+
+        try
+        {
+            var res = await Http.PostAsJsonAsync("/configuracoes/operacionais/pdv", config);
+            if (res.IsSuccessStatusCode)
+            {
+                sucesso = true;
+                StateHasChanged();
+                await Task.Delay(3000);
+                sucesso = false;
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroGeral = err?.mensagem ?? "Erro ao salvar configurações do PDV.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro ao enviar requisição: " + ex.Message;
+        }
+    }
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class PdvConfigDto
+    {
+        public Guid empresa_id { get; set; }
+        public bool permitir_venda_offline { get; set; } = true;
+        public int dias_maximos_offline { get; set; } = 7;
+        public bool exigir_cotacao_ao_abrir_caixa { get; set; } = false;
+        public bool permitir_venda_sem_estoque { get; set; } = true;
+        public bool bloquear_produto_vencido { get; set; } = true;
+        public bool alertar_produto_proximo_vencer { get; set; } = true;
+        public int dias_alerta_vencimento { get; set; } = 30;
+        public bool permitir_desconto_pdv { get; set; } = true;
+        public decimal desconto_maximo_padrao_percentual { get; set; } = 15.00m;
+        public bool exigir_supervisor_desconto_acima_limite { get; set; } = true;
+        public bool exigir_supervisor_cancelamento_item { get; set; } = false;
+        public bool exigir_supervisor_cancelamento_venda { get; set; } = true;
+        public bool permitir_alterar_preco_pdv { get; set; } = false;
+        public bool permitir_cliente_sem_cadastro { get; set; } = true;
+        public bool exigir_cliente_completo_crediario { get; set; } = true;
+        public bool permitir_reimpressao_comprovante { get; set; } = true;
+        public bool exigir_supervisor_reimpressao { get; set; } = false;
+        public bool permitir_cadastro_cliente_pdv { get; set; } = true;
+        public bool ativo { get; set; } = true;
+    }
+}

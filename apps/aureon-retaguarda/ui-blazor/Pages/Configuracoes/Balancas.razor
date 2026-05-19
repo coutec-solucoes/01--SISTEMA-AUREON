@@ -1,0 +1,360 @@
+@page "/configuracoes/operacionais/balancas"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Cadastro de Balanças — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Balanças de Check-out</h1>
+        <p class="subtitulo-pagina">Cadastre balanças conectadas diretamente ao ponto de venda (serial/USB) para pesagem em tempo real.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Nova Balança
+    </button>
+</div>
+
+<SubmenuOperacionais />
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando balanças operacionais cadastradas...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box fade-in">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Identificação</th>
+                    <th>Tipo de Conexão</th>
+                    <th>Porta / IP</th>
+                    <th>Modelo / Protocolo</th>
+                    <th>Baud Rate (Serial)</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var b in balancas)
+                {
+                    <tr>
+                        <td style="font-weight: bold; color: #fff; font-size: 15px;">@b.nome</td>
+                        <td>
+                            <span class="badge" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1);">
+                                @b.tipo_conexao
+                            </span>
+                        </td>
+                        <td>@b.porta_conexao_ip</td>
+                        <td>@b.modelo_protocolo</td>
+                        <td>@(b.velocidade_baud_rate.HasValue ? b.velocidade_baud_rate.Value.ToString() : "-")</td>
+                        <td>
+                            @if (b.ativo)
+                            {
+                                <span class="badge badge-success">Ativa</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-error">Inativa</span>
+                            }
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(b)">Editar</button>
+                                <button class="btn btn-sm btn-outline" style="border-color: rgba(56,239,125,0.3); color: #38ef7d;" @onclick="() => LerPesoTeste(b.id)">Ler Peso</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!balancas.Any())
+                {
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--cor-texto-sub); padding: 48px;">
+                            Nenhuma balança de checkout cadastrada.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal de Cadastro / Edição -->
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card-glass" style="max-width: 550px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                <h2 class="modal-title" style="margin: 0; color: #fff;">
+                    @(modalEditandoId == Guid.Empty ? "Cadastrar Balança" : "Editar Balança")
+                </h2>
+                <button style="background: none; border: none; color: var(--cor-texto-sub); font-size: 20px; cursor: pointer;" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 20px;">@erroModal</div>
+            }
+
+            <div class="form-grid">
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Nome do Dispositivo *</label>
+                    <input type="text" class="form-control" @bind="model.nome" placeholder="Ex: Balança Checkout 01..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Tipo de Conexão *</label>
+                    <select class="form-control" @bind="model.tipo_conexao">
+                        <option value="SERIAL">Porta Serial (COM)</option>
+                        <option value="USB">Virtual USB</option>
+                        <option value="REDE">Rede TCP/IP</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Porta (Ex: COM1) ou IP (Rede)</label>
+                    <input type="text" class="form-control" @bind="model.porta_conexao_ip" placeholder="Ex: COM3 ou 192.168.1.180..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Modelo / Protocolo *</label>
+                    <select class="form-control" @bind="model.modelo_protocolo">
+                        <option value="TOLEDO">Toledo (P03)</option>
+                        <option value="FILIZOLA">Filizola (Genérico)</option>
+                        <option value="URANO">Urano (POP)</option>
+                        <option value="WELMY">Welmy</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Velocidade (Baud Rate - Serial)</label>
+                    <select class="form-control" @bind="baudRateString">
+                        <option value="">Nenhum (Não Serial)</option>
+                        <option value="9600">9600 bps</option>
+                        <option value="4800">4800 bps</option>
+                        <option value="2400">2400 bps</option>
+                        <option value="19200">19200 bps</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6; justify-content: center; display: flex; flex-direction: column; margin-top: 14px;">
+                    <label class="checkbox-premium">
+                        <input type="checkbox" @bind="model.ativo" />
+                        <span>Balança Ativa</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Registro</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-error { background: rgba(239,68,68,0.12); color: #ff4b2b; border: 1px solid rgba(239,68,68,0.25); }
+
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-outline { background: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto-sub); transition: all 0.2s ease; cursor: pointer; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); }
+
+    .checkbox-premium {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--cor-borda);
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .checkbox-premium:hover {
+        background: rgba(0, 198, 255, 0.03);
+        border-color: var(--cor-borda-glow);
+    }
+    .checkbox-premium input[type=checkbox] {
+        width: 18px;
+        height: 18px;
+        accent-color: #00c6ff;
+        cursor: pointer;
+    }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral, erroModal;
+
+    private List<BalancaDto> balancas = new();
+
+    private bool mostrarModal = false;
+    private Guid modalEditandoId = Guid.Empty;
+    private BalancaInput model = new();
+
+    private string baudRateString = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<List<BalancaDto>>>("/configuracoes/operacionais/balancas");
+            if (res?.sucesso == true) balancas = res.dados ?? new();
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void AbrirModalNovo()
+    {
+        modalEditandoId = Guid.Empty;
+        model = new BalancaInput { tipo_conexao = "SERIAL", modelo_protocolo = "TOLEDO", ativo = true };
+        baudRateString = "9600";
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditar(BalancaDto b)
+    {
+        modalEditandoId = b.id;
+        model = new BalancaInput
+        {
+            nome = b.nome,
+            tipo_conexao = b.tipo_conexao,
+            porta_conexao_ip = b.porta_conexao_ip,
+            modelo_protocolo = b.modelo_protocolo,
+            velocidade_baud_rate = b.velocidade_baud_rate,
+            ativo = b.ativo
+        };
+        baudRateString = b.velocidade_baud_rate?.ToString() ?? "";
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null;
+        if (string.IsNullOrWhiteSpace(model.nome))
+        {
+            erroModal = "O nome do dispositivo é obrigatório.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(model.porta_conexao_ip))
+        {
+            erroModal = "Porta ou IP de conexão é obrigatório.";
+            return;
+        }
+
+        try
+        {
+            model.velocidade_baud_rate = string.IsNullOrEmpty(baudRateString) ? null : int.Parse(baudRateString);
+
+            HttpResponseMessage res;
+            if (modalEditandoId == Guid.Empty)
+            {
+                res = await Http.PostAsJsonAsync("/configuracoes/operacionais/balancas", model);
+            }
+            else
+            {
+                res = await Http.PutAsJsonAsync($"/configuracoes/operacionais/balancas/{modalEditandoId}", model);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                mostrarModal = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroModal = err?.mensagem ?? "Ocorreu uma falha ao salvar a balança.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = "Erro ao enviar requisição: " + ex.Message;
+        }
+    }
+
+    private async Task LerPesoTeste(Guid id)
+    {
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<Decimal>>($"/configuracoes/operacionais/balancas/{id}/ler-peso");
+            if (res?.sucesso == true)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Peso Lido da Balança: {res.dados} kg");
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Falha na leitura: " + (res?.mensagem ?? "Erro desconhecido."));
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Erro de conexão ao ler peso: " + ex.Message);
+        }
+    }
+
+    private void FecharModal() => mostrarModal = false;
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class BalancaDto
+    {
+        public Guid id { get; set; }
+        public string nome { get; set; } = "";
+        public string tipo_conexao { get; set; } = "SERIAL";
+        public string porta_conexao_ip { get; set; } = "";
+        public string modelo_protocolo { get; set; } = "TOLEDO";
+        public int? velocidad_baud_rate { get; set; }
+        public int? velocidade_baud_rate { get; set; }
+        public bool ativo { get; set; }
+    }
+
+    public class BalancaInput
+    {
+        public string nome { get; set; } = "";
+        public string tipo_conexao { get; set; } = "SERIAL";
+        public string porta_conexao_ip { get; set; } = "";
+        public string modelo_protocolo { get; set; } = "TOLEDO";
+        public int? velocidade_baud_rate { get; set; }
+        public bool ativo { get; set; } = true;
+    }
+}

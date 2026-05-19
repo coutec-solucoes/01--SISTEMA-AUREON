@@ -1,0 +1,57 @@
+@inject NavigationManager Navigation
+
+<div class="abas-container fade-in" style="margin-bottom: 24px; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; -webkit-overflow-scrolling: touch;">
+    <a href="/configuracoes/operacionais/pdv" class="aba-botao @(IsActive("/configuracoes/operacionais/pdv") ? "ativa" : "")">
+        <span>🖥️</span> PDV
+    </a>
+    <a href="/configuracoes/operacionais/terminais" class="aba-botao @(IsActive("/configuracoes/operacionais/terminais") ? "ativa" : "")">
+        <span>💻</span> Terminais
+    </a>
+    <a href="/configuracoes/operacionais/registradoras" class="aba-botao @(IsActive("/configuracoes/operacionais/registradoras") ? "ativa" : "")">
+        <span>💵</span> Caixas
+    </a>
+    <a href="/configuracoes/operacionais/mesas" class="aba-botao @(IsActive("/configuracoes/operacionais/mesas") ? "ativa" : "")">
+        <span>🪑</span> Mesas
+    </a>
+    <a href="/configuracoes/operacionais/comandas" class="aba-botao @(IsActive("/configuracoes/operacionais/comandas") ? "ativa" : "")">
+        <span>📋</span> Comandas
+    </a>
+    <a href="/configuracoes/operacionais/pre-vendas" class="aba-botao @(IsActive("/configuracoes/operacionais/pre-vendas") ? "ativa" : "")">
+        <span>🛍️</span> Pré-Vendas
+    </a>
+    <a href="/configuracoes/operacionais/orcamentos" class="aba-botao @(IsActive("/configuracoes/operacionais/orcamentos") ? "ativa" : "")">
+        <span>📄</span> Orçamentos
+    </a>
+    <a href="/configuracoes/operacionais/regras-venda" class="aba-botao @(IsActive("/configuracoes/operacionais/regras-venda") ? "ativa" : "")">
+        <span>⚙️</span> Regras de Venda
+    </a>
+    <a href="/configuracoes/operacionais/series-numeracao" class="aba-botao @(IsActive("/configuracoes/operacionais/series-numeracao") ? "ativa" : "")">
+        <span>🔢</span> Séries
+    </a>
+    <a href="/configuracoes/operacionais/impressoras" class="aba-botao @(IsActive("/configuracoes/operacionais/impressoras") ? "ativa" : "")">
+        <span>🖨️</span> Impressoras
+    </a>
+    <a href="/configuracoes/operacionais/setores-producao" class="aba-botao @(IsActive("/configuracoes/operacionais/setores-producao") ? "ativa" : "")">
+        <span>🔥</span> Setores
+    </a>
+    <a href="/configuracoes/operacionais/balancas" class="aba-botao @(IsActive("/configuracoes/operacionais/balancas") ? "ativa" : "")">
+        <span>⚖️</span> Balanças
+    </a>
+    <a href="/configuracoes/operacionais/etiquetas-balanca" class="aba-botao @(IsActive("/configuracoes/operacionais/etiquetas-balanca") ? "ativa" : "")">
+        <span>🏷️</span> Etiquetas
+    </a>
+    <a href="/configuracoes/operacionais/perifericos" class="aba-botao @(IsActive("/configuracoes/operacionais/perifericos") ? "ativa" : "")">
+        <span>🔌</span> Periféricos
+    </a>
+    <a href="/configuracoes/operacionais/senhas-chamadas" class="aba-botao @(IsActive("/configuracoes/operacionais/senhas-chamadas") ? "ativa" : "")">
+        <span>🔔</span> Senhas/Painel
+    </a>
+</div>
+
+@code {
+    private bool IsActive(string rota)
+    {
+        var uri = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/');
+        return uri.StartsWith(rota, StringComparison.OrdinalIgnoreCase);
+    }
+}

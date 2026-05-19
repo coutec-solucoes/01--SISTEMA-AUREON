@@ -1,0 +1,433 @@
+@page "/configuracoes/operacionais/registradoras"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Registradoras & Caixas — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Registradoras (Caixas)</h1>
+        <p class="subtitulo-pagina">Gerencie as gavetas físicas de dinheiro, caixas PDV, permissões de multimoeda e operadores responsáveis.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirModalNovo">
+        <span>+</span> Novo Caixa
+    </button>
+</div>
+
+<SubmenuOperacionais />
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando registradoras e caixas cadastrados...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box fade-in">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nome</th>
+                    <th>Tipo</th>
+                    <th>Terminal Padrão</th>
+                    <th>Operador Responsável</th>
+                    <th>Multimoeda</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in registradoras)
+                {
+                    <tr>
+                        <td style="font-weight: bold; color: #fff;">@r.codigo</td>
+                        <td>
+                            <div>@r.nome</div>
+                            @if (!string.IsNullOrEmpty(r.descricao))
+                            {
+                                <span style="font-size: 11px; color: var(--cor-texto-sub);">@r.descricao</span>
+                            }
+                        </td>
+                        <td>
+                            <span class="badge" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1);">
+                                @r.tipo
+                            </span>
+                        </td>
+                        <td>@(string.IsNullOrEmpty(r.terminal_padrao_nome) ? "Nenhum" : r.terminal_padrao_nome)</td>
+                        <td>@(string.IsNullOrEmpty(r.usuario_responsavel_nome) ? "Qualquer Operador" : r.usuario_responsavel_nome)</td>
+                        <td>
+                            @if (r.permite_multimoeda)
+                            {
+                                <span class="badge badge-success" style="background: rgba(0,198,255,0.1); color: #00c6ff; border: 1px solid rgba(0,198,255,0.25);">Sim</span>
+                            }
+                            else
+                            {
+                                <span class="badge" style="background: rgba(255,255,255,0.02); color: var(--cor-texto-disabled); border: 1px solid var(--cor-borda);">Não</span>
+                            }
+                        </td>
+                        <td>
+                            @if (r.ativo)
+                            {
+                                <span class="badge badge-success">Ativo</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-error">Inativo</span>
+                            }
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-sm btn-outline" @onclick="() => AbrirModalEditar(r)">Editar</button>
+                                @if (r.ativo)
+                                {
+                                    <button class="btn btn-sm btn-outline btn-perigo-outline" @onclick="() => Inativar(r.id)">Inativar</button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!registradoras.Any())
+                {
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: var(--cor-texto-sub); padding: 48px;">
+                            Nenhuma registradora cadastrada.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal de Cadastro / Edição -->
+@if (mostrarModal)
+{
+    <div class="modal-backdrop fade-in">
+        <div class="modal-content card-glass" style="max-width: 600px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px;">
+                <h2 class="modal-title" style="margin: 0; color: #fff;">
+                    @(modalEditandoId == Guid.Empty ? "Cadastrar Registradora" : "Editar Registradora")
+                </h2>
+                <button style="background: none; border: none; color: var(--cor-texto-sub); font-size: 20px; cursor: pointer;" @onclick="FecharModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(erroModal))
+            {
+                <div class="alert-error-box" style="margin-bottom: 20px;">@erroModal</div>
+            }
+
+            <div class="form-grid">
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Código do Caixa *</label>
+                    <input type="text" class="form-control" @bind="model.codigo" placeholder="Ex: CX01..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Nome do Caixa *</label>
+                    <input type="text" class="form-control" @bind="model.nome" placeholder="Ex: Caixa Frente de Loja..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 12;">
+                    <label>Descrição</label>
+                    <input type="text" class="form-control" @bind="model.descricao" placeholder="Localização física ou notas..." />
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Tipo do Caixa</label>
+                    <select class="form-control" @bind="model.tipo">
+                        <option value="FISICO">Físico (Gaveta Local)</option>
+                        <option value="VIRTUAL">Virtual (Somente Sistema)</option>
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Terminal Padrão Associado</label>
+                    <select class="form-control" @bind="model.terminal_padrao_id">
+                        <option value="">Qualquer Terminal</option>
+                        @foreach (var t in terminais)
+                        {
+                            <option value="@t.id.ToString()">@t.nome_terminal (@t.codigo_terminal)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6;">
+                    <label>Operador Responsável</label>
+                    <select class="form-control" @bind="model.usuario_responsavel_id">
+                        <option value="">Livre para todos os operadores</option>
+                        @foreach (var p in operadores)
+                        {
+                            <option value="@p.id.ToString()">@p.nome_razao_social</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6; justify-content: center; display: flex; flex-direction: column; margin-top: 14px;">
+                    <label class="checkbox-premium">
+                        <input type="checkbox" @bind="model.permite_multimoeda" />
+                        <span>Permite Vender em Multimoeda</span>
+                    </label>
+                </div>
+
+                <div class="form-grupo" style="grid-column: span 6; justify-content: center; display: flex; flex-direction: column; margin-top: 14px;">
+                    <label class="checkbox-premium">
+                        <input type="checkbox" @bind="model.ativo" />
+                        <span>Caixa Ativo</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+                <button class="btn btn-outline" @onclick="FecharModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Salvar">Salvar Registro</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-error { background: rgba(239,68,68,0.12); color: #ff4b2b; border: 1px solid rgba(239,68,68,0.25); }
+
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-outline { background: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto-sub); transition: all 0.2s ease; cursor: pointer; }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); }
+    
+    .btn-perigo-outline { border-color: rgba(255,75,43,0.3); color: #ff4b2b; }
+    .btn-perigo-outline:hover { background: rgba(255,75,43,0.1); border-color: #ff4b2b; color: #fff; }
+
+    .checkbox-premium {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--cor-borda);
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .checkbox-premium:hover {
+        background: rgba(0, 198, 255, 0.03);
+        border-color: var(--cor-borda-glow);
+    }
+    .checkbox-premium input[type=checkbox] {
+        width: 18px;
+        height: 18px;
+        accent-color: #00c6ff;
+        cursor: pointer;
+    }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral, erroModal;
+
+    private List<RegistradoraDto> registradoras = new();
+    private List<TerminalDto> terminais = new();
+    private List<PessoaDto> operadores = new();
+
+    private bool mostrarModal = false;
+    private Guid modalEditandoId = Guid.Empty;
+    private RegistradoraInput model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<List<RegistradoraDto>>>("/configuracoes/operacionais/registradoras");
+            if (res?.sucesso == true) registradoras = res.dados ?? new();
+
+            var resTerm = await Http.GetFromJsonAsync<Resposta<List<TerminalDto>>>("/configuracoes/operacionais/terminais");
+            if (resTerm?.sucesso == true) terminais = resTerm.dados ?? new();
+
+            var resOp = await Http.GetFromJsonAsync<Resposta<List<PessoaDto>>>("/cadastros/pessoas");
+            if (resOp?.sucesso == true)
+            {
+                operadores = resOp.dados?.Where(p => p.papeis.Contains("FUNCIONARIO")).ToList() ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void AbrirModalNovo()
+    {
+        modalEditandoId = Guid.Empty;
+        model = new RegistradoraInput { tipo = "FISICO", permite_multimoeda = false, ativo = true };
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditar(RegistradoraDto r)
+    {
+        modalEditandoId = r.id;
+        model = new RegistradoraInput
+        {
+            codigo = r.codigo,
+            nome = r.nome,
+            descricao = r.descricao,
+            tipo = r.tipo,
+            terminal_padrao_id = r.terminal_padrao_id?.ToString(),
+            usuario_responsavel_id = r.usuario_responsavel_id?.ToString(),
+            permite_multimoeda = r.permite_multimoeda,
+            ativo = r.ativo
+        };
+        erroModal = null;
+        mostrarModal = true;
+    }
+
+    private async Task Salvar()
+    {
+        erroModal = null;
+        if (string.IsNullOrWhiteSpace(model.codigo))
+        {
+            erroModal = "Código da registradora é obrigatório.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(model.nome))
+        {
+            erroModal = "Nome da registradora é obrigatório.";
+            return;
+        }
+
+        try
+        {
+            Guid? termId = string.IsNullOrEmpty(model.terminal_padrao_id) ? null : Guid.Parse(model.terminal_padrao_id);
+            Guid? userRespId = string.IsNullOrEmpty(model.usuario_responsavel_id) ? null : Guid.Parse(model.usuario_responsavel_id);
+
+            var payload = new
+            {
+                codigo = model.codigo,
+                nome = model.nome,
+                descricao = model.descricao,
+                tipo = model.tipo,
+                terminal_padrao_id = termId,
+                usuario_responsavel_id = userRespId,
+                permite_multimoeda = model.permite_multimoeda,
+                ativo = model.ativo
+            };
+
+            HttpResponseMessage res;
+            if (modalEditandoId == Guid.Empty)
+            {
+                res = await Http.PostAsJsonAsync("/configuracoes/operacionais/registradoras", payload);
+            }
+            else
+            {
+                res = await Http.PutAsJsonAsync($"/configuracoes/operacionais/registradoras/{modalEditandoId}", payload);
+            }
+
+            if (res.IsSuccessStatusCode)
+            {
+                mostrarModal = false;
+                await CarregarDados();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroModal = err?.mensagem ?? "Ocorreu uma falha ao salvar a registradora.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroModal = "Erro ao enviar requisição: " + ex.Message;
+        }
+    }
+
+    private async Task Inativar(Guid id)
+    {
+        try
+        {
+            var res = await Http.PutAsync($"/configuracoes/operacionais/registradoras/{id}/inativar", null);
+            if (res.IsSuccessStatusCode)
+            {
+                await CarregarDados();
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro ao inativar caixa: " + ex.Message;
+        }
+    }
+
+    private void FecharModal() => mostrarModal = false;
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class RegistradoraDto
+    {
+        public Guid id { get; set; }
+        public string codigo { get; set; } = "";
+        public string nome { get; set; } = "";
+        public string? descricao { get; set; }
+        public string tipo { get; set; } = "FISICO";
+        public Guid? terminal_padrao_id { get; set; }
+        public string? terminal_padrao_name { get; set; }
+        public Guid? usuario_responsavel_id { get; set; }
+        public string? usuario_responsavel_nome { get; set; }
+        public bool permite_multimoeda { get; set; }
+        public bool ativo { get; set; }
+        public string? terminal_padrao_nome { get; set; }
+    }
+
+    public class TerminalDto
+    {
+        public Guid id { get; set; }
+        public string codigo_terminal { get; set; } = "";
+        public string nome_terminal { get; set; } = "";
+    }
+
+    public class PessoaDto
+    {
+        public Guid id { get; set; }
+        public string nome_razao_social { get; set; } = "";
+        public List<string> papeis { get; set; } = new();
+    }
+
+    public class RegistradoraInput
+    {
+        public string codigo { get; set; } = "";
+        public string nome { get; set; } = "";
+        public string? descricao { get; set; }
+        public string tipo { get; set; } = "FISICO";
+        public string? terminal_padrao_id { get; set; }
+        public string? usuario_responsavel_id { get; set; }
+        public bool permite_multimoeda { get; set; } = false;
+        public bool ativo { get; set; } = true;
+    }
+}

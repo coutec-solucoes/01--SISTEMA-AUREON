@@ -1,0 +1,204 @@
+@page "/configuracoes/operacionais/regras-venda"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Regras de Venda — Aureon Gestor</PageTitle>
+
+<div class="header-pagina fade-in">
+    <div>
+        <h1 class="titulo-pagina">Regras de Venda</h1>
+        <p class="subtitulo-pagina">Configure limites de valores de transações, quantidade máxima de itens e restrições de cancelamento de vendas.</p>
+    </div>
+</div>
+
+<SubmenuOperacionais />
+
+@if (carregando)
+{
+    <div class="loading-state fade-in">Carregando regras de venda do sistema...</div>
+}
+else if (!string.IsNullOrEmpty(erroGeral))
+{
+    <div class="alert-error-box fade-in">@erroGeral</div>
+}
+else
+{
+    <div class="card-glass fade-in" style="padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--cor-borda); padding-bottom: 16px; margin-bottom: 24px;">
+            <h3 style="color: #fff; margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <span>⚙️</span> Limites e Restrições de Venda
+            </h3>
+            @if (sucesso)
+            {
+                <span class="badge badge-success fade-in">✓ Regras Salvas!</span>
+            }
+        </div>
+
+        <div class="form-grid">
+            <div class="form-grupo" style="grid-column: span 4;">
+                <label>Valor Mínimo por Venda ($)</label>
+                <input type="number" class="form-control" @bind="config.valor_minimo_venda" min="0" step="0.01" />
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4;">
+                <label>Valor Máximo Sem Supervisor ($)</label>
+                <input type="number" class="form-control" @bind="config.valor_maximo_venda_sem_supervisor" min="0" step="0.01" />
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 4;">
+                <label>Limite de Itens por Venda</label>
+                <input type="number" class="form-control" @bind="config.limite_itens_por_venda" min="0" />
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 6; justify-content: center; display: flex; flex-direction: column; margin-top: 14px;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.exigir_motivo_cancelamento" />
+                    <span>Exigir Motivo por Escrito no Cancelamento</span>
+                </label>
+            </div>
+
+            <div class="form-grupo" style="grid-column: span 6; justify-content: center; display: flex; flex-direction: column; margin-top: 14px;">
+                <label class="checkbox-premium">
+                    <input type="checkbox" @bind="config.ativo" />
+                    <span>Regras Ativas e Habilitadas</span>
+                </label>
+            </div>
+        </div>
+
+        <div style="margin-top: 32px; display: flex; justify-content: flex-end; border-top: 1px solid var(--cor-borda); padding-top: 20px;">
+            <button class="btn btn-primary" style="padding: 12px 32px;" @onclick="Salvar">
+                Salvar Regras
+            </button>
+        </div>
+    </div>
+}
+
+<style>
+    .header-pagina { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .titulo-pagina { font-size: 30px; font-weight: 700; color: #fff; }
+    .subtitulo-pagina { color: var(--cor-texto-sub); font-size: 14px; }
+    
+    .badge { font-size: 11px; padding: 4px 10px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .badge-success { background: rgba(16,185,129,0.12); color: #38ef7d; border: 1px solid rgba(16,185,129,0.25); }
+
+    .checkbox-premium {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--cor-borda);
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        height: 42px;
+    }
+    .checkbox-premium:hover {
+        background: rgba(0, 198, 255, 0.03);
+        border-color: var(--cor-borda-glow);
+    }
+    .checkbox-premium input[type=checkbox] {
+        width: 18px;
+        height: 18px;
+        accent-color: #00c6ff;
+        cursor: pointer;
+    }
+
+    .alert-error-box { background: rgba(255,75,43,0.1); color: #ff4b2b; border: 1px solid rgba(255,75,43,0.2); padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .loading-state { text-align: center; color: var(--cor-texto-sub); padding: 64px; font-size: 16px; }
+</style>
+
+@code {
+    private bool carregando = true;
+    private string? erroGeral;
+    private bool sucesso = false;
+
+    private RegrasVendaDto config = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true; erroGeral = null; sucesso = false;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<Resposta<RegrasVendaDto>>("/configuracoes/operacionais/regras-venda");
+            if (res?.sucesso == true && res.dados != null)
+            {
+                config = res.dados;
+            }
+            else
+            {
+                erroGeral = res?.mensagem ?? "Erro ao carregar regras de venda.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro de conexão: " + ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private async Task Salvar()
+    {
+        erroGeral = null; sucesso = false;
+        if (config.valor_minimo_venda < 0 || config.valor_maximo_venda_sem_supervisor < 0)
+        {
+            erroGeral = "Valores monetários não podem ser negativos.";
+            return;
+        }
+        if (config.limite_itens_por_venda < 0)
+        {
+            erroGeral = "Limite de itens por venda não pode ser negativo.";
+            return;
+        }
+
+        try
+        {
+            var res = await Http.PostAsJsonAsync("/configuracoes/operacionais/regras-venda", config);
+            if (res.IsSuccessStatusCode)
+            {
+                sucesso = true;
+                StateHasChanged();
+                await Task.Delay(3000);
+                sucesso = false;
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<Resposta<object>>();
+                erroGeral = err?.mensagem ?? "Erro ao salvar regras de venda.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = "Erro ao enviar requisição: " + ex.Message;
+        }
+    }
+
+    public class Resposta<T>
+    {
+        public bool sucesso { get; set; }
+        public string mensagem { get; set; } = "";
+        public T? dados { get; set; }
+    }
+
+    public class RegrasVendaDto
+    {
+        public Guid id { get; set; }
+        public Guid empresa_id { get; set; }
+        public decimal valor_minimo_venda { get; set; } = 0.00m;
+        public decimal valor_maximo_venda_sem_supervisor { get; set; } = 1000.00m;
+        public int limite_itens_por_venda { get; set; } = 100;
+        public bool exigir_motivo_cancelamento { get; set; } = true;
+        public bool ativo { get; set; } = true;
+    }
+}
