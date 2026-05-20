@@ -44,6 +44,18 @@ pub async fn registrar_pagamento(
         return Err("Venda nao encontrada ou nao esta em andamento.".into());
     }
 
+    if dto.forma_pagamento == "CREDITO_CLIENTE" {
+        let cliente_id: Option<String> = conn.query_row(
+            "SELECT cliente_id FROM vendas WHERE id = ?1",
+            rusqlite::params![&dto.venda_id],
+            |row| row.get(0),
+        ).unwrap_or(None);
+
+        if cliente_id.is_none() {
+            return Err("Para usar Crédito Cliente (crediário), é necessário associar um cliente à venda.".into());
+        }
+    }
+
     // Buscar moeda principal
     let (moeda_principal, _data_cot_principal): (String, String) = conn.query_row(
         "SELECT codigo, COALESCE(MAX(data_cotacao), datetime('now')) FROM moedas_cache
@@ -327,6 +339,95 @@ pub async fn finalizar_venda(
                 "fechado_em": &agora
             }),
         )?;
+    }
+
+    // FASE 13 - FINANCEIRO: Gerar contas_receber se houver pagamento com CREDITO_CLIENTE
+    let total_credito_cliente_minor: i64 = tx.query_row(
+        "SELECT COALESCE(SUM(valor_convertido_minor), 0) 
+         FROM venda_pagamentos 
+         WHERE venda_id = ?1 AND forma_pagamento = 'CREDITO_CLIENTE'",
+        rusqlite::params![&venda_id],
+        |row| row.get(0)
+    ).unwrap_or(0);
+
+    if total_credito_cliente_minor > 0 {
+        let (cliente_id, cliente_nome_snapshot): (Option<String>, Option<String>) = tx.query_row(
+            "SELECT v.cliente_id, c.nome 
+             FROM vendas v
+             LEFT JOIN clientes_cache c ON c.id = v.cliente_id
+             WHERE v.id = ?1",
+            rusqlite::params![&venda_id],
+            |row| Ok((row.get(0)?, row.get(1)?))
+        ).map_err(|e| format!("Erro ao obter cliente para crediário: {e}"))?;
+
+        if cliente_id.is_none() {
+            return Err("Para finalizar uma venda com Crédito Cliente, é obrigatório associar um cliente.".into());
+        }
+
+        // Idempotência: verificar se já existe conta a receber para esta venda
+        let existe_conta: bool = tx.query_row(
+            "SELECT COUNT(*) > 0 FROM contas_receber WHERE venda_id = ?1",
+            rusqlite::params![&venda_id],
+            |row| row.get(0)
+        ).unwrap_or(false);
+
+        if !existe_conta {
+            let (moeda_principal, _): (String, String) = tx.query_row(
+                "SELECT codigo, COALESCE(MAX(data_cotacao), datetime('now')) FROM moedas_cache
+                 WHERE principal = 1 LIMIT 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            ).unwrap_or_else(|_| ("BRL".to_string(), "".to_string()));
+
+            let rec_id = uuid::Uuid::new_v4().to_string();
+            let data_emissao = agora.split(' ').next().unwrap_or("").to_string(); // YYYY-MM-DD
+            let vencimento_dt = chrono::Utc::now() + chrono::Duration::days(30);
+            let data_vencimento = vencimento_dt.format("%Y-%m-%d").to_string();
+            let nome_cliente = cliente_nome_snapshot.unwrap_or_else(|| "Cliente Não Identificado".to_string());
+
+            tx.execute(
+                "INSERT INTO contas_receber (
+                    id, cliente_id, cliente_nome_snapshot, venda_id, descricao, moeda_codigo,
+                    valor_original_minor, taxa_cambio_escala6, valor_original_principal_minor,
+                    data_emissao, data_vencimento, status, saldo_pendente_minor, criado_em,
+                    atualizado_em, usuario_id, observacao
+                ) VALUES (?1, ?2, ?3, ?4, 'Venda em crediário / fiado', ?5, ?6, 1000000, ?6, ?7, ?8, 'PENDENTE', ?6, ?9, ?9, ?10, NULL)",
+                rusqlite::params![
+                    rec_id,
+                    cliente_id,
+                    nome_cliente,
+                    venda_id,
+                    &moeda_principal,
+                    total_credito_cliente_minor,
+                    data_emissao,
+                    data_vencimento,
+                    &agora,
+                    &usuario_id
+                ]
+            ).map_err(|e| format!("Erro ao gerar conta a receber: {e}"))?;
+
+            outbox_inserir(
+                &tx,
+                "CONTA_RECEBER_CRIADA",
+                serde_json::json!({
+                    "id": rec_id,
+                    "cliente_id": cliente_id,
+                    "cliente_nome_snapshot": nome_cliente,
+                    "venda_id": venda_id,
+                    "descricao": "Venda em crediário / fiado",
+                    "moeda_codigo": &moeda_principal,
+                    "valor_original_minor": total_credito_cliente_minor,
+                    "taxa_cambio_escala6": 1000000,
+                    "valor_original_principal_minor": total_credito_cliente_minor,
+                    "data_emissao": data_emissao,
+                    "data_vencimento": data_vencimento,
+                    "status": "PENDENTE",
+                    "saldo_pendente_minor": total_credito_cliente_minor,
+                    "criado_em": &agora,
+                    "usuario_id": &usuario_id
+                })
+            ).map_err(|e| format!("Erro ao registrar outbox de conta a receber: {e}"))?;
+        }
     }
 
     // FASE 11 - ESTOQUE: Baixar itens da venda (só ocorre na finalização)

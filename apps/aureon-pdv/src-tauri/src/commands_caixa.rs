@@ -222,7 +222,8 @@ pub async fn fechar_caixa(
             "SELECT COALESCE(SUM(valor_informado_minor), 0) FROM venda_pagamentos vp
              INNER JOIN vendas v ON v.id = vp.venda_id
              INNER JOIN sessoes_caixa sc ON sc.id = v.sessao_caixa_id
-             WHERE sc.id = ?1 AND vp.moeda_codigo = ?2 AND v.status = 'FINALIZADA'",
+             WHERE sc.id = ?1 AND vp.moeda_codigo = ?2 AND v.status = 'FINALIZADA'
+               AND vp.forma_pagamento <> 'CREDITO_CLIENTE'",
             rusqlite::params![&dto.sessao_id, &saldo_inf.moeda_codigo],
             |row| row.get(0),
         ).unwrap_or(0);

@@ -142,6 +142,10 @@ pub fn run() {
             commands_financeiro::baixar_conta_pagar,
             commands_financeiro::cancelar_conta_pagar,
             commands_financeiro::listar_lancamentos_financeiros,
+            commands_financeiro::listar_contas_receber,
+            commands_financeiro::obter_conta_receber,
+            commands_financeiro::baixar_conta_receber,
+            commands_financeiro::cancelar_conta_receber,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -816,6 +816,23 @@ namespace AureonPdvUi.Services
         string motivo,
         string usuario_id
     );
+
+    public record BaixarContaReceberReq(
+        string conta_receber_id,
+        string sessao_caixa_id,
+        string forma_pagamento,
+        string moeda_codigo,
+        long valor_informado_minor,
+        long taxa_cambio_escala6,
+        string usuario_id,
+        string? observacao
+    );
+
+    public record CancelarContaReceberReq(
+        string conta_receber_id,
+        string motivo,
+        string usuario_id
+    );
 }
 
 

@@ -1008,5 +1008,25 @@ pub struct CancelarContaPagarReq {
     pub usuario_id: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BaixarContaReceberReq {
+    pub conta_receber_id: String,
+    pub sessao_caixa_id: String,
+    pub forma_pagamento: String,
+    pub moeda_codigo: String,
+    pub valor_informado_minor: i64,
+    pub taxa_cambio_escala6: i64,
+    pub usuario_id: String,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarContaReceberReq {
+    pub conta_receber_id: String,
+    pub motivo: String,
+    pub usuario_id: String,
+}
+
+
 
 
