@@ -494,3 +494,147 @@ pub async fn cancelar_item_delivery(
     tx.commit().map_err(|e| e.to_string())?;
     Ok(RespostaBase::ok("OK", "Item cancelado com sucesso".to_string()))
 }
+
+// --- Conversão em Venda (Bloco 3) ---
+
+#[tauri::command]
+pub async fn fechar_delivery_em_venda(
+    dto: FecharEmVendaReq,
+    estado: State<'_, EstadoApp>
+) -> Result<RespostaBase<FechamentoEmVendaResp>, String> {
+    info!(componente = "aureon-pdv::commands_delivery", origem_id = %dto.origem_id, "Chamada: fechar_delivery_em_venda");
+    
+    if dto.origem_tipo != "DELIVERY" {
+        return Err("origem_tipo deve ser DELIVERY para esta operação".into());
+    }
+
+    let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+    checar_caixa_aberto(&conn, &dto.sessao_caixa_id)?;
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    // 1. Verificar se já existe venda convertida (EM_ANDAMENTO ou FINALIZADA)
+    let venda_existente: Option<String> = tx.query_row(
+        "SELECT id FROM vendas WHERE origem_tipo = 'DELIVERY' AND origem_id = ? AND status IN ('EM_ANDAMENTO', 'FINALIZADA')",
+        params![dto.origem_id],
+        |row| row.get(0)
+    ).optional().map_err(|e| e.to_string())?;
+
+    if venda_existente.is_some() {
+        return Err("Delivery não pode ser convertido duas vezes. Venda já existe.".into());
+    }
+
+    // 2. Obter informações do pedido
+    let ped: Option<(String, i64, Option<String>, Option<String>)> = tx.query_row(
+        "SELECT status, taxa_entrega_minor, cliente_id, observacao FROM delivery_operacional WHERE id = ?",
+        params![dto.origem_id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+    ).optional().map_err(|e| e.to_string())?;
+
+    let (status_atual, taxa_entrega, cliente_id, obs) = match ped {
+        Some(p) => p,
+        None => return Err("Pedido Delivery não encontrado".into()),
+    };
+
+    // 3. Validar status
+    match status_atual.as_str() {
+        "ACEITO" | "PREPARANDO" | "PRONTO" | "DESPACHADO" => { /* ok */ },
+        _ => return Err(format!("Pedido em status {}, não pode ser convertido", status_atual)),
+    }
+
+    // 4. Calcular e copiar itens
+    let mut stmt = tx.prepare("
+        SELECT id, produto_id, descricao_produto, codigo_produto,
+               quantidade_escala3, preco_unitario_minor, desconto_item_minor, acrescimo_item_minor, total_item_minor
+        FROM delivery_itens
+        WHERE delivery_id = ? AND cancelado = 0
+    ").map_err(|e| e.to_string())?;
+
+    let itens_iter = stmt.query_map(params![dto.origem_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?,
+            row.get::<_, i64>(4)?, row.get::<_, i64>(5)?, row.get::<_, i64>(6)?, row.get::<_, i64>(7)?, row.get::<_, i64>(8)?
+        ))
+    }).map_err(|e| e.to_string())?;
+
+    let mut itens_para_inserir = Vec::new();
+    let mut soma_itens = 0_i64;
+    let mut desconto_total = 0_i64;
+    let mut acrescimo_total = 0_i64;
+
+    for item in itens_iter {
+        let (it_id, prod_id, desc, cod, qtd, preco, desc_min, acr_min, tot) = item.map_err(|e| e.to_string())?;
+        itens_para_inserir.push((it_id, prod_id, desc, cod, qtd, preco, desc_min, acr_min, tot));
+        soma_itens += tot;
+        desconto_total += desc_min;
+        acrescimo_total += acr_min;
+    }
+    drop(stmt);
+
+    if itens_para_inserir.is_empty() {
+        return Err("Pedido precisa ter pelo menos 1 item ativo".into());
+    }
+
+    let subtotal_venda = soma_itens + desconto_total - acrescimo_total;
+    let total_venda = soma_itens + taxa_entrega;
+
+    // 5. Criar venda
+    let venda_id = Uuid::new_v4().to_string();
+    let agora = Utc::now().to_rfc3339();
+
+    tx.execute("
+        INSERT INTO vendas (
+            id, numero_venda, sessao_caixa_id, usuario_id, status, tipo_venda, cliente_id,
+            observacao, subtotal_minor, desconto_total_minor, acrescimo_total_minor, total_minor,
+            origem_tipo, origem_id, taxa_entrega_minor, criado_em, atualizado_em
+        ) VALUES (
+            ?, NULL, ?, ?, 'EM_ANDAMENTO', 'DELIVERY', ?,
+            ?, ?, ?, ?, ?,
+            'DELIVERY', ?, ?, ?, ?
+        )
+    ", params![
+        venda_id, dto.sessao_caixa_id, dto.usuario_id, cliente_id,
+        obs, subtotal_venda, desconto_total, acrescimo_total, total_venda,
+        dto.origem_id, taxa_entrega, agora, agora
+    ]).map_err(|e| e.to_string())?;
+
+    // 6. Inserir itens
+    for (it_id, prod_id, desc, cod, qtd, preco, desc_min, acr_min, tot) in &itens_para_inserir {
+        let venda_item_id = Uuid::new_v4().to_string();
+        tx.execute("
+            INSERT INTO venda_itens (
+                id, venda_id, produto_id, descricao_produto, codigo_produto,
+                quantidade_escala3, preco_unitario_minor, desconto_item_minor, acrescimo_item_minor,
+                total_item_minor, criado_em, atualizado_em, origem_item_id
+            ) VALUES (
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?
+            )
+        ", params![
+            venda_item_id, venda_id, prod_id, desc, cod,
+            qtd, preco, desc_min, acr_min,
+            tot, agora, agora, it_id
+        ]).map_err(|e| e.to_string())?;
+    }
+
+    // 7. Atualizar status no delivery
+    tx.execute("UPDATE delivery_operacional SET status = 'FECHADO', fechado_em = ? WHERE id = ?", params![agora, dto.origem_id]).map_err(|e| e.to_string())?;
+
+    // 8. Eventos sync_outbox
+    inserir_outbox(&tx, "DELIVERY_STATUS_ALTERADO", json!({"delivery_id": dto.origem_id, "status": "FECHADO"})).map_err(|e| e.to_string())?;
+    inserir_outbox(&tx, "DELIVERY_CONVERTIDO_EM_VENDA", json!({"delivery_id": dto.origem_id, "venda_id": venda_id, "total_venda_minor": total_venda})).map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+
+    let resp = FechamentoEmVendaResp {
+        venda_id,
+        origem_tipo: "DELIVERY".into(),
+        origem_id: dto.origem_id,
+        total_minor: total_venda,
+        total_itens: itens_para_inserir.len() as i64,
+        status_venda: "EM_ANDAMENTO".into(),
+    };
+
+    Ok(RespostaBase::ok("Delivery convertido em venda com sucesso. Prossiga para o pagamento.", resp))
+}

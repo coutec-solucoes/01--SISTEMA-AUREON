@@ -116,6 +116,7 @@ pub fn run() {
             commands_delivery::definir_entregador,
             commands_delivery::adicionar_item_delivery,
             commands_delivery::cancelar_item_delivery,
+            commands_delivery::fechar_delivery_em_venda,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
