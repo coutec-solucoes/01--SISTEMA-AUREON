@@ -147,10 +147,17 @@
                                     @onclick="AbrirPagamento">
                                 Pagar (F3)
                             </button>
-                            <button class="btn" style="background: rgba(244,67,54,0.1); color: #f44336; padding: 12px;"
-                                    disabled="@Processando" @onclick="CancelarVenda">
-                                Cancelar Venda
-                            </button>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <button class="btn" style="background: rgba(255,255,255,0.1); font-size: 13px;"
+                                        disabled="@Processando" @onclick="AbrirBuscaCliente">
+                                    @(ClienteVenda == null ? "Informar Cliente" : "Cliente: " + ClienteVenda.Nome)
+                                </button>
+                                <button class="btn" style="background: rgba(244,67,54,0.1); color: #f44336; font-size: 13px;"
+                                        disabled="@Processando" @onclick="CancelarVenda">
+                                    Cancelar Venda
+                                </button>
+                            </div>
                         </div>
                     }
                 </div>
@@ -240,11 +247,20 @@
                     </div>
                 }
 
+                @if (VendaAtual == null)
+                {
+                    <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.1); display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <a href="/vendas/prevendas" class="btn" style="background: rgba(255,255,255,0.1); font-size: 12px; text-align: center;">Importar Pré-Venda</a>
+                        <a href="/vendas/orcamentos" class="btn" style="background: rgba(255,255,255,0.1); font-size: 12px; text-align: center;">Importar Orçamento</a>
+                    </div>
+                }
             </div>
 
         </div>
     }
 </div>
+
+<AureonPdvUi.Shared.ClienteBuscaModal @ref="ClienteModal" OnClienteSelecionado="AssociarCliente" />
 
 <!-- Estilos exclusivos do grid PDV -->
 <style>
@@ -265,6 +281,7 @@
     // Venda
     private VendaResumoResp? VendaAtual;
     private List<VendaItemResp> ItensVenda = new();
+    private ClienteResp? ClienteVenda = null;
     
     // Busca
     private string BuscaCodigo = "";
@@ -283,6 +300,8 @@
     private long TrocoAtualMinor = 0;
     private bool PodeFinalizar = false;
 
+    private AureonPdvUi.Shared.ClienteBuscaModal ClienteModal = default!;
+
     protected override async Task OnInitializedAsync()
     {
         await VerificarCaixa();
@@ -296,12 +315,31 @@
         {
             CaixaAberto = true;
             SessaoId = res.Dados.Id;
+            await RecuperarVendaAberta();
         }
         else
         {
             CaixaAberto = false;
         }
         CarregandoGeral = false;
+    }
+
+    private async Task RecuperarVendaAberta()
+    {
+        var res = await Tauri.InvocarAsync<RespostaBase<List<VendaResumoResp>>>("listar_vendas_pdv", new { limite = 1 });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            var v = res.Dados.FirstOrDefault(x => x.Status == "EM_ANDAMENTO");
+            if (v != null)
+            {
+                VendaAtual = v;
+                await RecarregarItens();
+                // A UI Blazor simplificada não puxa o cliente de volta no DTO VendaResumo, 
+                // para exibir o nome precisaríamos de um obter_venda mais rico,
+                // mas a instrução é focar no frontend usando o que tem. 
+                // Deixamos ClienteVenda = null inicialmente se recuperada.
+            }
+        }
     }
 
     private async Task IniciarVenda()
@@ -318,7 +356,28 @@
             VendaAtual = res.Dados;
             ItensVenda.Clear();
             Pagamentos.Clear();
+            ClienteVenda = null;
             ExibindoPagamento = false;
+        }
+        Processando = false;
+    }
+
+    private void AbrirBuscaCliente()
+    {
+        ClienteModal.Abrir();
+    }
+
+    private async Task AssociarCliente(ClienteResp cli)
+    {
+        if (VendaAtual == null) return;
+        Processando = true;
+
+        var req = new AssociarClienteReq(VendaAtual.Id, cli.Id);
+        var res = await Tauri.InvocarAsync<RespostaBase<bool>>("associar_cliente_venda", new { dto = req });
+
+        if (res?.Sucesso == true)
+        {
+            ClienteVenda = cli;
         }
         Processando = false;
     }
@@ -401,6 +460,7 @@
         // Limpar tela para nova venda
         VendaAtual = null;
         ItensVenda.Clear();
+        ClienteVenda = null;
         Processando = false;
     }
 

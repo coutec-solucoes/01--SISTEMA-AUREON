@@ -1,0 +1,102 @@
+@page "/vendas/historico"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+@inject NavigationManager Nav
+
+<PageTitle>Histórico de Vendas</PageTitle>
+
+<div class="pdv-container fade-in" style="padding: 24px; max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; height: 100%;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2>Histórico de Vendas PDV</h2>
+        <a href="/pdv" class="btn" style="background: rgba(255,255,255,0.1);">Voltar ao PDV</a>
+    </div>
+
+    @if (Carregando)
+    {
+        <div style="text-align: center; color: var(--cor-texto-sub); padding: 40px;">Carregando vendas...</div>
+    }
+    else
+    {
+        <div class="card" style="flex-grow: 1; overflow-y: auto; padding: 0;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead style="background: rgba(0,0,0,0.2); position: sticky; top: 0;">
+                    <tr style="font-size: 12px; color: var(--cor-texto-sub);">
+                        <th style="padding: 16px;">Nº Venda / ID</th>
+                        <th style="padding: 16px;">Status</th>
+                        <th style="padding: 16px;">Tipo</th>
+                        <th style="padding: 16px; text-align: right;">Total (BRL)</th>
+                        <th style="padding: 16px; text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Vendas.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="5" style="padding: 32px; text-align: center; color: var(--cor-texto-sub);">Nenhuma venda encontrada.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var v in Vendas)
+                        {
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); @(v.Status == "CANCELADA" ? "opacity: 0.5;" : "")">
+                                <td style="padding: 16px; font-size: 14px;">
+                                    <div style="font-weight: bold;">@(v.NumeroVenda?.ToString("000000") ?? "N/A")</div>
+                                    <div style="font-size: 10px; color: var(--cor-texto-sub); font-family: monospace;">@v.Id.Substring(0, 8)</div>
+                                </td>
+                                <td style="padding: 16px;">
+                                    <span style="font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 4px; @CorStatus(v.Status)">
+                                        @v.Status
+                                    </span>
+                                </td>
+                                <td style="padding: 16px; font-size: 13px;">@v.TipoVenda</td>
+                                <td style="padding: 16px; text-align: right; font-weight: bold;">
+                                    @((v.TotalMinor / 100m).ToString("F2", CultureInfo.InvariantCulture))
+                                </td>
+                                <td style="padding: 16px; text-align: center;">
+                                    @if (v.Status == "FINALIZADA" || v.Status == "EM_ANDAMENTO")
+                                    {
+                                        <button class="btn" style="padding: 6px 12px; font-size: 11px; background: rgba(255,255,255,0.1);" @onclick="() => IrParaReimpressao(v.Id)">Comprovante</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private bool Carregando = true;
+    private List<VendaResumoResp> Vendas = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Carregando = true;
+        var res = await Tauri.InvocarAsync<RespostaBase<List<VendaResumoResp>>>("listar_vendas_pdv", new { limite = 100 });
+        if (res?.Sucesso == true)
+        {
+            Vendas = res.Dados ?? new();
+        }
+        Carregando = false;
+    }
+
+    private void IrParaReimpressao(string vendaId)
+    {
+        Nav.NavigateTo($"/vendas/reimprimir/{vendaId}");
+    }
+
+    private string CorStatus(string status)
+    {
+        return status switch
+        {
+            "FINALIZADA" => "background: rgba(0, 230, 118, 0.1); color: #00e676;",
+            "EM_ANDAMENTO" => "background: rgba(33, 150, 243, 0.1); color: #2196f3;",
+            "CANCELADA" => "background: rgba(244, 67, 54, 0.1); color: #f44336;",
+            _ => "background: rgba(255, 255, 255, 0.1); color: #fff;"
+        };
+    }
+}

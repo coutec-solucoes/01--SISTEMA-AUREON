@@ -1,0 +1,102 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+@if (Exibir)
+{
+    <div class="modal-overlay">
+        <div class="modal-content card fade-in" style="width: 500px; max-height: 80vh; display: flex; flex-direction: column;">
+            <h3 style="margin-bottom: 16px;">Buscar Cliente</h3>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                <input type="text" class="input-moderno" style="flex-grow: 1;" placeholder="Nome ou CPF/CNPJ" @bind="TermoBusca" @bind:event="oninput" @onkeyup="CheckEnter" autofocus />
+                <button class="btn btn-primario" disabled="@Processando" @onclick="Buscar">Buscar</button>
+            </div>
+
+            <div style="flex-grow: 1; overflow-y: auto; margin-bottom: 16px; min-height: 200px;">
+                @if (Clientes != null)
+                {
+                    if (Clientes.Count == 0)
+                    {
+                        <div style="text-align: center; color: var(--cor-texto-sub); padding: 24px;">Nenhum cliente encontrado.</div>
+                    }
+                    else
+                    {
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            @foreach(var cli in Clientes)
+                            {
+                                <div class="card" style="padding: 12px; cursor: @(cli.Ativo ? "pointer" : "not-allowed"); border: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;" @onclick="() => Selecionar(cli)">
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 14px; text-decoration: @(cli.Ativo ? "none" : "line-through"); color: @(cli.Ativo ? "inherit" : "#f44336")">@cli.Nome</div>
+                                        <div style="font-size: 11px; color: var(--cor-texto-sub);">Doc: @(cli.Documento ?? "N/I")</div>
+                                    </div>
+                                    @if (!cli.Ativo)
+                                    {
+                                        <span style="font-size: 10px; color: #f44336; padding: 2px 6px; background: rgba(244,67,54,0.1); border-radius: 4px;">INATIVO</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            <div style="display: flex; justify-content: flex-end;">
+                <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="Cancelar">Fechar</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: var(--cor-fundo-cartao); padding: 32px; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+</style>
+
+@code {
+    [Parameter] public EventCallback<ClienteResp> OnClienteSelecionado { get; set; }
+
+    public bool Exibir { get; private set; }
+    private string TermoBusca = "";
+    private bool Processando = false;
+    private List<ClienteResp>? Clientes = null;
+
+    public void Abrir()
+    {
+        TermoBusca = "";
+        Clientes = null;
+        Exibir = true;
+        StateHasChanged();
+    }
+
+    private async Task Buscar()
+    {
+        if (string.IsNullOrWhiteSpace(TermoBusca)) return;
+        Processando = true;
+        var res = await Tauri.InvocarAsync<RespostaBase<List<ClienteResp>>>("buscar_clientes_pdv", new { termo = TermoBusca });
+        if (res?.Sucesso == true)
+        {
+            Clientes = res.Dados ?? new();
+        }
+        Processando = false;
+    }
+
+    private async Task CheckEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Buscar();
+        }
+    }
+
+    private async Task Selecionar(ClienteResp cli)
+    {
+        if (!cli.Ativo) return; // Bloqueia cliente inativo
+        Exibir = false;
+        await OnClienteSelecionado.InvokeAsync(cli);
+    }
+
+    private void Cancelar()
+    {
+        Exibir = false;
+    }
+}

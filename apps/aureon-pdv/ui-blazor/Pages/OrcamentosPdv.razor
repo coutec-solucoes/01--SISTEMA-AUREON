@@ -1,0 +1,140 @@
+@page "/vendas/orcamentos"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+@inject NavigationManager Nav
+
+<PageTitle>Importar Orçamentos</PageTitle>
+
+<div class="pdv-container fade-in" style="padding: 24px; max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; height: 100%;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2>Orçamentos Pendentes</h2>
+        <a href="/pdv" class="btn" style="background: rgba(255,255,255,0.1);">Voltar ao PDV</a>
+    </div>
+
+    @if (Carregando)
+    {
+        <div style="text-align: center; color: var(--cor-texto-sub); padding: 40px;">Buscando orçamentos...</div>
+    }
+    else if (!CaixaAberto)
+    {
+        <div class="card" style="text-align: center; border-left: 4px solid #ff9800; padding: 40px;">
+            <h2 style="margin-bottom: 16px; color: #ff9800;">Caixa Fechado</h2>
+            <p style="color: var(--cor-texto-sub);">Para converter um orçamento, o caixa deve estar aberto.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card" style="flex-grow: 1; overflow-y: auto; padding: 0;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead style="background: rgba(0,0,0,0.2); position: sticky; top: 0;">
+                    <tr style="font-size: 12px; color: var(--cor-texto-sub);">
+                        <th style="padding: 16px;">Número</th>
+                        <th style="padding: 16px;">Data</th>
+                        <th style="padding: 16px;">Validade</th>
+                        <th style="padding: 16px; text-align: right;">Total (BRL)</th>
+                        <th style="padding: 16px; text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Lista.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="5" style="padding: 32px; text-align: center; color: var(--cor-texto-sub);">Nenhum orçamento pendente encontrado.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var p in Lista)
+                        {
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                <td style="padding: 16px; font-weight: bold;">@p.Numero</td>
+                                <td style="padding: 16px; font-size: 13px;">@p.CriadoEm</td>
+                                <td style="padding: 16px; font-size: 13px; color: @CorVencimento(p.Validade)">
+                                    @(p.Validade ?? "S/V")
+                                </td>
+                                <td style="padding: 16px; text-align: right; font-weight: bold;">
+                                    @((p.TotalMinor / 100m).ToString("F2", CultureInfo.InvariantCulture))
+                                </td>
+                                <td style="padding: 16px; text-align: center;">
+                                    <button class="btn btn-primario" style="padding: 6px 12px; font-size: 11px;" 
+                                            disabled="@Processando" @onclick="() => Converter(p)">Importar PDV</button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        
+        @if (MensagemErro != null)
+        {
+            <div style="color: #f44336; font-size: 14px; margin-top: 16px; padding: 12px; background: rgba(244,67,54,0.1); border-radius: 4px;">
+                @MensagemErro
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool Carregando = true;
+    private bool Processando = false;
+    private bool CaixaAberto = false;
+    private string SessaoId = "";
+    private string _usuarioId = "USR-001"; // Stub
+    private string? MensagemErro;
+
+    private List<OrcamentoResp> Lista = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Carregando = true;
+        var resSessao = await Tauri.InvocarAsync<RespostaBase<SessaoCaixaResp?>>("obter_sessao_ativa", new { registradora_id = "TERM-1" });
+        if (resSessao?.Sucesso == true && resSessao.Dados != null)
+        {
+            CaixaAberto = true;
+            SessaoId = resSessao.Dados.Id;
+
+            var resLista = await Tauri.InvocarAsync<RespostaBase<List<OrcamentoResp>>>("listar_orcamentos_pdv", new { status = "PENDENTE" });
+            if (resLista?.Sucesso == true)
+            {
+                Lista = resLista.Dados ?? new();
+            }
+        }
+        else
+        {
+            CaixaAberto = false;
+        }
+        Carregando = false;
+    }
+
+    private async Task Converter(OrcamentoResp pv)
+    {
+        Processando = true;
+        MensagemErro = null;
+
+        var req = new ConverterOrcamentoReq(
+            orcamento_id: pv.Id,
+            sessao_caixa_id: SessaoId,
+            usuario_id: _usuarioId
+        );
+
+        var res = await Tauri.InvocarAsync<RespostaBase<VendaResumoResp>>("converter_orcamento_em_venda", new { dto = req });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            Nav.NavigateTo("/pdv");
+        }
+        else
+        {
+            MensagemErro = res?.Mensagem ?? "Erro ao converter.";
+        }
+        Processando = false;
+    }
+
+    private string CorVencimento(string? validade)
+    {
+        if (string.IsNullOrEmpty(validade)) return "inherit";
+        if (DateTime.TryParse(validade, out var dt) && dt.ToUniversalTime() < DateTime.UtcNow) return "#f44336"; // Vencido
+        return "inherit";
+    }
+}

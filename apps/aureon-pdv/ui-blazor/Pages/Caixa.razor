@@ -60,32 +60,68 @@
         }
         else
         {
-            <!-- FECHAMENTO DE CAIXA -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-                <!-- Infos -->
+            <!-- CAIXA ABERTO - RESUMO E OPERACIONAL -->
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+                
                 <div class="card">
-                    <div class="card-titulo">Sessão Atual</div>
-                    
-                    <div style="margin-bottom: 16px;">
-                        <div style="font-size: 12px; color: var(--cor-texto-sub);">ID Sessão</div>
-                        <div style="font-family: monospace; font-size: 13px;">@SessaoAtiva.Id</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <div class="card-titulo">Resumo do Turno Atual</div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-primario" style="background-color: #00e676; color: #000;" @onclick="@(() => AbrirModalMovimentacao("Suprimento", "registrar_suprimento"))">Suprimento (+)</button>
+                            <button class="btn btn-primario" style="background-color: #ff9800; color: #fff;" @onclick="@(() => AbrirModalMovimentacao("Sangria", "registrar_sangria"))">Sangria (-)</button>
+                            <button class="btn btn-primario" style="background-color: #ff9800; color: #fff;" @onclick="@(() => AbrirModalMovimentacao("Vale Funcionário", "registrar_vale_funcionario"))">Vale (-)</button>
+                            <a href="/caixa/historico" class="btn" style="background: rgba(255,255,255,0.1);">Histórico</a>
+                        </div>
                     </div>
-                    <div style="margin-bottom: 16px;">
-                        <div style="font-size: 12px; color: var(--cor-texto-sub);">Abertura</div>
-                        <div style="font-size: 14px;">@SessaoAtiva.AbertoEm</div>
+                    
+                    <div style="margin-bottom: 16px; display: flex; justify-content: space-between;">
+                        <div>
+                            <div style="font-size: 12px; color: var(--cor-texto-sub);">ID Sessão</div>
+                            <div style="font-family: monospace; font-size: 13px;">@SessaoAtiva.Id</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 12px; color: var(--cor-texto-sub);">Abertura</div>
+                            <div style="font-size: 14px;">@SessaoAtiva.AbertoEm</div>
+                        </div>
                     </div>
 
-                    <div style="font-size: 14px; font-weight: 600; margin-bottom: 8px;">Saldos de Abertura:</div>
-                    @foreach(var s in SessaoAtiva.Saldos)
+                    @if (ResumoCaixa != null)
                     {
-                        <div style="display: flex; justify-content: space-between; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-bottom: 8px;">
-                            <span>@s.MoedaCodigo</span>
-                            <span style="font-family: monospace;">@(FormatarValor(s.MoedaCodigo, s.ValorAberturaMinor))</span>
-                        </div>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: right;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--cor-texto-sub);">
+                                    <th style="padding: 8px; text-align: left;">Moeda</th>
+                                    <th style="padding: 8px;">Abertura</th>
+                                    <th style="padding: 8px;">Vendas</th>
+                                    <th style="padding: 8px;">Suprimentos</th>
+                                    <th style="padding: 8px;">Sangrias</th>
+                                    <th style="padding: 8px;">Vales</th>
+                                    <th style="padding: 8px; font-weight: bold; font-size: 14px; color: #fff;">Esperado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in ResumoCaixa)
+                                {
+                                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding: 8px; text-align: left; font-weight: 600;">@r.MoedaCodigo</td>
+                                        <td style="padding: 8px;">@FormatarValor(r.MoedaCodigo, r.AberturaMinor)</td>
+                                        <td style="padding: 8px; color: #00e676;">@FormatarValor(r.MoedaCodigo, r.VendasMinor)</td>
+                                        <td style="padding: 8px; color: #00e676;">@FormatarValor(r.MoedaCodigo, r.SuprimentosMinor)</td>
+                                        <td style="padding: 8px; color: #ff9800;">@FormatarValor(r.MoedaCodigo, r.SangriasMinor)</td>
+                                        <td style="padding: 8px; color: #ff9800;">@FormatarValor(r.MoedaCodigo, r.ValesFuncionariosMinor)</td>
+                                        <td style="padding: 8px; font-weight: bold; font-size: 14px; color: #00e676;">@FormatarValor(r.MoedaCodigo, r.EsperadoMinor)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <div style="text-align: center; color: var(--cor-texto-sub); padding: 16px;">Carregando resumo...</div>
                     }
                 </div>
 
-                <!-- Ação -->
+                <!-- Ação: Fechamento -->
                 <div class="card">
                     <div class="card-titulo" style="margin-bottom: 16px;">Fechamento Físico</div>
                     <div style="font-size: 13px; color: var(--cor-texto-sub); margin-bottom: 16px;">
@@ -158,12 +194,17 @@
 
 </div>
 
+<AureonPdvUi.Shared.SangriaSuprimentoModal @ref="SangriaModal" OnLancado="MovimentacaoRegistrada" />
+
 @code {
     private bool Carregando = true;
     private bool Processando = false;
     private string? ErroMsg = null;
     private SessaoCaixaResp? SessaoAtiva;
     private List<SessaoCaixaResp> HistoricoSessoes = new();
+    private List<ResumoCaixaResp>? ResumoCaixa;
+
+    private AureonPdvUi.Shared.SangriaSuprimentoModal SangriaModal = default!;
 
     // Abertura
     private string NovaAberturaMoeda = "BRL";
@@ -198,6 +239,13 @@
                     {
                         _fechamentoValores[s.MoedaCodigo] = 0m;
                     }
+
+                    // Carregar resumo detalhado
+                    var resResumo = await Tauri.InvocarAsync<RespostaBase<List<ResumoCaixaResp>>>("obter_resumo_caixa", new { sessao_caixa_id = SessaoAtiva.Id });
+                    if (resResumo?.Sucesso == true)
+                    {
+                        ResumoCaixa = resResumo.Dados;
+                    }
                 }
             }
             else
@@ -213,6 +261,17 @@
         {
             Carregando = false;
         }
+    }
+
+    private void AbrirModalMovimentacao(string tipo, string comando)
+    {
+        if (SessaoAtiva == null) return;
+        SangriaModal.Abrir(tipo, comando, SessaoAtiva.Id, _usuarioId);
+    }
+
+    private async Task MovimentacaoRegistrada(CaixaMovimentacaoResp mov)
+    {
+        await CarregarSessao(); // Recarrega resumo
     }
 
     private async Task AbrirCaixa()

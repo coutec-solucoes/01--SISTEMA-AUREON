@@ -1,0 +1,118 @@
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+
+@if (Exibir)
+{
+    <div class="modal-overlay">
+        <div class="modal-content card fade-in" style="width: 400px;">
+            <h3 style="margin-bottom: 16px;">@Tipo</h3>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="font-size: 12px; color: var(--cor-texto-sub);">Moeda</label>
+                <select class="input-moderno" @bind="MoedaSelecionada">
+                    <option value="BRL">BRL</option>
+                    <option value="USD">USD</option>
+                    <option value="PYG">PYG</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="font-size: 12px; color: var(--cor-texto-sub);">Valor</label>
+                <input type="number" class="input-moderno" style="font-size: 20px;" step="0.01" min="0.01" @bind="ValorInformado" />
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <label style="font-size: 12px; color: var(--cor-texto-sub);">Motivo (obrigatório)</label>
+                <input type="text" class="input-moderno" @bind="Motivo" />
+            </div>
+
+            @if (MensagemErro != null)
+            {
+                <div style="color: #f44336; font-size: 13px; margin-bottom: 16px;">@MensagemErro</div>
+            }
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="Cancelar">Cancelar</button>
+                <button class="btn btn-primario" disabled="@(ValorInformado <= 0 || string.IsNullOrWhiteSpace(Motivo) || Processando)" @onclick="Confirmar">Lançar</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: var(--cor-fundo-cartao); padding: 32px; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+</style>
+
+@code {
+    [Parameter] public EventCallback<CaixaMovimentacaoResp> OnLancado { get; set; }
+
+    public bool Exibir { get; private set; }
+    private string Tipo = "";
+    private string Comando = "";
+    private string SessaoId = "";
+    private string UsuarioId = "";
+    
+    private string MoedaSelecionada = "BRL";
+    private decimal ValorInformado = 0m;
+    private string Motivo = "";
+    
+    private bool Processando = false;
+    private string? MensagemErro;
+
+    public void Abrir(string tipo, string comando, string sessaoId, string usuarioId)
+    {
+        Tipo = tipo;
+        Comando = comando; // "registrar_sangria", "registrar_suprimento", "registrar_vale_funcionario"
+        SessaoId = sessaoId;
+        UsuarioId = usuarioId;
+        MoedaSelecionada = "BRL";
+        ValorInformado = 0m;
+        Motivo = "";
+        MensagemErro = null;
+        Exibir = true;
+        StateHasChanged();
+    }
+
+    private async Task Confirmar()
+    {
+        if (ValorInformado <= 0 || string.IsNullOrWhiteSpace(Motivo)) return;
+        Processando = true;
+        MensagemErro = null;
+
+        long valorMinor = (MoedaSelecionada == "PYG" || MoedaSelecionada == "JPY") 
+                          ? (long)Math.Round(ValorInformado) 
+                          : (long)Math.Round(ValorInformado * 100m);
+
+        var req = new CaixaMovimentacaoReq(
+            sessao_caixa_id: SessaoId,
+            usuario_id: UsuarioId,
+            tipo_movimentacao: "", // O backend ignora pq e setado na wrapper function, mas preenchemos
+            moeda_codigo: MoedaSelecionada,
+            valor_minor: valorMinor,
+            motivo: Motivo,
+            funcionario_id: null,
+            supervisor_id: null,
+            autorizacao_id: null
+        );
+
+        var res = await Tauri.InvocarAsync<RespostaBase<CaixaMovimentacaoResp>>(Comando, new { dto = req });
+        
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            Exibir = false;
+            await OnLancado.InvokeAsync(res.Dados);
+        }
+        else
+        {
+            MensagemErro = res?.Mensagem ?? "Erro ao registrar.";
+        }
+        Processando = false;
+    }
+
+    private void Cancelar()
+    {
+        Exibir = false;
+    }
+}

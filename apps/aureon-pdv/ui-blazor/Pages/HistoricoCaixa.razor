@@ -1,0 +1,182 @@
+@page "/caixa/historico"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+
+<PageTitle>Histórico de Movimentações - Caixa</PageTitle>
+
+<div class="pdv-container fade-in" style="padding: 24px; max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; height: 100%;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2>Movimentações do Caixa</h2>
+        <a href="/caixa" class="btn" style="background: rgba(255,255,255,0.1);">Voltar</a>
+    </div>
+
+    @if (Carregando)
+    {
+        <div style="text-align: center; color: var(--cor-texto-sub); padding: 40px;">Carregando...</div>
+    }
+    else if (!CaixaAberto || string.IsNullOrEmpty(SessaoId))
+    {
+        <div class="card" style="text-align: center; border-left: 4px solid #ff9800; padding: 40px;">
+            <h2 style="margin-bottom: 16px; color: #ff9800;">Caixa Fechado</h2>
+            <p style="color: var(--cor-texto-sub);">Abra o caixa para ver as movimentações da sessão atual.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card" style="flex-grow: 1; overflow-y: auto; padding: 0;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead style="background: rgba(0,0,0,0.2); position: sticky; top: 0;">
+                    <tr style="font-size: 12px; color: var(--cor-texto-sub);">
+                        <th style="padding: 16px;">Data/Hora</th>
+                        <th style="padding: 16px;">Tipo</th>
+                        <th style="padding: 16px;">Motivo</th>
+                        <th style="padding: 16px; text-align: right;">Valor</th>
+                        <th style="padding: 16px; text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Movimentacoes.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="5" style="padding: 32px; text-align: center; color: var(--cor-texto-sub);">Nenhuma movimentação registrada.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var mov in Movimentacoes)
+                        {
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); @(mov.Cancelado ? "opacity: 0.5;" : "")">
+                                <td style="padding: 16px; font-size: 14px;">
+                                    @if(DateTime.TryParse(mov.CriadoEm, out var dt)) {
+                                        @dt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+                                    } else {
+                                        @mov.CriadoEm
+                                    }
+                                </td>
+                                <td style="padding: 16px;">
+                                    <div style="font-weight: 600; font-size: 13px;">@FormatarTipo(mov.TipoMovimentacao)</div>
+                                    @if (mov.Cancelado)
+                                    {
+                                        <div style="font-size: 11px; color: #f44336; margin-top: 4px;">CANCELADO</div>
+                                    }
+                                </td>
+                                <td style="padding: 16px; font-size: 13px;">@mov.Motivo</td>
+                                <td style="padding: 16px; text-align: right; font-weight: bold; color: @(CorValor(mov.TipoMovimentacao))">
+                                    @FormatarValorMoeda(mov.MoedaCodigo, mov.ValorMinor)
+                                </td>
+                                <td style="padding: 16px; text-align: center;">
+                                    @if (!mov.Cancelado && mov.TipoMovimentacao != "ABERTURA")
+                                    {
+                                        <button class="btn" style="padding: 6px 12px; font-size: 11px; background: rgba(244,67,54,0.1); color: #f44336;" @onclick="() => SolicitarCancelamento(mov)">Cancelar</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<AureonPdvUi.Shared.SupervisorModal @ref="SupervisorModal" OnAutorizado="ConfirmarCancelamento" />
+
+@code {
+    private bool Carregando = true;
+    private bool CaixaAberto = false;
+    private string SessaoId = "";
+    private string _usuarioId = "USR-001"; // Stub
+
+    private List<CaixaMovimentacaoResp> Movimentacoes = new();
+    private AureonPdvUi.Shared.SupervisorModal SupervisorModal = default!;
+    private CaixaMovimentacaoResp? MovimentacaoParaCancelar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        Carregando = true;
+        var resSessao = await Tauri.InvocarAsync<RespostaBase<SessaoCaixaResp?>>("obter_sessao_ativa", new { registradora_id = "TERM-1" });
+        if (resSessao?.Sucesso == true && resSessao.Dados != null)
+        {
+            CaixaAberto = true;
+            SessaoId = resSessao.Dados.Id;
+
+            var resMovs = await Tauri.InvocarAsync<RespostaBase<List<CaixaMovimentacaoResp>>>("listar_movimentacoes_caixa", new { sessao_caixa_id = SessaoId });
+            if (resMovs?.Sucesso == true)
+            {
+                Movimentacoes = resMovs.Dados ?? new();
+            }
+        }
+        else
+        {
+            CaixaAberto = false;
+        }
+        Carregando = false;
+    }
+
+    private void SolicitarCancelamento(CaixaMovimentacaoResp mov)
+    {
+        MovimentacaoParaCancelar = mov;
+        SupervisorModal.Abrir(
+            operacao: "CANCELAR_MOVIMENTACAO",
+            motivo: $"Cancelar {mov.TipoMovimentacao} de BRL {FormatarValorMoeda(mov.MoedaCodigo, mov.ValorMinor)}",
+            sessaoId: SessaoId,
+            usuarioId: _usuarioId,
+            entidadeTipo: "MOVIMENTACAO_CAIXA",
+            entidadeId: mov.Id
+        );
+    }
+
+    private async Task ConfirmarCancelamento(AutorizacaoResp auth)
+    {
+        if (MovimentacaoParaCancelar == null) return;
+
+        var req = new CancelarMovimentacaoReq(
+            movimentacao_id: MovimentacaoParaCancelar.Id,
+            usuario_cancelamento_id: _usuarioId,
+            motivo_cancelamento: "Estorno via supervisor",
+            supervisor_id: auth.SupervisorId,
+            autorizacao_id: auth.Id
+        );
+
+        var res = await Tauri.InvocarAsync<RespostaBase<bool>>("cancelar_movimentacao_caixa", new { dto = req });
+        if (res?.Sucesso == true)
+        {
+            await CarregarDados(); // Recarrega para mostrar cancelado
+        }
+    }
+
+    private string FormatarTipo(string tipo)
+    {
+        return tipo switch
+        {
+            "SANGRIA" => "Sangria",
+            "SUPRIMENTO" => "Suprimento",
+            "VALE_FUNCIONARIO" => "Vale Funcionário",
+            "ABERTURA" => "Abertura de Caixa",
+            _ => tipo
+        };
+    }
+
+    private string CorValor(string tipo)
+    {
+        return tipo switch
+        {
+            "SUPRIMENTO" or "ABERTURA" => "#00e676",
+            "SANGRIA" or "VALE_FUNCIONARIO" => "#ff9800",
+            _ => "inherit"
+        };
+    }
+
+    private string FormatarValorMoeda(string moeda, long valorMinor)
+    {
+        if (moeda.ToUpper() == "PYG" || moeda.ToUpper() == "JPY")
+            return $"{valorMinor}";
+        return (valorMinor / 100m).ToString("F2", CultureInfo.InvariantCulture);
+    }
+}

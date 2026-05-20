@@ -1,0 +1,102 @@
+@page "/vendas/reimprimir/{VendaId}"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+@inject NavigationManager Nav
+
+<PageTitle>Reimpressão Não Fiscal</PageTitle>
+
+<div class="pdv-container fade-in" style="padding: 24px; max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; height: 100%;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2>Reimpressão</h2>
+        <a href="/vendas/historico" class="btn" style="background: rgba(255,255,255,0.1);">Voltar</a>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
+        <p style="color: var(--cor-texto-sub); font-size: 14px;">
+            A emissão do comprovante não fiscal requer registro de auditoria. 
+            Esta operação não possui valor fiscal (NFC-e / SIFEN).
+        </p>
+
+        <div>
+            <label style="font-size: 12px; color: var(--cor-texto-sub);">Motivo da Reimpressão (Obrigatório)</label>
+            <input type="text" class="input-moderno" @bind="Motivo" placeholder="Ex: Cliente solicitou 2ª via" />
+        </div>
+
+        @if (MensagemErro != null)
+        {
+            <div style="color: #f44336; font-size: 13px;">@MensagemErro</div>
+        }
+
+        <button class="btn btn-primario" disabled="@(string.IsNullOrWhiteSpace(Motivo) || Processando)" @onclick="SolicitarReimpressao">
+            GERAR COMPROVANTE TXT
+        </button>
+    </div>
+
+    @if (ComprovanteTxt != null)
+    {
+        <div class="card" style="margin-top: 24px; background: #fff; color: #000; font-family: monospace; white-space: pre-wrap; padding: 24px; border-radius: 4px; font-size: 14px;">
+            @ComprovanteTxt
+        </div>
+    }
+</div>
+
+<AureonPdvUi.Shared.SupervisorModal @ref="SupervisorModal" OnAutorizado="ConfirmarReimpressao" />
+
+@code {
+    [Parameter] public string VendaId { get; set; } = "";
+
+    private string Motivo = "";
+    private bool Processando = false;
+    private string? MensagemErro;
+    private string? ComprovanteTxt;
+    private string _usuarioId = "USR-001"; // Stub
+
+    private AureonPdvUi.Shared.SupervisorModal SupervisorModal = default!;
+
+    private void SolicitarReimpressao()
+    {
+        if (string.IsNullOrWhiteSpace(Motivo)) return;
+        SupervisorModal.Abrir(
+            operacao: "REIMPRESSAO_COMPROVANTE",
+            motivo: Motivo,
+            sessaoId: "SessaoNaoRelevanteAqui",
+            usuarioId: _usuarioId,
+            entidadeTipo: "VENDA",
+            entidadeId: VendaId
+        );
+    }
+
+    private async Task ConfirmarReimpressao(AutorizacaoResp auth)
+    {
+        Processando = true;
+        MensagemErro = null;
+
+        var req = new ReimpressaoReq(
+            venda_id: VendaId,
+            usuario_id: _usuarioId,
+            motivo: Motivo,
+            supervisor_id: auth.SupervisorId
+        );
+
+        var resReg = await Tauri.InvocarAsync<RespostaBase<bool>>("registrar_reimpressao_comprovante", new { dto = req });
+        
+        if (resReg?.Sucesso == true)
+        {
+            var resTxt = await Tauri.InvocarAsync<RespostaBase<string>>("gerar_comprovante_nao_fiscal", new { venda_id = VendaId });
+            if (resTxt?.Sucesso == true)
+            {
+                ComprovanteTxt = resTxt.Dados;
+            }
+            else
+            {
+                MensagemErro = "Erro ao gerar texto: " + resTxt?.Mensagem;
+            }
+        }
+        else
+        {
+            MensagemErro = resReg?.Mensagem ?? "Erro ao registrar.";
+        }
+        
+        Processando = false;
+    }
+}

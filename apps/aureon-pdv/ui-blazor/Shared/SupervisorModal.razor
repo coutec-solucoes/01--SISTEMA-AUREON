@@ -1,0 +1,100 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+@if (Exibir)
+{
+    <div class="modal-overlay">
+        <div class="modal-content card fade-in" style="width: 400px;">
+            <h3 style="margin-bottom: 16px;">Autorização de Supervisor</h3>
+            <p style="font-size: 14px; color: var(--cor-texto-sub); margin-bottom: 24px;">
+                Motivo: @Motivo <br/>
+                Operação: @Operacao
+            </p>
+
+            <div style="margin-bottom: 16px;">
+                <label style="font-size: 12px; color: var(--cor-texto-sub);">PIN / Senha do Supervisor</label>
+                <input type="password" class="input-moderno" style="text-align: center; font-size: 24px; letter-spacing: 4px;"
+                       @bind="PinInput" @bind:event="oninput" autofocus />
+            </div>
+
+            @if (MensagemErro != null)
+            {
+                <div style="color: #f44336; font-size: 13px; margin-bottom: 16px; text-align: center;">@MensagemErro</div>
+            }
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="Cancelar">Cancelar</button>
+                <button class="btn btn-primario" disabled="@(string.IsNullOrWhiteSpace(PinInput) || Processando)" @onclick="Confirmar">Autorizar</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: var(--cor-fundo-cartao); padding: 32px; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+</style>
+
+@code {
+    [Parameter] public EventCallback<AutorizacaoResp> OnAutorizado { get; set; }
+    [Parameter] public EventCallback OnCancelado { get; set; }
+
+    public bool Exibir { get; private set; }
+    private string PinInput = "";
+    private string Operacao = "";
+    private string Motivo = "";
+    private string SessaoId = "";
+    private string EntidadeId = "";
+    private string EntidadeTipo = "";
+    private string UsuarioId = "";
+    private bool Processando = false;
+    private string? MensagemErro;
+
+    public void Abrir(string operacao, string motivo, string sessaoId, string usuarioId, string entidadeTipo = "", string entidadeId = "")
+    {
+        Operacao = operacao;
+        Motivo = motivo;
+        SessaoId = sessaoId;
+        UsuarioId = usuarioId;
+        EntidadeTipo = entidadeTipo;
+        EntidadeId = entidadeId;
+        PinInput = "";
+        MensagemErro = null;
+        Exibir = true;
+        StateHasChanged();
+    }
+
+    private async Task Confirmar()
+    {
+        Processando = true;
+        MensagemErro = null;
+        var req = new SolicitarAutorizacaoReq(
+            pin_supervisor: PinInput,
+            operacao: Operacao,
+            usuario_solicitante_id: UsuarioId,
+            sessao_caixa_id: SessaoId,
+            entidade_tipo: string.IsNullOrWhiteSpace(EntidadeTipo) ? null : EntidadeTipo,
+            entidade_id: string.IsNullOrWhiteSpace(EntidadeId) ? null : EntidadeId,
+            motivo: Motivo
+        );
+
+        var res = await Tauri.InvocarAsync<RespostaBase<AutorizacaoResp>>("solicitar_autorizacao_supervisor", new { terminal_id = "TERM-1", dto = req });
+        
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            Exibir = false;
+            await OnAutorizado.InvokeAsync(res.Dados);
+        }
+        else
+        {
+            MensagemErro = res?.Mensagem ?? "Autorização negada.";
+        }
+        Processando = false;
+    }
+
+    private async Task Cancelar()
+    {
+        Exibir = false;
+        await OnCancelado.InvokeAsync();
+    }
+}
