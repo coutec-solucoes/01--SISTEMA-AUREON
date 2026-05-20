@@ -3,6 +3,7 @@ pub mod commands_sync;
 pub mod commands_caixa;
 pub mod commands_venda;
 pub mod commands_pagamento;
+pub mod commands_operacional;
 pub mod estado;
 
 use aureon_shared::logging::inicializar_logs;
@@ -50,6 +51,20 @@ pub fn run() {
             commands_pagamento::calcular_troco,
             commands_pagamento::finalizar_venda,
             commands_pagamento::listar_pagamentos_venda,
+            // Commands operacional (Fase 8)
+            commands_operacional::registrar_suprimento,
+            commands_operacional::registrar_sangria,
+            commands_operacional::registrar_vale_funcionario,
+            commands_operacional::cancelar_movimentacao_caixa,
+            commands_operacional::listar_movimentacoes_caixa,
+            commands_operacional::obter_resumo_caixa,
+            commands_operacional::solicitar_autorizacao_supervisor,
+            commands_operacional::validar_autorizacao_supervisor,
+            commands_operacional::listar_autorizacoes_local,
+            commands_operacional::listar_vendas_pdv,
+            commands_operacional::buscar_venda_por_numero,
+            commands_operacional::gerar_comprovante_nao_fiscal,
+            commands_operacional::registrar_reimpressao_comprovante,
         ])
         .run(tauri::generate_context!())
         .expect("Erro ao iniciar o Aureon PDV");

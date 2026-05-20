@@ -260,5 +260,75 @@ pub struct TrocoResp {
     pub quitado: bool,
 }
 
+// --- DTOs Fase 8: Operacional, Supervisor e Historico ---
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CaixaMovimentacaoReq {
+    pub sessao_caixa_id: String,
+    pub usuario_id: String,
+    pub tipo_movimentacao: String, // SUPRIMENTO, SANGRIA, VALE_FUNCIONARIO
+    pub moeda_codigo: String,
+    pub valor_minor: i64,
+    pub motivo: Option<String>,
+    pub funcionario_id: Option<String>,
+    pub supervisor_id: Option<String>,
+    pub autorizacao_id: Option<String>,
+}
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CaixaMovimentacaoResp {
+    pub id: String,
+    pub sessao_caixa_id: String,
+    pub usuario_id: String,
+    pub tipo_movimentacao: String,
+    pub moeda_codigo: String,
+    pub valor_minor: i64,
+    pub motivo: Option<String>,
+    pub funcionario_id: Option<String>,
+    pub supervisor_id: Option<String>,
+    pub autorizacao_id: Option<String>,
+    pub cancelado: bool,
+    pub cancelado_em: Option<String>,
+    pub usuario_cancelamento_id: Option<String>,
+    pub motivo_cancelamento: Option<String>,
+    pub criado_em: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarMovimentacaoReq {
+    pub movimentacao_id: String,
+    pub usuario_cancelamento_id: String,
+    pub motivo_cancelamento: String,
+    pub supervisor_id: Option<String>,
+    pub autorizacao_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SolicitarAutorizacaoReq {
+    pub operacao: String,
+    pub usuario_solicitante_id: String,
+    pub pin_supervisor: String,
+    pub motivo: Option<String>,
+    pub sessao_caixa_id: Option<String>,
+    pub entidade_tipo: Option<String>,
+    pub entidade_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AutorizacaoResp {
+    pub id: String,
+    pub operacao: String,
+    pub usuario_solicitante_id: String,
+    pub supervisor_id: String,
+    pub aprovado: bool,
+    pub motivo: Option<String>,
+    pub criado_em: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReimpressaoReq {
+    pub venda_id: String,
+    pub usuario_id: String,
+    pub motivo: Option<String>,
+    pub supervisor_id: Option<String>,
+}

@@ -212,17 +212,36 @@ pub async fn fechar_caixa(
 
     // Para cada moeda, apurar pagamentos recebidos e calcular diferenca
     for saldo_inf in &dto.saldos_fechamento {
-        // Soma dos pagamentos em valor_convertido_minor para a moeda principal
-        // (ou pagamentos diretos nesta moeda)
-        let valor_esperado: i64 = tx.query_row(
-            "SELECT COALESCE(SUM(valor_informado_minor), 0) FROM venda_pagamentos vp
-             INNER JOIN vendas v ON v.id = vp.venda_id
-             INNER JOIN sessoes_caixa sc ON sc.id = v.sessao_caixa_id
-             WHERE sc.id = ?1 AND vp.moeda_codigo = ?2",
+        let valor_abertura: i64 = tx.query_row(
+            "SELECT COALESCE(valor_abertura_minor, 0) FROM sessoes_caixa_moedas WHERE sessao_id = ?1 AND moeda_codigo = ?2",
             rusqlite::params![&dto.sessao_id, &saldo_inf.moeda_codigo],
             |row| row.get(0),
         ).unwrap_or(0);
 
+        let valor_vendas: i64 = tx.query_row(
+            "SELECT COALESCE(SUM(valor_informado_minor), 0) FROM venda_pagamentos vp
+             INNER JOIN vendas v ON v.id = vp.venda_id
+             INNER JOIN sessoes_caixa sc ON sc.id = v.sessao_caixa_id
+             WHERE sc.id = ?1 AND vp.moeda_codigo = ?2 AND v.status = 'FINALIZADA'",
+            rusqlite::params![&dto.sessao_id, &saldo_inf.moeda_codigo],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        let valor_suprimentos: i64 = tx.query_row(
+            "SELECT COALESCE(SUM(valor_minor), 0) FROM caixa_movimentacoes
+             WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2 AND cancelado = 0 AND tipo_movimentacao = 'SUPRIMENTO'",
+            rusqlite::params![&dto.sessao_id, &saldo_inf.moeda_codigo],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        let valor_sangrias: i64 = tx.query_row(
+            "SELECT COALESCE(SUM(valor_minor), 0) FROM caixa_movimentacoes
+             WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2 AND cancelado = 0 AND tipo_movimentacao IN ('SANGRIA', 'VALE_FUNCIONARIO')",
+            rusqlite::params![&dto.sessao_id, &saldo_inf.moeda_codigo],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        let valor_esperado = valor_abertura + valor_vendas + valor_suprimentos - valor_sangrias;
         let diferenca = saldo_inf.valor_minor - valor_esperado;
 
         tx.execute(
