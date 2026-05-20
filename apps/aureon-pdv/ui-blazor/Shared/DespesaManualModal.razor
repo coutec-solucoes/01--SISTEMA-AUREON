@@ -1,0 +1,321 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="modal-overlay">
+    <div class="modal-content card" style="max-width: 600px; width: 100%;">
+        <div class="modal-header d-flex justify-content-between align-items-center mb-3">
+            <h4 class="m-0 text-purple">Registrar Despesa Manual</h4>
+            <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
+        </div>
+
+        @if (erro != null)
+        {
+            <div class="alert alert-danger">@erro</div>
+        }
+
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <!-- Descrição -->
+            <div class="mb-3">
+                <label class="form-label fw-bold">Descrição da Despesa <span class="text-danger">*</span></label>
+                <input type="text" class="form-control bg-dark-input text-white" placeholder="Ex: Aluguel da Loja, Conta de Luz" @bind="descricao" />
+            </div>
+
+            <!-- Busca de Fornecedor (Opcional) -->
+            <div class="mb-3">
+                <label class="form-label fw-bold">Fornecedor (Opcional)</label>
+                @if (fornecedorSelecionado == null)
+                {
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control bg-dark-input text-white" placeholder="Buscar fornecedor por nome ou documento..."
+                               @bind="buscaFornecedor" @bind:event="oninput" @onkeyup="AoDigitarFornecedor" />
+                        <button class="btn btn-outline-secondary" @onclick="PesquisarFornecedores" type="button">Buscar</button>
+                    </div>
+
+                    @if (carregandoFornecedores)
+                    {
+                        <p class="text-muted small"><em>Buscando fornecedores...</em></p>
+                    }
+                    else if (fornecedoresEncontrados != null)
+                    {
+                        @if (fornecedoresEncontrados.Count == 0)
+                        {
+                            <p class="text-warning small m-0">Nenhum fornecedor ativo encontrado.</p>
+                        }
+                        else
+                        {
+                            <div class="list-group mb-3" style="max-height: 150px; overflow-y: auto; background-color: #1e1e2d; border: 1px solid #2a2d3a;">
+                                @foreach (var f in fornecedoresEncontrados)
+                                {
+                                    <button type="button" class="list-group-item list-group-item-action bg-dark text-white py-1 px-2 small"
+                                            @onclick="() => SelecionarFornecedor(f)">
+                                        <strong>@f.Nome</strong> @(string.IsNullOrEmpty(f.Documento) ? "" : $" - Doc: {f.Documento}")
+                                    </button>
+                                }
+                            </div>
+                        }
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-info py-2 d-flex justify-content-between align-items-center m-0">
+                        <div>
+                            <strong>@fornecedorSelecionado.Nome</strong>
+                            @if (!string.IsNullOrEmpty(fornecedorSelecionado.Documento))
+                            {
+                                <span class="text-muted small ms-2">Doc: @fornecedorSelecionado.Documento</span>
+                            }
+                        </div>
+                        <button type="button" class="btn btn-sm btn-danger py-0 px-2" @onclick="LimparFornecedor">Alterar</button>
+                    </div>
+                }
+            </div>
+
+            <div class="row">
+                <!-- Valor -->
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Valor <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control bg-dark-input text-white" step="0.01" min="0.01" @bind="valorOriginal" />
+                </div>
+
+                <!-- Moeda -->
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Moeda <span class="text-danger">*</span></label>
+                    <select class="form-select bg-dark-input text-white" @bind="moedaCodigo" @bind:after="AoMudarMoeda">
+                        <option value="BRL">BRL (R$)</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                    </select>
+                </div>
+
+                <!-- Taxa de Câmbio -->
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Taxa de Câmbio</label>
+                    <input type="number" class="form-control bg-dark-input text-white" step="0.000001" min="0.000001"
+                           @bind="taxaCambio" disabled="@(moedaCodigo == "BRL")" />
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Data Emissão -->
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold">Data de Emissão <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control bg-dark-input text-white" @bind="dataEmissao" />
+                </div>
+
+                <!-- Data Vencimento -->
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold">Data de Vencimento <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control bg-dark-input text-white" @bind="dataVencimento" />
+                </div>
+            </div>
+
+            <!-- Observações -->
+            <div class="mb-3">
+                <label class="form-label fw-bold">Observações</label>
+                <textarea class="form-control bg-dark-input text-white" rows="2" placeholder="Informações adicionais..." @bind="observacao"></textarea>
+            </div>
+        </div>
+
+        <div class="modal-footer d-flex gap-2 justify-content-end mt-3">
+            <button type="button" class="btn btn-outline-secondary" @onclick="Fechar">Cancelar</button>
+            <button type="button" class="btn btn-purple" @onclick="Confirmar" disabled="@carregandoConfirmar">
+                @if (carregandoConfirmar)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                }
+                Salvar Despesa
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(10, 12, 18, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+        backdrop-filter: blur(4px);
+    }
+    .modal-content {
+        background-color: #1a1d27 !important;
+        border: 1px solid #2a2d3a !important;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6) !important;
+        border-radius: 12px;
+        padding: 24px;
+        color: #e2e8f0;
+    }
+    .btn-purple {
+        background-color: #8e24aa;
+        color: white;
+    }
+    .btn-purple:hover {
+        background-color: #ab47bc;
+        color: white;
+    }
+    .bg-dark-input {
+        background-color: #0f1117 !important;
+        border: 1px solid #2a2d3a !important;
+        color: white !important;
+    }
+    .bg-dark-input:focus {
+        border-color: #8e24aa !important;
+        box-shadow: 0 0 0 0.2rem rgba(142, 36, 170, 0.25) !important;
+    }
+</style>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<ContaPagarResp> OnSave { get; set; }
+
+    private string descricao = "";
+    private string buscaFornecedor = "";
+    private List<FornecedorResp>? fornecedoresEncontrados;
+    private FornecedorResp? fornecedorSelecionado;
+    private bool carregandoFornecedores = false;
+
+    private decimal valorOriginal = 0;
+    private string moedaCodigo = "BRL";
+    private decimal taxaCambio = 1.0m;
+
+    private DateTime dataEmissao = DateTime.Today;
+    private DateTime dataVencimento = DateTime.Today.AddDays(30);
+    private string? observacao;
+
+    private bool carregandoConfirmar = false;
+    private string? erro;
+
+    private async Task PesquisarFornecedores()
+    {
+        if (string.IsNullOrWhiteSpace(buscaFornecedor))
+        {
+            fornecedoresEncontrados = null;
+            return;
+        }
+
+        carregandoFornecedores = true;
+        erro = null;
+        try
+        {
+            var resp = await Tauri.InvocarAsync<RespostaBase<List<FornecedorResp>>>("buscar_fornecedores_compra", new { busca = buscaFornecedor });
+            if (resp != null && resp.Sucesso && resp.Dados != null)
+            {
+                fornecedoresEncontrados = resp.Dados;
+            }
+            else
+            {
+                erro = resp?.Mensagem ?? "Erro desconhecido ao carregar fornecedores.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro ao buscar fornecedores: {ex.Message}";
+        }
+        finally
+        {
+            carregandoFornecedores = false;
+        }
+    }
+
+    private async Task AoDigitarFornecedor(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await PesquisarFornecedores();
+        }
+    }
+
+    private void SelecionarFornecedor(FornecedorResp f)
+    {
+        fornecedorSelecionado = f;
+        fornecedoresEncontrados = null;
+    }
+
+    private void LimparFornecedor()
+    {
+        fornecedorSelecionado = null;
+        buscaFornecedor = "";
+    }
+
+    private void AoMudarMoeda()
+    {
+        if (moedaCodigo == "BRL")
+        {
+            taxaCambio = 1.0m;
+        }
+        else if (taxaCambio == 1.0m)
+        {
+            taxaCambio = 5.0m;
+        }
+    }
+
+    private void Fechar()
+    {
+        OnClose.InvokeAsync();
+    }
+
+    private async Task Confirmar()
+    {
+        if (string.IsNullOrWhiteSpace(descricao))
+        {
+            erro = "Descrição da despesa é obrigatória.";
+            return;
+        }
+        if (valorOriginal <= 0)
+        {
+            erro = "O valor deve ser maior que zero.";
+            return;
+        }
+        if (taxaCambio <= 0)
+        {
+            erro = "A taxa de câmbio deve ser maior que zero.";
+            return;
+        }
+
+        carregandoConfirmar = true;
+        erro = null;
+
+        try
+        {
+            // Converter para as unidades inteiras (long)
+            long valorOriginalMinor = (long)Math.Round(valorOriginal * 100m);
+            long taxaCambioEscala6 = (long)Math.Round(taxaCambio * 1000000m);
+
+            var req = new RegistrarDespesaReq(
+                fornecedor_id: fornecedorSelecionado?.Id,
+                descricao: descricao,
+                moeda_codigo: moedaCodigo,
+                valor_original_minor: valorOriginalMinor,
+                taxa_cambio_escala6: taxaCambioEscala6,
+                data_emissao: dataEmissao.ToString("yyyy-MM-dd"),
+                data_vencimento: dataVencimento.ToString("yyyy-MM-dd"),
+                usuario_id: "operador_local", // Fallback padrão local
+                observacao: observacao
+            );
+
+            var resp = await Tauri.InvocarAsync<RespostaBase<ContaPagarResp>>("registrar_despesa_manual", new { dto = req });
+            if (resp != null && resp.Sucesso && resp.Dados != null)
+            {
+                await OnSave.InvokeAsync(resp.Dados);
+            }
+            else
+            {
+                erro = resp?.Mensagem ?? "Falha ao registrar despesa.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro na requisição: {ex.Message}";
+        }
+        finally
+        {
+            carregandoConfirmar = false;
+        }
+    }
+}

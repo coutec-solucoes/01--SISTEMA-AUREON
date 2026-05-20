@@ -1,0 +1,363 @@
+@page "/financeiro/lancamentos"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+
+<div class="container-fluid py-4 fade-in">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white m-0">Lançamentos Financeiros</h2>
+            <p class="text-muted small m-0">Auditoria cronológica e detalhada de todas as baixas e despesas realizadas (Livro-Caixa)</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick="CarregarLancamentos">
+                <i class="bi bi-arrow-clockwise me-2"></i>Atualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Indicador de Total de Caixa Movimentado -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card p-3 d-flex flex-row justify-content-between align-items-center bg-card-dark text-success-custom-card">
+                <div>
+                    <div class="text-muted small uppercase">Total de Entradas (BRL)</div>
+                    <h3 class="m-0 mt-1">@FormatarValor(totalEntradasBrl, "BRL")</h3>
+                </div>
+                <div class="icon-box bg-success-light text-success">
+                    <i class="bi bi-graph-up-arrow fs-3"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-3 d-flex flex-row justify-content-between align-items-center bg-card-dark text-danger-custom-card">
+                <div>
+                    <div class="text-muted small uppercase">Total de Saídas (BRL)</div>
+                    <h3 class="m-0 mt-1">@FormatarValor(totalSaidasBrl, "BRL")</h3>
+                </div>
+                <div class="icon-box bg-danger-light text-danger">
+                    <i class="bi bi-graph-down-arrow fs-3"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-3 d-flex flex-row justify-content-between align-items-center bg-card-dark">
+                <div>
+                    <div class="text-muted small uppercase">Saldo Líquido Movimentado</div>
+                    <h3 class="text-white m-0 mt-1">@FormatarValor(totalEntradasBrl - totalSaidasBrl, "BRL")</h3>
+                </div>
+                <div class="icon-box bg-purple-light text-purple">
+                    <i class="bi bi-calculator fs-3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtro por Sessão de Caixa (Opcional) -->
+    <div class="card p-3 mb-4 card-filtros">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text bg-dark-input text-muted border-0"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control bg-dark-input text-white border-0" 
+                           placeholder="Filtrar por ID de Sessão de Caixa..." 
+                           @bind="filtroSessaoId" @bind:event="oninput" @onkeyup="AoDigitarFiltro" />
+                    @if (!string.IsNullOrEmpty(filtroSessaoId))
+                    {
+                        <button class="btn btn-outline-secondary" type="button" @onclick="LimparFiltroSessao">Limpar</button>
+                    }
+                    <button class="btn btn-purple" type="button" @onclick="CarregarLancamentos">Filtrar</button>
+                </div>
+            </div>
+            <div class="col-md-6 text-end text-muted small">
+                <span>Registros encontrados nesta consulta: <strong>@(lancamentos?.Count ?? 0)</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback de Erro -->
+    @if (erro != null)
+    {
+        <div class="alert alert-danger">@erro</div>
+    }
+
+    <!-- Tabela de Lançamentos -->
+    @if (carregando)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-purple" role="status"></div>
+            <p class="text-muted mt-2">Carregando livro-caixa...</p>
+        </div>
+    }
+    else if (lancamentos == null || !lancamentos.Any())
+    {
+        <div class="card p-5 text-center bg-card-dark border-dashed">
+            <i class="bi bi-file-earmark-bar-graph fs-1 text-muted mb-3"></i>
+            <h5 class="text-white">Nenhum lançamento financeiro registrado</h5>
+            <p class="text-muted small">Todas as baixas de contas a pagar/receber e despesas manuais aparecerão listadas aqui para fins de auditoria.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle table-dark-custom">
+                <thead>
+                    <tr>
+                        <th>Data Lançamento</th>
+                        <th class="text-center">Tipo</th>
+                        <th>Forma Pagamento</th>
+                        <th>Moeda</th>
+                        <th class="text-end">Valor Informado</th>
+                        <th class="text-end">Valor Principal (BRL)</th>
+                        <th>Sessão Caixa</th>
+                        <th>Operador</th>
+                        <th>Observação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var l in lancamentos)
+                    {
+                        <tr>
+                            <td class="font-monospace text-white-50">@FormatarDataHora(l.CriadoEm)</td>
+                            <td class="text-center">
+                                <span class="badge-tipo @(l.TipoLancamento == "RECEBIMENTO" ? "tipo-recebimento" : "tipo-pagamento")">
+                                    @(l.TipoLancamento == "RECEBIMENTO" ? "ENTRADA" : "SAÍDA")
+                                </span>
+                            </td>
+                            <td>
+                                <span class="text-white">@FormatarFormaPagamento(l.FormaPagamento)</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-dark-purple">@l.MoedaCodigo</span>
+                            </td>
+                            <td class="text-end fw-bold">
+                                <span class="@(l.TipoLancamento == "RECEBIMENTO" ? "text-success" : "text-danger-custom")">
+                                    @(l.TipoLancamento == "RECEBIMENTO" ? "+" : "-") @FormatarValor(l.ValorInformadoMinor, l.MoedaCodigo)
+                                </span>
+                                @if (l.MoedaCodigo != "BRL" && l.TaxaCambioEscala6 > 0)
+                                {
+                                    <div class="text-muted small font-monospace" style="font-size:10px;">Taxa: @((l.TaxaCambioEscala6 / 1000000.0).ToString("N4"))</div>
+                                }
+                            </td>
+                            <td class="text-end fw-bold text-white">
+                                @FormatarValor(l.ValorPrincipalMinor, "BRL")
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(l.SessaoCaixaId))
+                                {
+                                    <span class="font-monospace text-white-50 small" title="@l.SessaoCaixaId">@l.SessaoCaixaId.Substring(0, Math.Min(8, l.SessaoCaixaId.Length))...</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td class="text-muted small">@l.UsuarioId</td>
+                            <td class="small text-white-50 text-truncate" style="max-width: 200px;" title="@l.Observacao">
+                                @l.Observacao
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<style>
+    .bg-card-dark {
+        background-color: #1a1d27 !important;
+        border: 1px solid #2a2d3a !important;
+    }
+    .text-success-custom-card {
+        color: #81c784 !important;
+    }
+    .text-danger-custom-card {
+        color: #ef5350 !important;
+    }
+    .card-filtros {
+        background-color: #1a1d27 !important;
+        border: 1px solid #2a2d3a !important;
+    }
+    .bg-dark-input {
+        background-color: #0f1117 !important;
+        border: 1px solid #2a2d3a !important;
+        color: white !important;
+    }
+    .border-dashed {
+        border-style: dashed !important;
+    }
+    .table-dark-custom {
+        background-color: #1a1d27 !important;
+        border: 1px solid #2a2d3a !important;
+    }
+    .table-dark-custom th {
+        background-color: #0f1117 !important;
+        color: #a2a5b9 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 12px;
+    }
+    .table-dark-custom td {
+        padding: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        color: #cdcdde;
+    }
+    .bg-dark-purple {
+        background-color: #4a148c;
+        color: #e1bee7;
+    }
+    .badge-tipo {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 11px;
+        display: inline-block;
+    }
+    .tipo-recebimento {
+        background-color: rgba(76, 175, 80, 0.15);
+        color: #81c784;
+        border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+    .tipo-pagamento {
+        background-color: rgba(244, 67, 54, 0.15);
+        color: #ef5350;
+        border: 1px solid rgba(244, 67, 54, 0.3);
+    }
+    .text-danger-custom {
+        color: #ef5350 !important;
+    }
+    .btn-purple {
+        background-color: #8e24aa;
+        color: white;
+    }
+    .btn-purple:hover {
+        background-color: #ab47bc;
+        color: white;
+    }
+    .icon-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .bg-success-light { background-color: rgba(76, 175, 80, 0.1); }
+    .bg-danger-light { background-color: rgba(244, 67, 54, 0.1); }
+    .bg-purple-light { background-color: rgba(142, 36, 170, 0.1); }
+</style>
+
+@code {
+    private List<FinanceiroLancamentoResp> lancamentos = new();
+    private bool carregando = true;
+    private string? erro;
+
+    private string? filtroSessaoId;
+
+    private long totalEntradasBrl = 0;
+    private long totalSaidasBrl = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarLancamentos();
+    }
+
+    private async Task CarregarLancamentos()
+    {
+        carregando = true;
+        erro = null;
+        try
+        {
+            var paramSessao = string.IsNullOrWhiteSpace(filtroSessaoId) ? null : filtroSessaoId.Trim();
+
+            var resp = await Tauri.InvocarAsync<RespostaBase<List<FinanceiroLancamentoResp>>>("listar_lancamentos_financeiros", new { 
+                conta_pagar_id = (string?)null, 
+                conta_receber_id = (string?)null, 
+                sessao_caixa_id = paramSessao 
+            });
+
+            if (resp != null && resp.Sucesso && resp.Dados != null)
+            {
+                lancamentos = resp.Dados;
+                CalcularTotais();
+            }
+            else
+            {
+                erro = resp?.Mensagem ?? "Erro ao recuperar lançamentos financeiros.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro de comunicação: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void CalcularTotais()
+    {
+        totalEntradasBrl = 0;
+        totalSaidasBrl = 0;
+        foreach (var l in lancamentos)
+        {
+            if (l.TipoLancamento == "RECEBIMENTO")
+            {
+                totalEntradasBrl += l.ValorPrincipalMinor;
+            }
+            else if (l.TipoLancamento == "PAGAMENTO")
+            {
+                totalSaidasBrl += l.ValorPrincipalMinor;
+            }
+        }
+    }
+
+    private async Task AoDigitarFiltro(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CarregarLancamentos();
+        }
+    }
+
+    private async Task LimparFiltroSessao()
+    {
+        filtroSessaoId = null;
+        await CarregarLancamentos();
+    }
+
+    private string FormatarValor(long minor, string moeda)
+    {
+        decimal valor = minor / 100m;
+        if (moeda == "BRL")
+            return valor.ToString("C2", new CultureInfo("pt-BR"));
+        if (moeda == "USD")
+            return $"$ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        if (moeda == "EUR")
+            return $"€ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        return $"{moeda} {valor.ToString("N2")}";
+    }
+
+    private string FormatarDataHora(string isoString)
+    {
+        if (DateTime.TryParse(isoString, out var dt))
+        {
+            return dt.ToString("dd/MM/yyyy HH:mm:ss");
+        }
+        return isoString;
+    }
+
+    private string FormatarFormaPagamento(string fp)
+    {
+        switch (fp)
+        {
+            case "DINHEIRO": return "Dinheiro";
+            case "PIX": return "PIX";
+            case "CARTAO_DEBITO": return "Cartão de Débito";
+            case "CARTAO_CREDITO": return "Cartão de Crédito";
+            default: return fp;
+        }
+    }
+}

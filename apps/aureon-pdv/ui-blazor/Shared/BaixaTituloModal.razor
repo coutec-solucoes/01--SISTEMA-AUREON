@@ -1,0 +1,309 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="modal-overlay">
+    <div class="modal-content card" style="max-width: 500px; width: 100%;">
+        <div class="modal-header d-flex justify-content-between align-items-center mb-3">
+            <h4 class="m-0 @(IsContaPagar ? "text-danger-custom" : "text-success-custom")">
+                @(IsContaPagar ? "Baixar Conta a Pagar" : "Baixar Conta a Receber")
+            </h4>
+            <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
+        </div>
+
+        @if (carregandoSessao)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="text-muted small mt-2">Verificando sessão de caixa ativa...</p>
+            </div>
+        }
+        else
+        {
+            @if (erro != null)
+            {
+                <div class="alert alert-danger">@erro</div>
+            }
+
+            @if (string.IsNullOrEmpty(sessaoCaixaId))
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Caixa Fechado!</strong> É necessário abrir o caixa antes de realizar baixas financeiras.
+                </div>
+            }
+
+            <div class="modal-body">
+                <div class="bg-dark p-3 rounded mb-3" style="border: 1px solid #2a2d3a;">
+                    <div class="text-muted small">Título</div>
+                    <div class="fw-bold text-white mb-2">@Descricao</div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="text-muted small">Saldo Pendente</div>
+                            <div class="fw-bold text-white">@FormatarValor(SaldoPendenteMinor, MoedaCodigo)</div>
+                        </div>
+                        <div class="col-6 text-end">
+                            <div class="text-muted small">Moeda</div>
+                            <span class="badge bg-dark-purple">@MoedaCodigo</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Valor da Baixa -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Valor da Baixa (@MoedaCodigo) <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control bg-dark-input text-white" step="0.01" min="0.01" max="@(SaldoPendenteMinor / 100m)"
+                           @bind="valorBaixa" disabled="@string.IsNullOrEmpty(sessaoCaixaId)" />
+                </div>
+
+                <!-- Forma de Pagamento -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Forma de Pagamento <span class="text-danger">*</span></label>
+                    <select class="form-select bg-dark-input text-white" @bind="formaPagamento" disabled="@string.IsNullOrEmpty(sessaoCaixaId)">
+                        <option value="DINHEIRO">Dinheiro</option>
+                        <option value="PIX">PIX</option>
+                        <option value="CARTAO_DEBITO">Cartão de Débito</option>
+                        <option value="CARTAO_CREDITO">Cartão de Crédito</option>
+                    </select>
+                </div>
+
+                <!-- Observação -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Observações / Motivo</label>
+                    <textarea class="form-control bg-dark-input text-white" rows="2" placeholder="Opcional..." @bind="observacao"
+                              disabled="@string.IsNullOrEmpty(sessaoCaixaId)"></textarea>
+                </div>
+
+                <!-- Alerta de Impacto -->
+                <div class="alert @(IsContaPagar ? "alert-danger-custom" : "alert-success-custom") py-2 small m-0">
+                    @if (IsContaPagar)
+                    {
+                        <span><i class="bi bi-dash-circle-fill me-2"></i><strong>Impacto:</strong> Esta baixa reduzirá o saldo físico do caixa ativo.</span>
+                    }
+                    else
+                    {
+                        <span><i class="bi bi-plus-circle-fill me-2"></i><strong>Impacto:</strong> Esta baixa aumentará o saldo físico do caixa ativo.</span>
+                    }
+                </div>
+            </div>
+
+            <div class="modal-footer d-flex gap-2 justify-content-end mt-3">
+                <button type="button" class="btn btn-outline-secondary" @onclick="Fechar">Cancelar</button>
+                <button type="button" class="btn @(IsContaPagar ? "btn-danger-custom" : "btn-success-custom")"
+                        @onclick="Confirmar" disabled="@(string.IsNullOrEmpty(sessaoCaixaId) || carregandoConfirmar)">
+                    @if (carregandoConfirmar)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    }
+                    Confirmar Baixa
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(10, 12, 18, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+        backdrop-filter: blur(4px);
+    }
+    .modal-content {
+        background-color: #1a1d27 !important;
+        border: 1px solid #2a2d3a !important;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6) !important;
+        border-radius: 12px;
+        padding: 24px;
+        color: #e2e8f0;
+    }
+    .text-danger-custom { color: #f44336; }
+    .text-success-custom { color: #4caf50; }
+    
+    .btn-danger-custom { background-color: #d32f2f; color: white; }
+    .btn-danger-custom:hover { background-color: #ef5350; }
+    
+    .btn-success-custom { background-color: #388e3c; color: white; }
+    .btn-success-custom:hover { background-color: #4caf50; }
+
+    .alert-danger-custom {
+        background-color: rgba(244, 67, 54, 0.15);
+        color: #ef5350;
+        border: 1px solid rgba(244, 67, 54, 0.2);
+    }
+    .alert-success-custom {
+        background-color: rgba(76, 175, 80, 0.15);
+        color: #81c784;
+        border: 1px solid rgba(76, 175, 80, 0.2);
+    }
+
+    .bg-dark-input {
+        background-color: #0f1117 !important;
+        border: 1px solid #2a2d3a !important;
+        color: white !important;
+    }
+    .bg-dark-input:focus {
+        border-color: #8e24aa !important;
+        box-shadow: 0 0 0 0.2rem rgba(142, 36, 170, 0.25) !important;
+    }
+    .bg-dark-purple {
+        background-color: #4a148c;
+        color: #e1bee7;
+    }
+</style>
+
+@code {
+    [Parameter] public bool IsContaPagar { get; set; }
+    [Parameter] public string TituloId { get; set; } = "";
+    [Parameter] public string Descricao { get; set; } = "";
+    [Parameter] public long SaldoPendenteMinor { get; set; }
+    [Parameter] public string MoedaCodigo { get; set; } = "";
+    [Parameter] public long TaxaCambioEscala6 { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSuccess { get; set; }
+
+    private decimal valorBaixa;
+    private string formaPagamento = "DINHEIRO";
+    private string? observacao;
+
+    private string? sessaoCaixaId;
+    private bool carregandoSessao = true;
+    private bool carregandoConfirmar = false;
+    private string? erro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        valorBaixa = SaldoPendenteMinor / 100m;
+        await VerificarSessao();
+    }
+
+    private async Task VerificarSessao()
+    {
+        carregandoSessao = true;
+        erro = null;
+        try
+        {
+            // Sempre usando terminal id Fixo "TERM-1"
+            var resp = await Tauri.InvocarAsync<RespostaBase<SessaoCaixaResp?>>("obter_sessao_ativa", new { registradora_id = "TERM-1" });
+            if (resp != null && resp.Sucesso && resp.Dados != null)
+            {
+                sessaoCaixaId = resp.Dados.Id;
+            }
+            else
+            {
+                sessaoCaixaId = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro ao verificar caixa: {ex.Message}";
+        }
+        finally
+        {
+            carregandoSessao = false;
+        }
+    }
+
+    private void Fechar()
+    {
+        OnClose.InvokeAsync();
+    }
+
+    private async Task Confirmar()
+    {
+        if (string.IsNullOrEmpty(sessaoCaixaId))
+        {
+            erro = "Caixa não está aberto.";
+            return;
+        }
+        if (valorBaixa <= 0)
+        {
+            erro = "O valor da baixa deve ser maior que zero.";
+            return;
+        }
+        if (valorBaixa > (SaldoPendenteMinor / 100m))
+        {
+            erro = "O valor da baixa não pode ser maior que o saldo pendente.";
+            return;
+        }
+
+        carregandoConfirmar = true;
+        erro = null;
+
+        try
+        {
+            long valorInformadoMinor = (long)Math.Round(valorBaixa * 100m);
+
+            if (IsContaPagar)
+            {
+                var req = new BaixarContaPagarReq(
+                    conta_pagar_id: TituloId,
+                    sessao_caixa_id: sessaoCaixaId,
+                    forma_pagamento: formaPagamento,
+                    moeda_codigo: MoedaCodigo,
+                    valor_informado_minor: valorInformadoMinor,
+                    taxa_cambio_escala6: TaxaCambioEscala6,
+                    usuario_id: "operador_local",
+                    observacao: observacao
+                );
+
+                var resp = await Tauri.InvocarAsync<RespostaBase<ContaPagarResp>>("baixar_conta_pagar", new { dto = req });
+                if (resp != null && resp.Sucesso)
+                {
+                    await OnSuccess.InvokeAsync();
+                }
+                else
+                {
+                    erro = resp?.Mensagem ?? "Erro ao realizar a baixa da conta a pagar.";
+                }
+            }
+            else
+            {
+                var req = new BaixarContaReceberReq(
+                    conta_receber_id: TituloId,
+                    sessao_caixa_id: sessaoCaixaId,
+                    forma_pagamento: formaPagamento,
+                    moeda_codigo: MoedaCodigo,
+                    valor_informado_minor: valorInformadoMinor,
+                    taxa_cambio_escala6: TaxaCambioEscala6,
+                    usuario_id: "operador_local",
+                    observacao: observacao
+                );
+
+                var resp = await Tauri.InvocarAsync<RespostaBase<ContaReceberResp>>("baixar_conta_receber", new { dto = req });
+                if (resp != null && resp.Sucesso)
+                {
+                    await OnSuccess.InvokeAsync();
+                }
+                else
+                {
+                    erro = resp?.Mensagem ?? "Erro ao realizar a baixa da conta a receber.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro na requisição: {ex.Message}";
+        }
+        finally
+        {
+            carregandoConfirmar = false;
+        }
+    }
+
+    private string FormatarValor(long minor, string moeda)
+    {
+        decimal valor = minor / 100m;
+        if (moeda == "BRL") return $"R$ {valor:N2}";
+        if (moeda == "USD") return $"$ {valor:N2}";
+        if (moeda == "EUR") return $"€ {valor:N2}";
+        return $"{moeda} {valor:N2}";
+    }
+}

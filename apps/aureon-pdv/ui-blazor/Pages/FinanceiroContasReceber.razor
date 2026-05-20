@@ -1,0 +1,522 @@
+@page "/financeiro/contas-receber"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+
+<div class="container-fluid py-4 fade-in">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white m-0">Contas a Receber (Crediário)</h2>
+            <p class="text-muted small m-0">Acompanhamento e recebimento de créditos e contas de clientes (fiado)</p>
+        </div>
+        <div class="text-muted small">
+            <em>Alimentado automaticamente a partir de vendas finalizadas no Crediário</em>
+        </div>
+    </div>
+
+    <!-- Indicadores Rápidos -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card p-3 d-flex flex-row justify-content-between align-items-center bg-card-dark">
+                <div>
+                    <div class="text-muted small uppercase">Total a Receber Pendente (BRL)</div>
+                    <h3 class="text-white m-0 mt-1">@FormatarValor(totalPendentePrincipalBrl, "BRL")</h3>
+                </div>
+                <div class="icon-box bg-success-light text-success">
+                    <i class="bi bi-wallet2 fs-3"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card p-3 d-flex flex-row justify-content-between align-items-center bg-card-dark">
+                <div>
+                    <div class="text-muted small uppercase">Total Original da Listagem (Principal)</div>
+                    <h3 class="text-white m-0 mt-1">@FormatarValor(totalOriginalPrincipalBrl, "BRL")</h3>
+                </div>
+                <div class="icon-box bg-purple-light text-purple">
+                    <i class="bi bi-piggy-bank fs-3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros de Status -->
+    <div class="card p-3 mb-4 card-filtros">
+        <div class="row align-items-center">
+            <div class="col-md-9">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn @(statusFiltro == null ? "btn-active-filter" : "btn-outline-filter")" @onclick="() => MudarFiltro(null)">
+                        Todas
+                    </button>
+                    <button type="button" class="btn @(statusFiltro == "PENDENTE" ? "btn-active-filter" : "btn-outline-filter")" @onclick='() => MudarFiltro("PENDENTE")'>
+                        Pendentes
+                    </button>
+                    <button type="button" class="btn @(statusFiltro == "PAGO_PARCIAL" ? "btn-active-filter" : "btn-outline-filter")" @onclick='() => MudarFiltro("PAGO_PARCIAL")'>
+                        Pago Parcial
+                    </button>
+                    <button type="button" class="btn @(statusFiltro == "PAGO" ? "btn-active-filter" : "btn-outline-filter")" @onclick='() => MudarFiltro("PAGO")'>
+                        Pagas
+                    </button>
+                    <button type="button" class="btn @(statusFiltro == "CANCELADA" ? "btn-active-filter" : "btn-outline-filter")" @onclick='() => MudarFiltro("CANCELADO")'>
+                        Canceladas
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-3 text-end">
+                <button class="btn btn-outline-secondary" @onclick="CarregarContas">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Atualizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback de Erro -->
+    @if (erro != null)
+    {
+        <div class="alert alert-danger">@erro</div>
+    }
+
+    <!-- Tabela de Contas -->
+    @if (carregando)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-purple" role="status"></div>
+            <p class="text-muted mt-2">Carregando contas a receber...</p>
+        </div>
+    }
+    else if (contas == null || !contas.Any())
+    {
+        <div class="card p-5 text-center bg-card-dark border-dashed">
+            <i class="bi bi-bookmark-x fs-1 text-muted mb-3"></i>
+            <h5 class="text-white">Nenhuma conta a receber encontrada</h5>
+            <p class="text-muted small">Vendas concluídas com a forma "Crédito Cliente" aparecerão aqui.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle table-dark-custom">
+                <thead>
+                    <tr>
+                        <th>Cliente / Descrição</th>
+                        <th>Venda ID</th>
+                        <th>Vencimento</th>
+                        <th>Moeda</th>
+                        <th class="text-end">Valor Original</th>
+                        <th class="text-end">Saldo Pendente</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center" style="width: 200px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in contas)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-bold text-white">@(string.IsNullOrEmpty(c.ClienteNomeSnapshot) ? "Cliente não identificado" : c.ClienteNomeSnapshot)</div>
+                                <div class="text-muted small">@c.Descricao</div>
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(c.VendaId))
+                                {
+                                    <span class="font-monospace text-white-50" style="font-size:12px;">@c.VendaId.Substring(0, Math.Min(8, c.VendaId.Length))...</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">-</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="@ObterClasseVencimento(c.DataVencimento, c.Status)">@FormatarData(c.DataVencimento)</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-dark-purple">@c.MoedaCodigo</span>
+                            </td>
+                            <td class="text-end fw-bold text-white">
+                                @FormatarValor(c.ValorOriginalMinor, c.MoedaCodigo)
+                                @if (c.MoedaCodigo != "BRL")
+                                {
+                                    <div class="text-muted small font-monospace">eqv. @FormatarValor(c.ValorOriginalPrincipalMinor, "BRL")</div>
+                                }
+                            </td>
+                            <td class="text-end fw-bold text-success">
+                                @FormatarValor(c.SaldoPendenteMinor, c.MoedaCodigo)
+                            </td>
+                            <td class="text-center">
+                                <span class="badge-status @ObterBadgeStatusClass(c.Status)">@c.Status</span>
+                            </td>
+                            <td class="text-center">
+                                <div class="d-flex gap-2 justify-content-center">
+                                    <button class="btn btn-sm btn-success-custom py-1 px-2"
+                                            @onclick="() => AbrirBaixaModal(c)"
+                                            disabled="@(c.Status == "PAGO" || c.Status == "CANCELADO")">
+                                        Receber
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger py-1 px-2"
+                                            @onclick="() => ConfirmarCancelar(c)"
+                                            disabled="@(c.Status != "PENDENTE")">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Modal de Baixa de Título -->
+@if (exibirBaixaModal && contaSelecionada != null)
+{
+    <BaixaTituloModal IsContaPagar="false"
+                      TituloId="@contaSelecionada.Id"
+                      Descricao="@($"Receber de {contaSelecionada.ClienteNomeSnapshot} - {contaSelecionada.Descricao}")"
+                      SaldoPendenteMinor="@contaSelecionada.SaldoPendenteMinor"
+                      MoedaCodigo="@contaSelecionada.MoedaCodigo"
+                      TaxaCambioEscala6="@contaSelecionada.TaxaCambioEscala6"
+                      OnClose="FecharBaixaModal"
+                      OnSuccess="AoConfirmarBaixa" />
+}
+
+<!-- Modal Confirmação de Cancelamento -->
+@if (exibirCancelarModal && contaSelecionada != null)
+{
+    <div class="modal-overlay">
+        <div class="modal-content card" style="max-width: 400px; width: 100%;">
+            <div class="modal-header d-flex justify-content-between align-items-center mb-3">
+                <h4 class="m-0 text-danger">Confirmar Cancelamento</h4>
+                <button type="button" class="btn-close btn-close-white" @onclick="FecharCancelarModal"></button>
+            </div>
+            <div class="modal-body text-white">
+                <p>Tem certeza de que deseja cancelar esta conta a receber de <strong>@(contaSelecionada.ClienteNomeSnapshot ?? "Cliente")</strong>?</p>
+                <p class="text-danger small">Esta ação não poderá ser desfeita!</p>
+            </div>
+            <div class="modal-footer d-flex gap-2 justify-content-end mt-3">
+                <button type="button" class="btn btn-outline-secondary" @onclick="FecharCancelarModal">Não</button>
+                <button type="button" class="btn btn-danger" @onclick="CancelarConta" disabled="@cancelando">
+                    @if (cancelando)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    }
+                    Sim, Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .bg-card-dark {
+        background-color: #1a1d27 !important;
+        border: 1px solid #2a2d3a !important;
+    }
+    .card-filtros {
+        background-color: #1a1d27 !important;
+        border: 1px solid #2a2d3a !important;
+    }
+    .btn-outline-filter {
+        background-color: #0f1117;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: #a2a5b9;
+    }
+    .btn-outline-filter:hover {
+        background-color: #2a2d3a;
+        color: #ffffff;
+    }
+    .btn-active-filter {
+        background-color: #8e24aa;
+        color: #ffffff;
+        border: 1px solid #8e24aa;
+    }
+    .border-dashed {
+        border-style: dashed !important;
+    }
+    .table-dark-custom {
+        background-color: #1a1d27 !important;
+        border: 1px solid #2a2d3a !important;
+    }
+    .table-dark-custom th {
+        background-color: #0f1117 !important;
+        color: #a2a5b9 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 12px;
+    }
+    .table-dark-custom td {
+        padding: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        color: #cdcdde;
+    }
+    .bg-dark-purple {
+        background-color: #4a148c;
+        color: #e1bee7;
+    }
+    .badge-status {
+        padding: 4px 10px;
+        border-radius: 99px;
+        font-weight: 600;
+        font-size: 11px;
+        display: inline-block;
+    }
+    .status-pendente {
+        background-color: rgba(255, 193, 7, 0.15);
+        color: #ffc107;
+        border: 1px solid rgba(255, 193, 7, 0.3);
+    }
+    .status-pago_parcial {
+        background-color: rgba(255, 152, 0, 0.15);
+        color: #ff9800;
+        border: 1px solid rgba(255, 152, 0, 0.3);
+    }
+    .status-pago {
+        background-color: rgba(76, 175, 80, 0.15);
+        color: #4caf50;
+        border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+    .status-cancelada {
+        background-color: rgba(244, 67, 54, 0.15);
+        color: #f44336;
+        border: 1px solid rgba(244, 67, 54, 0.3);
+    }
+    .text-danger-vencido {
+        color: #ff5252 !important;
+        font-weight: bold;
+    }
+    .text-warning-light {
+        color: #ffe082 !important;
+    }
+    .btn-success-custom {
+        background-color: #2e7d32;
+        color: white;
+        border: none;
+    }
+    .btn-success-custom:hover:not(:disabled) {
+        background-color: #388e3c;
+    }
+    .btn-outline-danger {
+        border: 1px solid #c62828;
+        color: #ef9a9a;
+        background: transparent;
+    }
+    .btn-outline-danger:hover:not(:disabled) {
+        background-color: #c62828;
+        color: white;
+    }
+    .icon-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .bg-success-light { background-color: rgba(76, 175, 80, 0.1); }
+    .bg-purple-light { background-color: rgba(142, 36, 170, 0.1); }
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(10, 12, 18, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+        backdrop-filter: blur(4px);
+    }
+    .modal-content {
+        background-color: #1a1d27 !important;
+        border: 1px solid #2a2d3a !important;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6) !important;
+        border-radius: 12px;
+        padding: 24px;
+        color: #e2e8f0;
+    }
+</style>
+
+@code {
+    private List<ContaReceberResp> contas = new();
+    private string? statusFiltro = "PENDENTE"; // Inicia exibindo pendentes
+    private bool carregando = true;
+    private string? erro;
+
+    private bool exibirBaixaModal = false;
+    private bool exibirCancelarModal = false;
+    private ContaReceberResp? contaSelecionada;
+    private bool cancelando = false;
+
+    private long totalPendentePrincipalBrl = 0;
+    private long totalOriginalPrincipalBrl = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarContas();
+    }
+
+    private async Task CarregarContas()
+    {
+        carregando = true;
+        erro = null;
+        try
+        {
+            var resp = await Tauri.InvocarAsync<RespostaBase<List<ContaReceberResp>>>("listar_contas_receber", new { status = statusFiltro });
+            if (resp != null && resp.Sucesso && resp.Dados != null)
+            {
+                contas = resp.Dados;
+                CalcularTotais();
+            }
+            else
+            {
+                erro = resp?.Mensagem ?? "Erro ao recuperar contas a receber.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro de comunicação: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void CalcularTotais()
+    {
+        totalPendentePrincipalBrl = 0;
+        totalOriginalPrincipalBrl = 0;
+        foreach (var c in contas)
+        {
+            long saldoPrincipal = c.SaldoPendenteMinor;
+            if (c.MoedaCodigo != "BRL" && c.TaxaCambioEscala6 > 0)
+            {
+                saldoPrincipal = (c.SaldoPendenteMinor * c.TaxaCambioEscala6) / 1000000;
+            }
+
+            totalPendentePrincipalBrl += saldoPrincipal;
+            totalOriginalPrincipalBrl += c.ValorOriginalPrincipalMinor;
+        }
+    }
+
+    private async Task MudarFiltro(string? status)
+    {
+        statusFiltro = status;
+        await CarregarContas();
+    }
+
+    private void AbrirBaixaModal(ContaReceberResp conta)
+    {
+        contaSelecionada = conta;
+        exibirBaixaModal = true;
+    }
+
+    private void FecharBaixaModal()
+    {
+        exibirBaixaModal = false;
+        contaSelecionada = null;
+    }
+
+    private async Task AoConfirmarBaixa()
+    {
+        exibirBaixaModal = false;
+        contaSelecionada = null;
+        await CarregarContas();
+    }
+
+    private void ConfirmarCancelar(ContaReceberResp conta)
+    {
+        contaSelecionada = conta;
+        exibirCancelarModal = true;
+    }
+
+    private void FecharCancelarModal()
+    {
+        exibirCancelarModal = false;
+        contaSelecionada = null;
+    }
+
+    private async Task CancelarConta()
+    {
+        if (contaSelecionada == null) return;
+        cancelando = true;
+        erro = null;
+
+        try
+        {
+            var req = new CancelarContaReceberReq(
+                conta_receber_id: contaSelecionada.Id,
+                motivo: "Cancelamento solicitado pela interface do operador",
+                usuario_id: "operador_local"
+            );
+
+            var resp = await Tauri.InvocarAsync<RespostaBase<ContaReceberResp>>("cancelar_conta_receber", new { dto = req });
+            if (resp != null && resp.Sucesso)
+            {
+                exibirCancelarModal = false;
+                contaSelecionada = null;
+                await CarregarContas();
+            }
+            else
+            {
+                erro = resp?.Mensagem ?? "Erro ao cancelar título.";
+                exibirCancelarModal = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro na requisição: {ex.Message}";
+            exibirCancelarModal = false;
+        }
+        finally
+        {
+            cancelando = false;
+        }
+    }
+
+    private string FormatarValor(long minor, string moeda)
+    {
+        decimal valor = minor / 100m;
+        if (moeda == "BRL")
+            return valor.ToString("C2", new CultureInfo("pt-BR"));
+        if (moeda == "USD")
+            return $"$ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        if (moeda == "EUR")
+            return $"€ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        return $"{moeda} {valor.ToString("N2")}";
+    }
+
+    private string FormatarData(string isoString)
+    {
+        if (DateTime.TryParse(isoString, out var dt))
+        {
+            return dt.ToString("dd/MM/yyyy");
+        }
+        return isoString;
+    }
+
+    private string ObterClasseVencimento(string dataVencimentoIso, string status)
+    {
+        if (status == "PAGO" || status == "CANCELADO") return "text-muted";
+
+        if (DateTime.TryParse(dataVencimentoIso, out var dt))
+        {
+            if (dt < DateTime.Today) return "text-danger-vencido";
+            if (dt == DateTime.Today) return "text-warning-light fw-bold";
+        }
+        return "text-white-50";
+    }
+
+    private string ObterBadgeStatusClass(string status)
+    {
+        switch (status)
+        {
+            case "PENDENTE": return "status-pendente";
+            case "PAGO_PARCIAL": return "status-pago_parcial";
+            case "PAGO": return "status-pago";
+            case "CANCELADO": return "status-cancelada";
+            default: return "bg-secondary text-white";
+        }
+    }
+}
