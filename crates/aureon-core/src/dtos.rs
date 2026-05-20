@@ -914,4 +914,99 @@ pub struct CancelarCompraFinalizadaReq {
     pub usuario_id: String,
 }
 
+// --- FASE 13: FINANCEIRO BASE ---
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ContaPagarResp {
+    pub id: String,
+    pub fornecedor_id: Option<String>,
+    pub fornecedor_nome_snapshot: Option<String>,
+    pub compra_id: Option<String>,
+    pub descricao: String,
+    pub moeda_codigo: String,
+    pub valor_original_minor: i64,
+    pub taxa_cambio_escala6: i64,
+    pub valor_original_principal_minor: i64,
+    pub data_emissao: String,
+    pub data_vencimento: String,
+    pub status: String,
+    pub saldo_pendente_minor: i64,
+    pub criado_em: String,
+    pub atualizado_em: String,
+    pub usuario_id: String,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ContaReceberResp {
+    pub id: String,
+    pub cliente_id: Option<String>,
+    pub cliente_nome_snapshot: Option<String>,
+    pub venda_id: Option<String>,
+    pub descricao: String,
+    pub moeda_codigo: String,
+    pub valor_original_minor: i64,
+    pub taxa_cambio_escala6: i64,
+    pub valor_original_principal_minor: i64,
+    pub data_emissao: String,
+    pub data_vencimento: String,
+    pub status: String,
+    pub saldo_pendente_minor: i64,
+    pub criado_em: String,
+    pub atualizado_em: String,
+    pub usuario_id: String,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FinanceiroLancamentoResp {
+    pub id: String,
+    pub conta_pagar_id: Option<String>,
+    pub conta_receber_id: Option<String>,
+    pub sessao_caixa_id: Option<String>,
+    pub tipo_lancamento: String,
+    pub forma_pagamento: String,
+    pub moeda_codigo: String,
+    pub valor_informado_minor: i64,
+    pub taxa_cambio_escala6: i64,
+    pub valor_principal_minor: i64,
+    pub data_pagamento: String,
+    pub usuario_id: String,
+    pub observacao: Option<String>,
+    pub criado_em: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegistrarDespesaReq {
+    pub fornecedor_id: Option<String>,
+    pub descricao: String,
+    pub moeda_codigo: String,
+    pub valor_original_minor: i64,
+    pub taxa_cambio_escala6: i64,
+    pub data_emissao: String,
+    pub data_vencimento: String,
+    pub usuario_id: String,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BaixarContaPagarReq {
+    pub conta_pagar_id: String,
+    pub sessao_caixa_id: String,
+    pub forma_pagamento: String,
+    pub moeda_codigo: String,
+    pub valor_informado_minor: i64,
+    pub taxa_cambio_escala6: i64,
+    pub usuario_id: String,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarContaPagarReq {
+    pub conta_pagar_id: String,
+    pub motivo: String,
+    pub usuario_id: String,
+}
+
+
 

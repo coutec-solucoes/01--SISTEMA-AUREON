@@ -728,6 +728,94 @@ namespace AureonPdvUi.Services
         string motivo,
         string usuario_id
     );
+
+    // --- FASE 13: FINANCEIRO BASE ---
+
+    public record ContaPagarResp(
+        string Id,
+        string? FornecedorId,
+        string? FornecedorNomeSnapshot,
+        string? CompraId,
+        string Descricao,
+        string MoedaCodigo,
+        long ValorOriginalMinor,
+        long TaxaCambioEscala6,
+        long ValorOriginalPrincipalMinor,
+        string DataEmissao,
+        string DataVencimento,
+        string Status,
+        long SaldoPendenteMinor,
+        string CriadoEm,
+        string AtualizadoEm,
+        string UsuarioId,
+        string? Observacao
+    );
+
+    public record ContaReceberResp(
+        string Id,
+        string? ClienteId,
+        string? ClienteNomeSnapshot,
+        string? VendaId,
+        string Descricao,
+        string MoedaCodigo,
+        long ValorOriginalMinor,
+        long TaxaCambioEscala6,
+        long ValorOriginalPrincipalMinor,
+        string DataEmissao,
+        string DataVencimento,
+        string Status,
+        long SaldoPendenteMinor,
+        string CriadoEm,
+        string AtualizadoEm,
+        string UsuarioId,
+        string? Observacao
+    );
+
+    public record FinanceiroLancamentoResp(
+        string Id,
+        string? ContaPagarId,
+        string? ContaReceberId,
+        string? SessaoCaixaId,
+        string TipoLancamento,
+        string FormaPagamento,
+        string MoedaCodigo,
+        long ValorInformadoMinor,
+        long TaxaCambioEscala6,
+        long ValorPrincipalMinor,
+        string DataPagamento,
+        string UsuarioId,
+        string? Observacao,
+        string CriadoEm
+    );
+
+    public record RegistrarDespesaReq(
+        string? fornecedor_id,
+        string descricao,
+        string moeda_codigo,
+        long valor_original_minor,
+        long taxa_cambio_escala6,
+        string data_emissao,
+        string data_vencimento,
+        string usuario_id,
+        string? observacao
+    );
+
+    public record BaixarContaPagarReq(
+        string conta_pagar_id,
+        string sessao_caixa_id,
+        string forma_pagamento,
+        string moeda_codigo,
+        long valor_informado_minor,
+        long taxa_cambio_escala6,
+        string usuario_id,
+        string? observacao
+    );
+
+    public record CancelarContaPagarReq(
+        string conta_pagar_id,
+        string motivo,
+        string usuario_id
+    );
 }
 
 
