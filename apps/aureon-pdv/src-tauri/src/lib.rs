@@ -5,6 +5,7 @@ pub mod commands_venda;
 pub mod commands_pagamento;
 pub mod commands_operacional;
 pub mod commands_gourmet;
+pub mod commands_delivery;
 pub mod estado;
 
 use aureon_shared::logging::inicializar_logs;
@@ -104,6 +105,17 @@ pub fn run() {
             // Commands de Fechamento em Venda (Fase 9 Bloco 3)
             commands_gourmet::fechar_mesa_em_venda,
             commands_gourmet::fechar_comanda_em_venda,
+            // Commands de Delivery (Fase 10)
+            commands_delivery::listar_pedidos_delivery,
+            commands_delivery::obter_pedido_delivery,
+            commands_delivery::listar_entregadores_delivery,
+            commands_delivery::criar_pedido_local,
+            commands_delivery::aceitar_pedido_online,
+            commands_delivery::recusar_pedido_online,
+            commands_delivery::atualizar_status_delivery,
+            commands_delivery::definir_entregador,
+            commands_delivery::adicionar_item_delivery,
+            commands_delivery::cancelar_item_delivery,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -664,3 +664,107 @@ pub struct FechamentoEmVendaResp {
     pub total_itens: i64,
     pub status_venda: String,
 }
+
+// --- FASE 10: DELIVERY ---
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EntregadorResp {
+    pub id: String,
+    pub nome: String,
+    pub documento: Option<String>,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DeliveryItemResp {
+    pub id: String,
+    pub delivery_id: String,
+    pub produto_id: String,
+    pub descricao_produto: String,
+    pub codigo_produto: Option<String>,
+    pub quantidade_escala3: i64,
+    pub preco_unitario_minor: i64,
+    pub desconto_item_minor: i64,
+    pub acrescimo_item_minor: i64,
+    pub total_item_minor: i64,
+    pub observacao_producao: Option<String>,
+    pub local_producao_id: Option<String>,
+    pub status: String,
+    pub enviado_producao: bool,
+    pub cancelado: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DeliveryOperacionalResp {
+    pub id: String,
+    pub numero_pedido: i64,
+    pub cliente_id: Option<String>,
+    pub nome_cliente_informal: String,
+    pub telefone: String,
+    pub endereco_completo: Option<String>,
+    pub tipo_pedido: String,
+    pub status: String,
+    pub origem: String,
+    pub entregador_id: Option<String>,
+    pub taxa_entrega_minor: i64,
+    pub total_consumo_minor: i64,
+    pub sessao_caixa_id: Option<String>,
+    pub observacao: Option<String>,
+    pub previsao_entrega: Option<String>,
+    pub aberto_em: String,
+    pub fechado_em: Option<String>,
+    pub itens: Vec<DeliveryItemResp>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CriarPedidoLocalReq {
+    pub nome_cliente_informal: String,
+    pub telefone: String,
+    pub endereco_completo: Option<String>,
+    pub tipo_pedido: String,
+    pub taxa_entrega_minor: i64,
+    pub observacao: Option<String>,
+    pub sessao_caixa_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RecusarPedidoOnlineReq {
+    pub delivery_id: String,
+    pub motivo: String,
+    pub sessao_caixa_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AtualizarStatusDeliveryReq {
+    pub delivery_id: String,
+    pub novo_status: String,
+    pub sessao_caixa_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DefinirEntregadorReq {
+    pub delivery_id: String,
+    pub entregador_id: String,
+    pub sessao_caixa_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AdicionarItemDeliveryReq {
+    pub delivery_id: String,
+    pub produto_id: String,
+    pub quantidade_escala3: i64,
+    pub acrescimo_item_minor: i64,
+    pub desconto_item_minor: i64,
+    pub observacao_producao: Option<String>,
+    pub usuario_id: String,
+    pub sessao_caixa_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarItemDeliveryReq {
+    pub item_id: String,
+    pub motivo_cancelamento: String,
+    pub usuario_cancelamento_id: String,
+    pub supervisor_id: Option<String>,
+    pub sessao_caixa_id: String,
+}
