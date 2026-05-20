@@ -9,6 +9,7 @@ pub mod commands_delivery;
 pub mod commands_estoque;
 pub mod commands_compras;
 pub mod commands_financeiro;
+pub mod commands_relatorios;
 pub mod estado;
 
 use aureon_shared::logging::inicializar_logs;
@@ -146,6 +147,15 @@ pub fn run() {
             commands_financeiro::obter_conta_receber,
             commands_financeiro::baixar_conta_receber,
             commands_financeiro::cancelar_conta_receber,
+            // Commands de Relatórios (Fase 14)
+            commands_relatorios::obter_indicadores_dashboard,
+            commands_relatorios::gerar_relatorio_vendas,
+            commands_relatorios::gerar_relatorio_caixa,
+            commands_relatorios::gerar_relatorio_financeiro,
+            commands_relatorios::gerar_relatorio_estoque_kardex,
+            commands_relatorios::gerar_relatorio_compras,
+            commands_relatorios::gerar_relatorio_produtos_mais_vendidos,
+            commands_relatorios::gerar_relatorio_gourmet_delivery,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

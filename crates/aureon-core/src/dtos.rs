@@ -1027,6 +1027,179 @@ pub struct CancelarContaReceberReq {
     pub usuario_id: String,
 }
 
+// --- DTOs da Fase 14: Relatórios Operacionais e Dashboard ---
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FiltrosRelatorio {
+    pub data_inicio: Option<String>,
+    pub data_fim: Option<String>,
+    pub usuario_id: Option<String>,
+    pub sessao_caixa_id: Option<String>,
+    pub moeda_codigo: Option<String>,
+    pub forma_pagamento: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TotalPorMoeda {
+    pub moeda_codigo: String,
+    pub valor_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IndicadoresDashboardResp {
+    pub faturamento_por_moeda: Vec<TotalPorMoeda>,
+    pub despesas_por_moeda: Vec<TotalPorMoeda>,
+    pub total_vendas_quantidade: i64,
+    pub total_vendas_itens_quantidade_escala3: i64,
+    pub produtos_estoque_critico: i64,
+    pub contas_pagar_vencidas_por_moeda: Vec<TotalPorMoeda>,
+    pub contas_pagar_a_vencer_por_moeda: Vec<TotalPorMoeda>,
+    pub contas_receber_vencidas_por_moeda: Vec<TotalPorMoeda>,
+    pub contas_receber_a_vencer_por_moeda: Vec<TotalPorMoeda>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RelatorioVendasItem {
+    pub id: String,
+    pub numero_venda: Option<String>,
+    pub data_venda: String,
+    pub total_bruto_minor: i64,
+    pub desconto_total_minor: i64,
+    pub acrescimo_total_minor: i64,
+    pub total_liquido_minor: i64,
+    pub status: String,
+    pub cliente_nome: Option<String>,
+    pub usuario_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VendasPorFormaPagamento {
+    pub forma_pagamento: String,
+    pub moeda_codigo: String,
+    pub total_minor: i64,
+    pub quantidade: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RelatorioVendasResp {
+    pub vendas: Vec<RelatorioVendasItem>,
+    pub totais_por_moeda: Vec<TotalPorMoeda>,
+    pub vendas_por_forma: Vec<VendasPorFormaPagamento>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RelatorioCaixaItem {
+    pub id: String,
+    pub operador_id: String,
+    pub terminal_id: String,
+    pub status: String,
+    pub aberto_em: String,
+    pub fechado_em: Option<String>,
+    pub moeda_codigo: String,
+    pub valor_abertura_minor: i64,
+    pub valor_fechamento_esperado_minor: i64,
+    pub valor_fechamento_informado_minor: i64,
+    pub diferenca_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RelatorioCaixaResp {
+    pub sessoes: Vec<RelatorioCaixaItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RelatorioFinanceiroResp {
+    pub contas_pagar: Vec<ContaPagarResp>,
+    pub contas_receber: Vec<ContaReceberResp>,
+    pub lancamentos: Vec<FinanceiroLancamentoResp>,
+    pub total_pagar_pendente: Vec<TotalPorMoeda>,
+    pub total_receber_pendente: Vec<TotalPorMoeda>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EstoqueKardexItem {
+    pub id: String,
+    pub produto_id: String,
+    pub produto_nome: String,
+    pub produto_sku: String,
+    pub tipo_movimentacao: String,
+    pub quantidade_escala3: i64,
+    pub data_movimentacao: String,
+    pub origem_id: Option<String>,
+    pub usuario_id: String,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PosicaoEstoqueItem {
+    pub produto_id: String,
+    pub produto_nome: String,
+    pub produto_sku: String,
+    pub controla_estoque: bool,
+    pub quantidade_escala3: i64,
+    pub estoque_minimo_escala3: i64,
+    pub ultimo_custo_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RelatorioEstoqueResp {
+    pub itens_kardex: Vec<EstoqueKardexItem>,
+    pub posicao_estoque: Vec<PosicaoEstoqueItem>,
+    pub custo_total_estimado_brl: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CompraRelatorioItem {
+    pub id: String,
+    pub fornecedor_nome: String,
+    pub data_compra: String,
+    pub status: String,
+    pub moeda_codigo: String,
+    pub total_original_minor: i64,
+    pub total_principal_brl_minor: i64,
+    pub total_itens_escala3: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CompraFornecedorTotal {
+    pub fornecedor_nome: String,
+    pub total_principal_brl_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RelatorioComprasResp {
+    pub compras: Vec<CompraRelatorioItem>,
+    pub total_por_fornecedor: Vec<CompraFornecedorTotal>,
+    pub total_por_moeda: Vec<TotalPorMoeda>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProdutoMaisVendidoResp {
+    pub produto_id: String,
+    pub produto_nome: String,
+    pub produto_sku: String,
+    pub quantidade_vendida_escala3: i64,
+    pub faturamento_bruto_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DeliveryStatusContagem {
+    pub status: String,
+    pub quantidade: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RelatorioGourmetDeliveryResp {
+    pub total_pedidos_delivery: i64,
+    pub delivery_por_status: Vec<DeliveryStatusContagem>,
+    pub faturamento_delivery_moeda: Vec<TotalPorMoeda>,
+    pub taxa_entrega_total_minor: i64,
+    pub total_atendimentos_gourmet: i64,
+    pub faturamento_gourmet_moeda: Vec<TotalPorMoeda>,
+    pub ticket_medio_gourmet_brl_minor: i64,
+}
+
+
 
 
 

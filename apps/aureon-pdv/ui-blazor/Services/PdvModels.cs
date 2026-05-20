@@ -833,6 +833,160 @@ namespace AureonPdvUi.Services
         string motivo,
         string usuario_id
     );
+
+    // === DTOs da Fase 14 (Relatórios e Dashboard) ===
+
+    public record TotalPorMoeda(
+        string MoedaCodigo,
+        long ValorMinor
+    );
+
+    public record FiltrosRelatorio(
+        string? data_inicio,
+        string? data_fim,
+        string? usuario_id,
+        string? sessao_caixa_id,
+        string? moeda_codigo,
+        string? forma_pagamento
+    );
+
+    public record IndicadoresDashboardResp(
+        List<TotalPorMoeda> FaturamentoPorMoeda,
+        List<TotalPorMoeda> DespesasPorMoeda,
+        long TotalVendasQuantidade,
+        long TotalVendasItensQuantidadeEscala3,
+        long ProdutosEstoqueCritico,
+        List<TotalPorMoeda> ContasPagarVencidasPorMoeda,
+        List<TotalPorMoeda> ContasPagarAVencerPorMoeda,
+        List<TotalPorMoeda> ContasReceberVencidasPorMoeda,
+        List<TotalPorMoeda> ContasReceberAVencerPorMoeda
+    );
+
+    public record RelatorioVendasItem(
+        string Id,
+        long? NumeroVenda,
+        string DataVenda,
+        long TotalBrutoMinor,
+        long DescontoTotalMinor,
+        long AcrescimoTotalMinor,
+        long TotalLiquidoMinor,
+        string Status,
+        string? ClienteNome,
+        string UsuarioId
+    );
+
+    public record VendasPorFormaPagamento(
+        string FormaPagamento,
+        string MoedaCodigo,
+        long TotalMinor,
+        long Quantidade
+    );
+
+    public record RelatorioVendasResp(
+        List<RelatorioVendasItem> Vendas,
+        List<TotalPorMoeda> TotaisPorMoeda,
+        List<VendasPorFormaPagamento> VendasPorForma
+    );
+
+    public record RelatorioCaixaItem(
+        string Id,
+        string OperadorId,
+        string TerminalId,
+        string Status,
+        string AbertoEm,
+        string? FechadoEm,
+        string MoedaCodigo,
+        long ValorAberturaMinor,
+        long ValorFechamentoEsperadoMinor,
+        long ValorFechamentoInformadoMinor,
+        long DiferencaMinor
+    );
+
+    public record RelatorioCaixaResp(
+        List<RelatorioCaixaItem> Sessoes
+    );
+
+    public record RelatorioFinanceiroResp(
+        List<ContaPagarResp> ContasPagar,
+        List<ContaReceberResp> ContasReceber,
+        List<FinanceiroLancamentoResp> Lancamentos,
+        List<TotalPorMoeda> TotalPagarPendente,
+        List<TotalPorMoeda> TotalReceberPendente
+    );
+
+    public record PosicaoEstoqueItem(
+        string ProdutoId,
+        string ProdutoNome,
+        string ProdutoSku,
+        bool ControlaEstoque,
+        long QuantidadeEscala3,
+        long EstoqueMinimoEscala3,
+        long UltimoCustoMinor
+    );
+
+    public record EstoqueKardexItem(
+        string Id,
+        string ProdutoId,
+        string ProdutoNome,
+        string ProdutoSku,
+        string TipoMovimentacao,
+        long QuantidadeEscala3,
+        string DataMovimentacao,
+        string? OrigemId,
+        string UsuarioId,
+        string? Observacao
+    );
+
+    public record RelatorioEstoqueResp(
+        List<PosicaoEstoqueItem> PosicaoEstoque,
+        List<EstoqueKardexItem> ItensKardex,
+        long CustoTotalEstimadoBrl
+    );
+
+    public record CompraRelatorioItem(
+        string Id,
+        string FornecedorNome,
+        string DataCompra,
+        string Status,
+        string MoedaCodigo,
+        long TotalOriginalMinor,
+        long TotalPrincipalBrlMinor,
+        long TotalItensEscala3
+    );
+
+    public record CompraFornecedorTotal(
+        string FornecedorNome,
+        long TotalPrincipalBrlMinor
+    );
+
+    public record RelatorioComprasResp(
+        List<CompraRelatorioItem> Compras,
+        List<CompraFornecedorTotal> TotalPorFornecedor,
+        List<TotalPorMoeda> TotalPorMoeda
+    );
+
+    public record ProdutoMaisVendidoResp(
+        string ProdutoId,
+        string ProdutoNome,
+        string ProdutoSku,
+        long QuantidadeVendidaEscala3,
+        long FaturamentoBrutoMinor
+    );
+
+    public record DeliveryStatusContagem(
+        string Status,
+        long Quantidade
+    );
+
+    public record RelatorioGourmetDeliveryResp(
+        long TotalPedidosDelivery,
+        List<DeliveryStatusContagem> DeliveryPorStatus,
+        List<TotalPorMoeda> FaturamentoDeliveryMoeda,
+        long TaxaEntregaTotalMinor,
+        long TotalAtendimentosGourmet,
+        List<TotalPorMoeda> FaturamentoGourmetMoeda,
+        long TicketMedioGourmetBrlMinor
+    );
 }
 
 

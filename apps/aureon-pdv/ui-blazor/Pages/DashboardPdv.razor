@@ -1,0 +1,555 @@
+@page "/dashboard"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+
+<div class="container-fluid py-4 fade-in">
+    <!-- Cabeçalho -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <h2 class="text-white m-0 font-outfit fw-bold tracking-tight">Dashboard Executivo</h2>
+            <p class="text-muted small m-0">Visão geral do faturamento, despesas, estoque e alertas financeiros</p>
+        </div>
+        
+        <!-- Filtro de Período -->
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm @(periodoSelecionado == "hoje" ? "btn-purple" : "btn-outline-dark-custom")" @onclick='() => MudarPeriodo("hoje")'>Hoje</button>
+                <button type="button" class="btn btn-sm @(periodoSelecionado == "7dias" ? "btn-purple" : "btn-outline-dark-custom")" @onclick='() => MudarPeriodo("7dias")'>7 Dias</button>
+                <button type="button" class="btn btn-sm @(periodoSelecionado == "mes" ? "btn-purple" : "btn-outline-dark-custom")" @onclick='() => MudarPeriodo("mes")'>Mês Atual</button>
+                <button type="button" class="btn btn-sm @(periodoSelecionado == "30dias" ? "btn-purple" : "btn-outline-dark-custom")" @onclick='() => MudarPeriodo("30dias")'>30 Dias</button>
+                <button type="button" class="btn btn-sm @(periodoSelecionado == "custom" ? "btn-purple" : "btn-outline-dark-custom")" @onclick='() => MudarPeriodo("custom")'>Personalizado</button>
+            </div>
+
+            @if (periodoSelecionado == "custom")
+            {
+                <div class="d-flex align-items-center gap-2 ms-2">
+                    <input type="date" class="form-control form-control-sm input-dark" @bind="dataInicioInput" />
+                    <span class="text-muted small">até</span>
+                    <input type="date" class="form-control form-control-sm input-dark" @bind="dataFimInput" />
+                    <button class="btn btn-sm btn-purple" @onclick="AplicarFiltroPersonalizado">Filtrar</button>
+                </div>
+            }
+
+            <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="AtualizarDados" disabled="@carregando">
+                <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Erro -->
+    @if (erro != null)
+    {
+        <div class="alert alert-danger mb-4">@erro</div>
+    }
+
+    @if (carregando)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-purple" role="status"></div>
+            <p class="text-muted mt-3">Calculando indicadores locais...</p>
+        </div>
+    }
+    else if (indicadores != null)
+    {
+        <!-- Linha 1: Faturamento e Despesas por Moeda -->
+        <div class="row g-4 mb-4">
+            <!-- Faturamento por Moeda -->
+            <div class="col-lg-6">
+                <div class="card h-100 bg-card-dark border-card shadow-glass">
+                    <div class="card-header bg-transparent border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                        <h5 class="text-white m-0 font-outfit fw-semibold"><i class="bi bi-graph-up-arrow text-success me-2"></i>Faturamento por Moeda</h5>
+                        <span class="badge bg-success-light text-success font-monospace">Vendas Finalizadas</span>
+                    </div>
+                    <div class="card-body py-4">
+                        @if (indicadores.FaturamentoPorMoeda == null || !indicadores.FaturamentoPorMoeda.Any())
+                        {
+                            <div class="text-center py-4">
+                                <p class="text-muted m-0">Nenhum faturamento registrado no período.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-3">
+                                @foreach (var fat in indicadores.FaturamentoPorMoeda)
+                                {
+                                    <div class="d-flex justify-content-between align-items-center p-3 rounded bg-item-dark border border-light-subtle">
+                                        <div class="d-flex align-items-center">
+                                            <span class="currency-badge me-3 bg-success">@fat.MoedaCodigo</span>
+                                            <div>
+                                                <div class="text-muted small">Total Vendas (@fat.MoedaCodigo)</div>
+                                                <div class="text-white fw-bold fs-4 mt-1">@FormatarValor(fat.ValorMinor, fat.MoedaCodigo)</div>
+                                            </div>
+                                        </div>
+                                        <div class="text-success-glow"><i class="bi bi-caret-up-fill"></i> Entrada</div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Despesas por Moeda -->
+            <div class="col-lg-6">
+                <div class="card h-100 bg-card-dark border-card shadow-glass">
+                    <div class="card-header bg-transparent border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                        <h5 class="text-white m-0 font-outfit fw-semibold"><i class="bi bi-graph-down-arrow text-danger me-2"></i>Despesas Pagas por Moeda</h5>
+                        <span class="badge bg-danger-light text-danger font-monospace">Livro Caixa</span>
+                    </div>
+                    <div class="card-body py-4">
+                        @if (indicadores.DespesasPorMoeda == null || !indicadores.DespesasPorMoeda.Any())
+                        {
+                            <div class="text-center py-4">
+                                <p class="text-muted m-0">Nenhuma despesa paga no período.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-3">
+                                @foreach (var desp in indicadores.DespesasPorMoeda)
+                                {
+                                    <div class="d-flex justify-content-between align-items-center p-3 rounded bg-item-dark border border-light-subtle">
+                                        <div class="d-flex align-items-center">
+                                            <span class="currency-badge me-3 bg-danger">@desp.MoedaCodigo</span>
+                                            <div>
+                                                <div class="text-muted small">Total Pago (@desp.MoedaCodigo)</div>
+                                                <div class="text-white fw-bold fs-4 mt-1">@FormatarValor(desp.ValorMinor, desp.MoedaCodigo)</div>
+                                            </div>
+                                        </div>
+                                        <div class="text-danger-glow"><i class="bi bi-caret-down-fill"></i> Saída</div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Linha 2: Resumo Operacional Rápido -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-4">
+                <div class="card bg-card-dark border-card shadow-glass hover-lift h-100">
+                    <div class="card-body d-flex align-items-center justify-content-between p-4">
+                        <div>
+                            <div class="text-muted small uppercase">Vendas Realizadas</div>
+                            <h3 class="text-white fw-bold m-0 mt-2 font-outfit">@indicadores.TotalVendasQuantidade</h3>
+                            <div class="text-muted small mt-1">Transações finalizadas</div>
+                        </div>
+                        <div class="icon-box-large bg-info-light text-info rounded-circle">
+                            <i class="bi bi-receipt fs-3"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card bg-card-dark border-card shadow-glass hover-lift h-100">
+                    <div class="card-body d-flex align-items-center justify-content-between p-4">
+                        <div>
+                            <div class="text-muted small uppercase">Itens Vendidos</div>
+                            <h3 class="text-white fw-bold m-0 mt-2 font-outfit">@FormatarQuantidade(indicadores.TotalVendasItensQuantidadeEscala3)</h3>
+                            <div class="text-muted small mt-1">Soma de quantidades no período</div>
+                        </div>
+                        <div class="icon-box-large bg-purple-light text-purple rounded-circle">
+                            <i class="bi bi-box-seam fs-3"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card bg-card-dark border-card shadow-glass hover-lift h-100 @(indicadores.ProdutosEstoqueCritico > 0 ? "border-critical" : "")">
+                    <div class="card-body d-flex align-items-center justify-content-between p-4">
+                        <div>
+                            <div class="text-muted small uppercase">Estoque Crítico</div>
+                            <h3 class="@(indicadores.ProdutosEstoqueCritico > 0 ? "text-danger-critical" : "text-white") fw-bold m-0 mt-2 font-outfit">
+                                @indicadores.ProdutosEstoqueCritico
+                            </h3>
+                            <div class="text-muted small mt-1">Produtos ativos com saldo &lt;= 0</div>
+                        </div>
+                        <div class="icon-box-large @(indicadores.ProdutosEstoqueCritico > 0 ? "bg-danger-light text-danger animated-pulse" : "bg-success-light text-success") rounded-circle">
+                            <i class="bi bi-exclamation-triangle fs-3"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Linha 3: Contas a Pagar e Contas a Receber -->
+        <h4 class="text-white mb-3 mt-4 font-outfit fw-semibold"><i class="bi bi-clock-history me-2 text-purple"></i>Alertas de Contas a Receber e Contas a Pagar</h4>
+        <div class="row g-4">
+            <!-- Contas a Pagar (Saídas Futuras) -->
+            <div class="col-lg-6">
+                <div class="card h-100 bg-card-dark border-card shadow-glass">
+                    <div class="card-header bg-transparent border-0 pt-3 pb-0">
+                        <h5 class="text-white m-0 font-outfit fw-semibold"><i class="bi bi-dash-circle text-danger me-2"></i>Compromissos Financeiros (Pagar)</h5>
+                    </div>
+                    <div class="card-body py-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="p-3 rounded bg-subcard border-left-danger">
+                                    <div class="text-danger small fw-semibold"><i class="bi bi-x-octagon me-1"></i>VENCIDO</div>
+                                    @if (indicadores.ContasPagarVencidasPorMoeda == null || !indicadores.ContasPagarVencidasPorMoeda.Any())
+                                    {
+                                        <div class="text-white fw-bold fs-5 mt-2">Sem pendências</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-column gap-2 mt-2">
+                                            @foreach (var v in indicadores.ContasPagarVencidasPorMoeda)
+                                            {
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span class="text-white font-monospace">@v.MoedaCodigo</span>
+                                                    <span class="text-danger fw-bold">@FormatarValor(v.ValorMinor, v.MoedaCodigo)</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 rounded bg-subcard border-left-warning">
+                                    <div class="text-warning small fw-semibold"><i class="bi bi-clock me-1"></i>A VENCER</div>
+                                    @if (indicadores.ContasPagarAVencerPorMoeda == null || !indicadores.ContasPagarAVencerPorMoeda.Any())
+                                    {
+                                        <div class="text-white fw-bold fs-5 mt-2">Sem pendências</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-column gap-2 mt-2">
+                                            @foreach (var v in indicadores.ContasPagarAVencerPorMoeda)
+                                            {
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span class="text-white font-monospace">@v.MoedaCodigo</span>
+                                                    <span class="text-warning fw-bold">@FormatarValor(v.ValorMinor, v.MoedaCodigo)</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contas a Receber (Entradas Futuras) -->
+            <div class="col-lg-6">
+                <div class="card h-100 bg-card-dark border-card shadow-glass">
+                    <div class="card-header bg-transparent border-0 pt-3 pb-0">
+                        <h5 class="text-white m-0 font-outfit fw-semibold"><i class="bi bi-plus-circle text-success me-2"></i>Projeções de Recebíveis (Receber)</h5>
+                    </div>
+                    <div class="card-body py-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="p-3 rounded bg-subcard border-left-danger">
+                                    <div class="text-danger small fw-semibold"><i class="bi bi-x-octagon me-1"></i>VENCIDO (Crediário)</div>
+                                    @if (indicadores.ContasReceberVencidasPorMoeda == null || !indicadores.ContasReceberVencidasPorMoeda.Any())
+                                    {
+                                        <div class="text-white fw-bold fs-5 mt-2">Sem pendências</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-column gap-2 mt-2">
+                                            @foreach (var v in indicadores.ContasReceberVencidasPorMoeda)
+                                            {
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span class="text-white font-monospace">@v.MoedaCodigo</span>
+                                                    <span class="text-danger fw-bold">@FormatarValor(v.ValorMinor, v.MoedaCodigo)</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 rounded bg-subcard border-left-success">
+                                    <div class="text-success small fw-semibold"><i class="bi bi-calendar-event me-1"></i>A VENCER</div>
+                                    @if (indicadores.ContasReceberAVencerPorMoeda == null || !indicadores.ContasReceberAVencerPorMoeda.Any())
+                                    {
+                                        <div class="text-white fw-bold fs-5 mt-2">Sem pendências</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-column gap-2 mt-2">
+                                            @foreach (var v in indicadores.ContasReceberAVencerPorMoeda)
+                                            {
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span class="text-white font-monospace">@v.MoedaCodigo</span>
+                                                    <span class="text-success fw-bold">@FormatarValor(v.ValorMinor, v.MoedaCodigo)</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .font-outfit {
+        font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+    }
+    .tracking-tight {
+        letter-spacing: -0.025em;
+    }
+    .uppercase {
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .bg-card-dark {
+        background-color: #161922 !important;
+    }
+    .border-card {
+        border: 1px solid #232736 !important;
+    }
+    .shadow-glass {
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    }
+    .bg-item-dark {
+        background-color: #0f121a;
+    }
+    .border-light-subtle {
+        border-color: rgba(255, 255, 255, 0.04) !important;
+    }
+    .currency-badge {
+        width: 38px;
+        height: 38px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: white;
+        font-size: 13px;
+    }
+    .text-success-glow {
+        color: #4caf50;
+        text-shadow: 0 0 10px rgba(76, 175, 80, 0.2);
+        font-weight: 600;
+        font-size: 13px;
+    }
+    .text-danger-glow {
+        color: #ff5252;
+        text-shadow: 0 0 10px rgba(255, 82, 82, 0.2);
+        font-weight: 600;
+        font-size: 13px;
+    }
+    .btn-outline-dark-custom {
+        background-color: #0d0f15;
+        border: 1px solid #232736;
+        color: #a2a5b9;
+    }
+    .btn-outline-dark-custom:hover {
+        background-color: #1e2230;
+        color: white;
+    }
+    .btn-purple {
+        background-color: #7b1fa2;
+        color: white;
+        border: 1px solid #7b1fa2;
+    }
+    .btn-purple:hover {
+        background-color: #9c27b0;
+        color: white;
+    }
+    .input-dark {
+        background-color: #0d0f15;
+        border: 1px solid #232736;
+        color: white;
+    }
+    .input-dark:focus {
+        background-color: #0f121a;
+        border-color: #7b1fa2;
+        color: white;
+        box-shadow: none;
+    }
+    .icon-box-large {
+        width: 56px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .bg-info-light { background-color: rgba(0, 188, 212, 0.1); }
+    .bg-purple-light { background-color: rgba(123, 31, 162, 0.1); }
+    .bg-success-light { background-color: rgba(76, 175, 80, 0.1); }
+    .bg-danger-light { background-color: rgba(255, 82, 82, 0.1); }
+    .bg-warning-light { background-color: rgba(255, 193, 7, 0.1); }
+    
+    .hover-lift {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .hover-lift:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+    }
+    .border-critical {
+        border: 1px solid rgba(255, 82, 82, 0.4) !important;
+        box-shadow: 0 0 15px rgba(255, 82, 82, 0.15) !important;
+    }
+    .text-danger-critical {
+        color: #ff5252;
+        text-shadow: 0 0 8px rgba(255, 82, 82, 0.3);
+    }
+    .animated-pulse {
+        animation: pulse-glow 2s infinite alternate;
+    }
+    @@keyframes pulse-glow {
+        from {
+            box-shadow: 0 0 5px rgba(255, 82, 82, 0.2);
+            transform: scale(1);
+        }
+        to {
+            box-shadow: 0 0 15px rgba(255, 82, 82, 0.5);
+            transform: scale(1.05);
+        }
+    }
+    .bg-subcard {
+        background-color: #0f121a;
+        border: 1px solid rgba(255, 255, 255, 0.02);
+    }
+    .border-left-danger {
+        border-left: 4px solid #ff5252 !important;
+    }
+    .border-left-warning {
+        border-left: 4px solid #ffc107 !important;
+    }
+    .border-left-success {
+        border-left: 4px solid #4caf50 !important;
+    }
+</style>
+
+@code {
+    private IndicadoresDashboardResp? indicadores;
+    private bool carregando = true;
+    private string? erro;
+    private string periodoSelecionado = "30dias";
+
+    // Intervalo de datas a enviar ao Rust
+    private string? dataInicioEnviada;
+    private string? dataFimEnviada;
+
+    // Vinculação de inputs para o modo personalizado
+    private DateTime dataInicioInput = DateTime.Today.AddDays(-30);
+    private DateTime dataFimInput = DateTime.Today;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CalcularDatasPeriodo();
+        await CarregarIndicadores();
+    }
+
+    private void CalcularDatasPeriodo()
+    {
+        DateTime inicio, fim;
+        switch (periodoSelecionado)
+        {
+            case "hoje":
+                inicio = DateTime.Today;
+                fim = DateTime.Today.AddHours(23).AddMinutes(59).AddSeconds(59);
+                break;
+            case "7dias":
+                inicio = DateTime.Today.AddDays(-7);
+                fim = DateTime.Today.AddHours(23).AddMinutes(59).AddSeconds(59);
+                break;
+            case "mes":
+                inicio = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+                fim = DateTime.Today.AddHours(23).AddMinutes(59).AddSeconds(59);
+                break;
+            case "30dias":
+            default:
+                inicio = DateTime.Today.AddDays(-30);
+                fim = DateTime.Today.AddHours(23).AddMinutes(59).AddSeconds(59);
+                break;
+        }
+
+        dataInicioEnviada = inicio.ToString("yyyy-MM-dd HH:mm:ss");
+        dataFimEnviada = fim.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    private async Task CarregarIndicadores()
+    {
+        carregando = true;
+        erro = null;
+        try
+        {
+            var resp = await Tauri.InvocarAsync<RespostaBase<IndicadoresDashboardResp>>(
+                "obter_indicadores_dashboard",
+                new { dataInicio = dataInicioEnviada, dataFim = dataFimEnviada }
+            );
+
+            if (resp != null && resp.Sucesso && resp.Dados != null)
+            {
+                indicadores = resp.Dados;
+            }
+            else
+            {
+                erro = resp?.Mensagem ?? "Falha ao obter indicadores do dashboard.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro de comunicação: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private async Task MudarPeriodo(string novoPeriodo)
+    {
+        periodoSelecionado = novoPeriodo;
+        if (novoPeriodo != "custom")
+        {
+            CalcularDatasPeriodo();
+            await CarregarIndicadores();
+        }
+    }
+
+    private async Task AplicarFiltroPersonalizado()
+    {
+        dataInicioEnviada = dataInicioInput.ToString("yyyy-MM-dd 00:00:00");
+        dataFimEnviada = dataFimInput.ToString("yyyy-MM-dd 23:59:59");
+        await CarregarIndicadores();
+    }
+
+    private async Task AtualizarDados()
+    {
+        if (periodoSelecionado == "custom")
+        {
+            await AplicarFiltroPersonalizado();
+        }
+        else
+        {
+            CalcularDatasPeriodo();
+            await CarregarIndicadores();
+        }
+    }
+
+    private string FormatarValor(long minor, string moeda)
+    {
+        decimal valor = minor / 100m;
+        if (moeda == "BRL")
+            return valor.ToString("C2", new CultureInfo("pt-BR"));
+        if (moeda == "USD")
+            return $"$ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        if (moeda == "EUR")
+            return $"€ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        return $"{moeda} {valor.ToString("N2")}";
+    }
+
+    private string FormatarQuantidade(long escala3)
+    {
+        decimal qtd = escala3 / 1000m;
+        return qtd.ToString("N3", new CultureInfo("pt-BR"));
+    }
+}

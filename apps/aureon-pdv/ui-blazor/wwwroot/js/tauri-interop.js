@@ -48,3 +48,15 @@ window.aureon.invocar = async function (comando, args) {
 };
 
 console.log('[Aureon] tauri-interop.js carregado. Tauri detectado:', window.aureon.isTauri());
+
+window.aureon.downloadFile = function (fileName, contentType, content) {
+    const file = new Blob([content], { type: contentType });
+    const exportUrl = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = exportUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(exportUrl);
+};

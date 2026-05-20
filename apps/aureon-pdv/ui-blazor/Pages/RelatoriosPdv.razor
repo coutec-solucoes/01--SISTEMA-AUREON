@@ -1,0 +1,1303 @@
+@page "/relatorios"
+@using AureonPdvUi.Services
+@using System.Globalization
+@using System.Text
+@inject TauriService Tauri
+@inject IJSRuntime JS
+
+<div class="container-fluid py-4 fade-in no-print">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white m-0 font-outfit fw-bold tracking-tight">Hub de Relatórios</h2>
+            <p class="text-muted small m-0">Consulte relatórios operacionais locais e realize exportações locais</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-light-custom" @onclick="ExportarCSV" disabled="@(carregando || !PodeExportar())">
+                <i class="bi bi-file-earmark-spreadsheet me-2"></i>Exportar CSV
+            </button>
+            <button class="btn btn-purple" @onclick="ImprimirRelatorio" disabled="@carregando">
+                <i class="bi bi-printer me-2"></i>Imprimir / PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros Superiores -->
+    <div class="card p-3 mb-4 card-filtros">
+        <div class="row g-3 align-items-end">
+            <!-- Atalhos de Período -->
+            <div class="col-xl-3 col-md-6">
+                <label class="text-muted small uppercase mb-2 d-block">Período Rápido</label>
+                <div class="btn-group w-100" role="group">
+                    <button type="button" class="btn btn-sm @(periodoSelecionado == "hoje" ? "btn-purple" : "btn-outline-dark-custom")" @onclick='() => MudarPeriodo("hoje")'>Hoje</button>
+                    <button type="button" class="btn btn-sm @(periodoSelecionado == "7dias" ? "btn-purple" : "btn-outline-dark-custom")" @onclick='() => MudarPeriodo("7dias")'>7 Dias</button>
+                    <button type="button" class="btn btn-sm @(periodoSelecionado == "mes" ? "btn-purple" : "btn-outline-dark-custom")" @onclick='() => MudarPeriodo("mes")'>Mês</button>
+                    <button type="button" class="btn btn-sm @(periodoSelecionado == "30dias" ? "btn-purple" : "btn-outline-dark-custom")" @onclick='() => MudarPeriodo("30dias")'>30 Dias</button>
+                </div>
+            </div>
+
+            <!-- Datas Customizadas -->
+            <div class="col-xl-3 col-md-6">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="text-muted small uppercase mb-1 d-block">Data Início</label>
+                        <input type="date" class="form-control form-control-sm input-dark" @bind="dataInicioInput" @bind:after="FiltroDataAlterado" />
+                    </div>
+                    <div class="col-6">
+                        <label class="text-muted small uppercase mb-1 d-block">Data Fim</label>
+                        <input type="date" class="form-control form-control-sm input-dark" @bind="dataFimInput" @bind:after="FiltroDataAlterado" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros Extras (Operador, Moeda, etc.) -->
+            <div class="col-xl-4 col-md-8">
+                <div class="row g-2">
+                    <div class="col-4">
+                        <label class="text-muted small uppercase mb-1 d-block">Operador (ID)</label>
+                        <input type="text" class="form-control form-control-sm input-dark" placeholder="Todos" @bind="usuarioIdFilter" />
+                    </div>
+                    <div class="col-4">
+                        <label class="text-muted small uppercase mb-1 d-block">Moeda</label>
+                        <select class="form-select form-select-sm input-dark" @bind="moedaCodigoFilter">
+                            <option value="">Todas</option>
+                            <option value="BRL">BRL</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="text-muted small uppercase mb-1 d-block">Pagamento</label>
+                        <select class="form-select form-select-sm input-dark" @bind="formaPagamentoFilter">
+                            <option value="">Todas</option>
+                            <option value="DINHEIRO">Dinheiro</option>
+                            <option value="CREDITO_CLIENTE">Crediário</option>
+                            <option value="CARTAO_DEBITO">Débito</option>
+                            <option value="CARTAO_CREDITO">Crédito</option>
+                            <option value="PIX">Pix</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botão Buscar -->
+            <div class="col-xl-2 col-md-4">
+                <button class="btn btn-purple btn-sm w-100 py-2" @onclick="GerarRelatorioSelecionado" disabled="@carregando">
+                    @if (carregando)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-search me-2"></i>
+                    }
+                    Consultar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Layout Principal: Lateral (Abas) + Conteúdo -->
+    <div class="row">
+        <!-- Menu Lateral -->
+        <div class="col-lg-3 mb-4">
+            <div class="list-group sidebar-list shadow-glass">
+                <button class="list-group-item list-group-item-action @(abaAtiva == "vendas" ? "active" : "")" @onclick='() => MudarAba("vendas")'>
+                    <i class="bi bi-cart3 me-3 text-success"></i>1. Relatório de Vendas
+                </button>
+                <button class="list-group-item list-group-item-action @(abaAtiva == "caixas" ? "active" : "")" @onclick='() => MudarAba("caixas")'>
+                    <i class="bi bi-calculator me-3 text-info"></i>2. Sessões de Caixa
+                </button>
+                <button class="list-group-item list-group-item-action @(abaAtiva == "estoque" ? "active" : "")" @onclick='() => MudarAba("estoque")'>
+                    <i class="bi bi-box-seam me-3 text-warning"></i>3. Estoque & Kardex
+                </button>
+                <button class="list-group-item list-group-item-action @(abaAtiva == "compras" ? "active" : "")" @onclick='() => MudarAba("compras")'>
+                    <i class="bi bi-bag-plus me-3 text-danger"></i>4. Relatório de Compras
+                </button>
+                <button class="list-group-item list-group-item-action @(abaAtiva == "financeiro" ? "active" : "")" @onclick='() => MudarAba("financeiro")'>
+                    <i class="bi bi-currency-dollar me-3 text-purple"></i>5. Financeiro Consolidado
+                </button>
+                <button class="list-group-item list-group-item-action @(abaAtiva == "gourmet" ? "active" : "")" @onclick='() => MudarAba("gourmet")'>
+                    <i class="bi bi-egg-fried me-3 text-pink"></i>6. Gourmet & Delivery
+                </button>
+                <button class="list-group-item list-group-item-action @(abaAtiva == "ranking" ? "active" : "")" @onclick='() => MudarAba("ranking")'>
+                    <i class="bi bi-star me-3 text-yellow"></i>7. Ranking de Venda
+                </button>
+            </div>
+        </div>
+
+        <!-- Conteúdo do Relatório -->
+        <div class="col-lg-9">
+            <!-- Feedback de Erro -->
+            @if (erro != null)
+            {
+                <div class="alert alert-danger">@erro</div>
+            }
+
+            @if (carregando)
+            {
+                <div class="card p-5 text-center bg-card-dark border-card shadow-glass">
+                    <div class="spinner-border text-purple mb-3" role="status"></div>
+                    <h5 class="text-white">Carregando relatório...</h5>
+                    <p class="text-muted small">Consultando dados no SQLite local...</p>
+                </div>
+            }
+            else
+            {
+                <!-- Conteúdo Dinâmico por Aba -->
+                <div class="card bg-card-dark border-card shadow-glass p-4 min-vh-50">
+                    @if (abaAtiva == "vendas")
+                    {
+                        @RenderVendas()
+                    }
+                    else if (abaAtiva == "caixas")
+                    {
+                        @RenderCaixas()
+                    }
+                    else if (abaAtiva == "estoque")
+                    {
+                        @RenderEstoqueKardex()
+                    }
+                    else if (abaAtiva == "compras")
+                    {
+                        @RenderCompras()
+                    }
+                    else if (abaAtiva == "financeiro")
+                    {
+                        @RenderFinanceiro()
+                    }
+                    else if (abaAtiva == "gourmet")
+                    {
+                        @RenderGourmetDelivery()
+                    }
+                    else if (abaAtiva == "ranking")
+                    {
+                        @RenderRanking()
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Layout de Impressão Puro -->
+<div class="print-only">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+        <div>
+            <h3 class="text-black m-0 font-outfit fw-bold">AUREON PDV — RELATÓRIO OPERACIONAL</h3>
+            <p class="text-muted small m-0">Período: @dataInicioEnviada até @dataFimEnviada</p>
+        </div>
+        <div class="text-end">
+            <span class="small text-black d-block">Data de Emissão: @DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss")</span>
+            <span class="small text-black">Aba: @abaAtiva.ToUpper()</span>
+        </div>
+    </div>
+
+    @if (abaAtiva == "vendas") { @RenderVendas(true) }
+    else if (abaAtiva == "caixas") { @RenderCaixas(true) }
+    else if (abaAtiva == "estoque") { @RenderEstoqueKardex(true) }
+    else if (abaAtiva == "compras") { @RenderCompras(true) }
+    else if (abaAtiva == "financeiro") { @RenderFinanceiro(true) }
+    else if (abaAtiva == "gourmet") { @RenderGourmetDelivery(true) }
+    else if (abaAtiva == "ranking") { @RenderRanking(true) }
+</div>
+
+@code {
+    #region Renderizadores de Interface
+
+    private RenderFragment RenderVendas(bool printMode = false) => __builder => {
+        var tableClass = printMode ? "table table-sm table-bordered" : "table table-hover align-middle table-dark-custom";
+        var headerClass = printMode ? "" : "text-white bg-item-dark";
+
+        <h4 class="@(printMode ? "text-black" : "text-white") mb-3">Relatório Detalhado de Vendas</h4>
+        
+        <!-- Totais Resumo -->
+        @if (vendasResp?.TotaisPorMoeda != null && vendasResp.TotaisPorMoeda.Any())
+        {
+            <div class="row g-3 mb-4">
+                @foreach (var t in vendasResp.TotaisPorMoeda)
+                {
+                    <div class="col-md-4">
+                        <div class="p-3 rounded bg-subcard border-left-success">
+                            <div class="text-muted small">Faturamento (@t.MoedaCodigo)</div>
+                            <h4 class="@(printMode ? "text-black" : "text-white") m-0 mt-1">@FormatarValor(t.ValorMinor, t.MoedaCodigo)</h4>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Detalhes por Forma de Pagamento -->
+        @if (vendasResp?.VendasPorForma != null && vendasResp.VendasPorForma.Any())
+        {
+            <h5 class="@(printMode ? "text-black" : "text-white") mb-2 mt-4 small uppercase fw-bold">Por Forma de Pagamento</h5>
+            <div class="table-responsive mb-4">
+                <table class="@tableClass">
+                    <thead>
+                        <tr class="@headerClass">
+                            <th>Forma de Pagamento</th>
+                            <th>Moeda</th>
+                            <th>Quantidade de Vendas</th>
+                            <th class="text-end">Total Acumulado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in vendasResp.VendasPorForma)
+                        {
+                            <tr>
+                                <td>@f.FormaPagamento</td>
+                                <td><span class="badge bg-dark-purple">@f.MoedaCodigo</span></td>
+                                <td>@f.Quantidade</td>
+                                <td class="text-end fw-bold">@FormatarValor(f.TotalMinor, f.MoedaCodigo)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <!-- Lista de Vendas -->
+        <h5 class="@(printMode ? "text-black" : "text-white") mb-2 mt-4 small uppercase fw-bold">Listagem Geral das Vendas</h5>
+        @if (vendasResp?.Vendas == null || !vendasResp.Vendas.Any())
+        {
+            <p class="text-muted small">Nenhuma venda encontrada no período.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="@tableClass">
+                    <thead>
+                        <tr class="@headerClass">
+                            <th>Nº Venda</th>
+                            <th>Data/Hora</th>
+                            <th>Cliente</th>
+                            <th>Operador</th>
+                            <th class="text-end">Desconto</th>
+                            <th class="text-end">Total Líquido</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var v in vendasResp.Vendas)
+                        {
+                            <tr>
+                                <td><strong>#@(v.NumeroVenda?.ToString() ?? "Rascunho")</strong></td>
+                                <td>@FormatarDataHora(v.DataVenda)</td>
+                                <td>@(v.ClienteNome ?? "Consumidor Final")</td>
+                                <td>@v.UsuarioId</td>
+                                <td class="text-end">@FormatarValor(v.DescontoTotalMinor, "BRL")</td>
+                                <td class="text-end fw-bold">@FormatarValor(v.TotalLiquidoMinor, "BRL")</td>
+                                <td class="text-center">
+                                    <span class="badge @ObterBadgeStatusClass(v.Status)">@v.Status</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    };
+
+    private RenderFragment RenderCaixas(bool printMode = false) => __builder => {
+        var tableClass = printMode ? "table table-sm table-bordered" : "table table-hover align-middle table-dark-custom";
+        var headerClass = printMode ? "" : "text-white bg-item-dark";
+
+        <h4 class="@(printMode ? "text-black" : "text-white") mb-3">Relatório de Sessões de Caixa</h4>
+
+        @if (caixasResp?.Sessoes == null || !caixasResp.Sessoes.Any())
+        {
+            <p class="text-muted small">Nenhuma sessão de caixa encontrada no período.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="@tableClass">
+                    <thead>
+                        <tr class="@headerClass">
+                            <th>Sessão ID / Operador</th>
+                            <th>Abertura</th>
+                            <th>Fechamento</th>
+                            <th>Moeda</th>
+                            <th class="text-end">Abertura</th>
+                            <th class="text-end">Esperado</th>
+                            <th class="text-end">Informado</th>
+                            <th class="text-end">Diferença</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in caixasResp.Sessoes)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">@s.Id.Substring(0, Math.Min(8, s.Id.Length))...</div>
+                                    <div class="text-muted small">Op: @s.OperadorId | Term: @s.TerminalId</div>
+                                </td>
+                                <td class="small">@FormatarDataHora(s.AbertoEm)</td>
+                                <td class="small">@(string.IsNullOrEmpty(s.FechadoEm) ? "-" : FormatarDataHora(s.FechadoEm))</td>
+                                <td><span class="badge bg-dark-purple">@s.MoedaCodigo</span></td>
+                                <td class="text-end">@FormatarValor(s.ValorAberturaMinor, s.MoedaCodigo)</td>
+                                <td class="text-end fw-bold">@FormatarValor(s.ValorFechamentoEsperadoMinor, s.MoedaCodigo)</td>
+                                <td class="text-end text-info fw-bold">@FormatarValor(s.ValorFechamentoInformadoMinor, s.MoedaCodigo)</td>
+                                <td class="text-end fw-bold @(s.DiferencaMinor < 0 ? "text-danger" : s.DiferencaMinor > 0 ? "text-success" : "")">
+                                    @FormatarValor(s.DiferencaMinor, s.MoedaCodigo)
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge @ObterBadgeStatusClass(s.Status)">@s.Status</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    };
+
+    private RenderFragment RenderEstoqueKardex(bool printMode = false) => __builder => {
+        var tableClass = printMode ? "table table-sm table-bordered" : "table table-hover align-middle table-dark-custom";
+        var headerClass = printMode ? "" : "text-white bg-item-dark";
+
+        <h4 class="@(printMode ? "text-black" : "text-white") mb-3">Relatório de Estoque e Kardex</h4>
+
+        <!-- Valorização de Estoque -->
+        @if (estoqueResp != null)
+        {
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="p-3 rounded bg-subcard border-left-purple">
+                        <div class="text-muted small">Valor Estimado do Estoque (Custo Principal BRL)</div>
+                        <h4 class="@(printMode ? "text-black" : "text-white") m-0 mt-1">@FormatarValor(estoqueResp.CustoTotalEstimadoBrl, "BRL")</h4>
+                        <div class="text-muted small mt-1">Soma das quantidades multiplicadas pelo último custo (convertido pela taxa)</div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Posição Física -->
+        <h5 class="@(printMode ? "text-black" : "text-white") mb-2 mt-4 small uppercase fw-bold">Posição Atual de Estoque (Produtos Ativos)</h5>
+        @if (estoqueResp?.PosicaoEstoque == null || !estoqueResp.PosicaoEstoque.Any())
+        {
+            <p class="text-muted small">Nenhum produto físico encontrado para controle de estoque.</p>
+        }
+        else
+        {
+            <div class="table-responsive mb-5" style="max-height: 350px; overflow-y: auto;">
+                <table class="@tableClass">
+                    <thead>
+                        <tr class="@headerClass">
+                            <th>Produto / SKU</th>
+                            <th>Controle</th>
+                            <th class="text-end">Quantidade</th>
+                            <th class="text-end">Último Custo Original</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in estoqueResp.PosicaoEstoque)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">@p.ProdutoNome</div>
+                                    <div class="text-muted small">SKU: @(string.IsNullOrEmpty(p.ProdutoSku) ? "-" : p.ProdutoSku)</div>
+                                </td>
+                                <td>@(p.ControlaEstoque ? "Sim" : "Não")</td>
+                                <td class="text-end fw-bold @(p.QuantidadeEscala3 <= 0 ? "text-danger" : "")">@FormatarQuantidade(p.QuantidadeEscala3)</td>
+                                <td class="text-end">@FormatarValor(p.UltimoCustoMinor, "BRL")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <!-- Kardex Extrato -->
+        <h5 class="@(printMode ? "text-black" : "text-white") mb-2 mt-4 small uppercase fw-bold">Extrato de Movimentações (Kardex)</h5>
+        @if (estoqueResp?.ItensKardex == null || !estoqueResp.ItensKardex.Any())
+        {
+            <p class="text-muted small">Nenhuma movimentação registrada no Kardex no período.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="@tableClass">
+                    <thead>
+                        <tr class="@headerClass">
+                            <th>Data</th>
+                            <th>Produto / SKU</th>
+                            <th>Tipo Movimento</th>
+                            <th class="text-end">Quantidade</th>
+                            <th>Operador</th>
+                            <th>Observação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var k in estoqueResp.ItensKardex)
+                        {
+                            <tr>
+                                <td class="small">@FormatarDataHora(k.DataMovimentacao)</td>
+                                <td>
+                                    <div class="fw-bold">@k.ProdutoNome</div>
+                                    <div class="text-muted small">SKU: @k.ProdutoSku</div>
+                                </td>
+                                <td>
+                                    <span class="badge @(k.TipoMovimentacao == "ENTRADA" ? "bg-success" : "bg-danger")">@k.TipoMovimentacao</span>
+                                </td>
+                                <td class="text-end fw-bold">@FormatarQuantidade(k.QuantidadeEscala3)</td>
+                                <td>@k.UsuarioId</td>
+                                <td class="small text-muted">@k.Observacao</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    };
+
+    private RenderFragment RenderCompras(bool printMode = false) => __builder => {
+        var tableClass = printMode ? "table table-sm table-bordered" : "table table-hover align-middle table-dark-custom";
+        var headerClass = printMode ? "" : "text-white bg-item-dark";
+
+        <h4 class="@(printMode ? "text-black" : "text-white") mb-3">Relatório de Notas de Compra</h4>
+
+        <!-- Totais por Moeda -->
+        @if (comprasResp?.TotalPorMoeda != null && comprasResp.TotalPorMoeda.Any())
+        {
+            <div class="row g-3 mb-4">
+                @foreach (var t in comprasResp.TotalPorMoeda)
+                {
+                    <div class="col-md-4">
+                        <div class="p-3 rounded bg-subcard border-left-danger">
+                            <div class="text-muted small">Total Compras (@t.MoedaCodigo)</div>
+                            <h4 class="@(printMode ? "text-black" : "text-white") m-0 mt-1">@FormatarValor(t.ValorMinor, t.MoedaCodigo)</h4>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Fornecedores -->
+        @if (comprasResp?.TotalPorFornecedor != null && comprasResp.TotalPorFornecedor.Any())
+        {
+            <h5 class="@(printMode ? "text-black" : "text-white") mb-2 mt-4 small uppercase fw-bold">Compras por Fornecedor (Equivalente BRL)</h5>
+            <div class="table-responsive mb-4">
+                <table class="@tableClass">
+                    <thead>
+                        <tr class="@headerClass">
+                            <th>Fornecedor</th>
+                            <th class="text-end">Total Principal BRL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in comprasResp.TotalPorFornecedor)
+                        {
+                            <tr>
+                                <td class="fw-bold">@f.FornecedorNome</td>
+                                <td class="text-end fw-bold">@FormatarValor(f.TotalPrincipalBrlMinor, "BRL")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <!-- Lista Geral -->
+        <h5 class="@(printMode ? "text-black" : "text-white") mb-2 mt-4 small uppercase fw-bold">Listagem de Compras Realizadas</h5>
+        @if (comprasResp?.Compras == null || !comprasResp.Compras.Any())
+        {
+            <p class="text-muted small">Nenhuma nota de compra encontrada no período.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="@tableClass">
+                    <thead>
+                        <tr class="@headerClass">
+                            <th>Compra ID</th>
+                            <th>Fornecedor</th>
+                            <th>Data</th>
+                            <th>Moeda Original</th>
+                            <th class="text-end">Valor Original</th>
+                            <th class="text-end">Valor Principal BRL</th>
+                            <th class="text-end">Quantidade de Itens</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in comprasResp.Compras)
+                        {
+                            <tr>
+                                <td><strong>#@c.Id.Substring(0, Math.Min(8, c.Id.Length))...</strong></td>
+                                <td>@c.FornecedorNome</td>
+                                <td class="small">@FormatarDataHora(c.DataCompra)</td>
+                                <td><span class="badge bg-dark-purple">@c.MoedaCodigo</span></td>
+                                <td class="text-end">@FormatarValor(c.TotalOriginalMinor, c.MoedaCodigo)</td>
+                                <td class="text-end fw-bold">@FormatarValor(c.TotalPrincipalBrlMinor, "BRL")</td>
+                                <td class="text-end">@FormatarQuantidade(c.TotalItensEscala3)</td>
+                                <td class="text-center">
+                                    <span class="badge @ObterBadgeStatusClass(c.Status)">@c.Status</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    };
+
+    private RenderFragment RenderFinanceiro(bool printMode = false) => __builder => {
+        var tableClass = printMode ? "table table-sm table-bordered" : "table table-hover align-middle table-dark-custom";
+        var headerClass = printMode ? "" : "text-white bg-item-dark";
+
+        <h4 class="@(printMode ? "text-black" : "text-white") mb-3">Relatório Consolidado do Financeiro</h4>
+
+        <!-- Saldos Pendentes Gerais -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="p-3 rounded bg-subcard border-left-danger">
+                    <div class="text-muted small">Total Contas a Pagar Ativas (Pendente por Moeda)</div>
+                    <div class="d-flex flex-column gap-1 mt-2">
+                        @if (financeiroResp?.TotalPagarPendente != null)
+                        {
+                            @foreach (var cp in financeiroResp.TotalPagarPendente)
+                            {
+                                <div class="d-flex justify-content-between">
+                                    <span class="font-monospace text-white">@cp.MoedaCodigo</span>
+                                    <span class="text-danger fw-bold">@FormatarValor(cp.ValorMinor, cp.MoedaCodigo)</span>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="p-3 rounded bg-subcard border-left-success">
+                    <div class="text-muted small">Total Contas a Receber Ativas (Crediário por Moeda)</div>
+                    <div class="d-flex flex-column gap-1 mt-2">
+                        @if (financeiroResp?.TotalReceberPendente != null)
+                        {
+                            @foreach (var cr in financeiroResp.TotalReceberPendente)
+                            {
+                                <div class="d-flex justify-content-between">
+                                    <span class="font-monospace text-white">@cr.MoedaCodigo</span>
+                                    <span class="text-success fw-bold">@FormatarValor(cr.ValorMinor, cr.MoedaCodigo)</span>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lançamentos Cronológicos de Caixa/Livro-Caixa -->
+        <h5 class="@(printMode ? "text-black" : "text-white") mb-2 mt-4 small uppercase fw-bold">Lançamentos de Caixa (Fluxo Físico Realizado)</h5>
+        @if (financeiroResp?.Lancamentos == null || !financeiroResp.Lancamentos.Any())
+        {
+            <p class="text-muted small">Nenhum lançamento financeiro (baixa, despesa manual) registrado no período.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="@tableClass">
+                    <thead>
+                        <tr class="@headerClass">
+                            <th>Data</th>
+                            <th>Tipo</th>
+                            <th>Forma Pagto</th>
+                            <th>Moeda Original</th>
+                            <th class="text-end">Valor Original</th>
+                            <th class="text-end">Valor BRL</th>
+                            <th>Operador</th>
+                            <th>Observação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in financeiroResp.Lancamentos)
+                        {
+                            <tr>
+                                <td class="small">@FormatarDataHora(l.DataPagamento)</td>
+                                <td>
+                                    <span class="badge @(l.TipoLancamento == "RECEBIMENTO" ? "bg-success" : "bg-danger")">@l.TipoLancamento</span>
+                                </td>
+                                <td>@l.FormaPagamento</td>
+                                <td><span class="badge bg-dark-purple">@l.MoedaCodigo</span></td>
+                                <td class="text-end">@FormatarValor(l.ValorInformadoMinor, l.MoedaCodigo)</td>
+                                <td class="text-end fw-bold">@FormatarValor(l.ValorPrincipalMinor, "BRL")</td>
+                                <td>@l.UsuarioId</td>
+                                <td class="small text-muted">@l.Observacao</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    };
+
+    private RenderFragment RenderGourmetDelivery(bool printMode = false) => __builder => {
+        var tableClass = printMode ? "table table-sm table-bordered" : "table table-hover align-middle table-dark-custom";
+        var headerClass = printMode ? "" : "text-white bg-item-dark";
+
+        <h4 class="@(printMode ? "text-black" : "text-white") mb-3">Relatório Gourmet e Delivery</h4>
+
+        @if (gourmetResp != null)
+        {
+            <!-- Estatísticas Delivery -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="p-3 rounded bg-subcard border-left-info">
+                        <div class="text-muted small">Total de Pedidos Delivery</div>
+                        <h4 class="@(printMode ? "text-black" : "text-white") m-0 mt-1">@gourmetResp.TotalPedidosDelivery</h4>
+                        <div class="text-muted small mt-1">Taxas de entrega faturadas: @FormatarValor(gourmetResp.TaxaEntregaTotalMinor, "BRL")</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="p-3 rounded bg-subcard border-left-purple">
+                        <div class="text-muted small">Total de Atendimentos Gourmet (Mesas + Comandas)</div>
+                        <h4 class="@(printMode ? "text-black" : "text-white") m-0 mt-1">@gourmetResp.TotalAtendimentosGourmet</h4>
+                        <div class="text-muted small mt-1">Ticket Médio Gourmet Principal: @FormatarValor(gourmetResp.TicketMedioGourmetBrlMinor, "BRL")</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Faturamento Segmentado -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <h5 class="@(printMode ? "text-black" : "text-white") mb-2 small uppercase fw-bold">Faturamento Delivery por Moeda</h5>
+                    <div class="table-responsive">
+                        <table class="@tableClass">
+                            <thead>
+                                <tr class="@headerClass">
+                                    <th>Moeda</th>
+                                    <th class="text-end">Total Finalizado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (gourmetResp.FaturamentoDeliveryMoeda != null && gourmetResp.FaturamentoDeliveryMoeda.Any())
+                                {
+                                    @foreach (var f in gourmetResp.FaturamentoDeliveryMoeda)
+                                    {
+                                        <tr>
+                                            <td><strong>@f.MoedaCodigo</strong></td>
+                                            <td class="text-end fw-bold">@FormatarValor(f.ValorMinor, f.MoedaCodigo)</td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="2" class="text-muted small">Sem faturamento no período.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="@(printMode ? "text-black" : "text-white") mb-2 small uppercase fw-bold">Faturamento Gourmet por Moeda</h5>
+                    <div class="table-responsive">
+                        <table class="@tableClass">
+                            <thead>
+                                <tr class="@headerClass">
+                                    <th>Moeda</th>
+                                    <th class="text-end">Total Finalizado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (gourmetResp.FaturamentoGourmetMoeda != null && gourmetResp.FaturamentoGourmetMoeda.Any())
+                                {
+                                    @foreach (var f in gourmetResp.FaturamentoGourmetMoeda)
+                                    {
+                                        <tr>
+                                            <td><strong>@f.MoedaCodigo</strong></td>
+                                            <td class="text-end fw-bold">@FormatarValor(f.ValorMinor, f.MoedaCodigo)</td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="2" class="text-muted small">Sem faturamento no período.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entregas por Status -->
+            <h5 class="@(printMode ? "text-black" : "text-white") mb-2 mt-4 small uppercase fw-bold">Contagem de Entregas por Status</h5>
+            @if (gourmetResp.DeliveryPorStatus == null || !gourmetResp.DeliveryPorStatus.Any())
+            {
+                <p class="text-muted small">Sem entregas registradas no período.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="@tableClass">
+                        <thead>
+                            <tr class="@headerClass">
+                                <th>Status do Delivery</th>
+                                <th>Quantidade de Pedidos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in gourmetResp.DeliveryPorStatus)
+                            {
+                                <tr>
+                                    <td>@d.Status</td>
+                                    <td class="fw-bold">@d.Quantidade</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    };
+
+    private RenderFragment RenderRanking(bool printMode = false) => __builder => {
+        var tableClass = printMode ? "table table-sm table-bordered" : "table table-hover align-middle table-dark-custom";
+        var headerClass = printMode ? "" : "text-white bg-item-dark";
+
+        <h4 class="@(printMode ? "text-black" : "text-white") mb-3">Ranking de Produtos Mais Vendidos</h4>
+        
+        @if (rankingResp == null || !rankingResp.Any())
+        {
+            <p class="text-muted small">Nenhuma venda de itens registrada no período.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="@tableClass">
+                    <thead>
+                        <tr class="@headerClass">
+                            <th style="width: 60px;">Posição</th>
+                            <th>Produto / SKU</th>
+                            <th class="text-end">Qtd Vendida</th>
+                            <th class="text-end">Faturamento Bruto BRL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ int pos = 1; }
+                        @foreach (var r in rankingResp)
+                        {
+                            <tr>
+                                <td class="text-center fw-bold text-info">#@pos</td>
+                                <td>
+                                    <div class="fw-bold">@r.ProdutoNome</div>
+                                    <div class="text-muted small">SKU: @(string.IsNullOrEmpty(r.ProdutoSku) ? "-" : r.ProdutoSku)</div>
+                                </td>
+                                <td class="text-end fw-bold text-white">@FormatarQuantidade(r.QuantidadeVendidaEscala3)</td>
+                                <td class="text-end fw-bold text-success">@FormatarValor(r.FaturamentoBrutoMinor, "BRL")</td>
+                            </tr>
+                            pos++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    };
+
+    #endregion
+
+    #region Lógica de Controle do Componente
+
+    private string abaAtiva = "vendas";
+    private bool carregando = true;
+    private string? erro;
+    private string periodoSelecionado = "30dias";
+
+    private string? dataInicioEnviada;
+    private string? dataFimEnviada;
+
+    private DateTime dataInicioInput = DateTime.Today.AddDays(-30);
+    private DateTime dataFimInput = DateTime.Today;
+
+    // Filtros adicionais
+    private string? usuarioIdFilter;
+    private string? sessaoCaixaIdFilter;
+    private string? moedaCodigoFilter;
+    private string? formaPagamentoFilter;
+
+    // Dados Carregados
+    private RelatorioVendasResp? vendasResp;
+    private RelatorioCaixaResp? caixasResp;
+    private RelatorioEstoqueResp? estoqueResp;
+    private RelatorioComprasResp? comprasResp;
+    private RelatorioFinanceiroResp? financeiroResp;
+    private RelatorioGourmetDeliveryResp? gourmetResp;
+    private List<ProdutoMaisVendidoResp>? rankingResp;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CalcularDatasPeriodo();
+        await GerarRelatorioSelecionado();
+    }
+
+    private void CalcularDatasPeriodo()
+    {
+        DateTime inicio, fim;
+        switch (periodoSelecionado)
+        {
+            case "hoje":
+                inicio = DateTime.Today;
+                fim = DateTime.Today.AddHours(23).AddMinutes(59).AddSeconds(59);
+                break;
+            case "7dias":
+                inicio = DateTime.Today.AddDays(-7);
+                fim = DateTime.Today.AddHours(23).AddMinutes(59).AddSeconds(59);
+                break;
+            case "mes":
+                inicio = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+                fim = DateTime.Today.AddHours(23).AddMinutes(59).AddSeconds(59);
+                break;
+            case "30dias":
+            default:
+                inicio = DateTime.Today.AddDays(-30);
+                fim = DateTime.Today.AddHours(23).AddMinutes(59).AddSeconds(59);
+                break;
+        }
+
+        dataInicioInput = inicio;
+        dataFimInput = fim;
+
+        dataInicioEnviada = inicio.ToString("yyyy-MM-dd HH:mm:ss");
+        dataFimEnviada = fim.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    private void FiltroDataAlterado()
+    {
+        periodoSelecionado = "custom";
+        dataInicioEnviada = dataInicioInput.ToString("yyyy-MM-dd 00:00:00");
+        dataFimEnviada = dataFimInput.ToString("yyyy-MM-dd 23:59:59");
+    }
+
+    private async Task MudarPeriodo(string novoPeriodo)
+    {
+        periodoSelecionado = novoPeriodo;
+        CalcularDatasPeriodo();
+        await GerarRelatorioSelecionado();
+    }
+
+    private async Task MudarAba(string novaAba)
+    {
+        abaAtiva = novaAba;
+        await GerarRelatorioSelecionado();
+    }
+
+    private async Task GerarRelatorioSelecionado()
+    {
+        carregando = true;
+        erro = null;
+
+        var filtros = new FiltrosRelatorio(
+            data_inicio: dataInicioEnviada,
+            data_fim: dataFimEnviada,
+            usuario_id: usuarioIdFilter,
+            sessao_caixa_id: sessaoCaixaIdFilter,
+            moeda_codigo: moedaCodigoFilter,
+            forma_pagamento: formaPagamentoFilter
+        );
+
+        try
+        {
+            switch (abaAtiva)
+            {
+                case "vendas":
+                    var rVendas = await Tauri.InvocarAsync<RespostaBase<RelatorioVendasResp>>("gerar_relatorio_vendas", new { filtros });
+                    if (rVendas != null && rVendas.Sucesso) vendasResp = rVendas.Dados;
+                    else erro = rVendas?.Mensagem ?? "Erro ao carregar relatório de vendas.";
+                    break;
+                case "caixas":
+                    var rCaixas = await Tauri.InvocarAsync<RespostaBase<RelatorioCaixaResp>>("gerar_relatorio_caixa", new { filtros });
+                    if (rCaixas != null && rCaixas.Sucesso) caixasResp = rCaixas.Dados;
+                    else erro = rCaixas?.Mensagem ?? "Erro ao carregar relatório de caixas.";
+                    break;
+                case "estoque":
+                    var rEstoque = await Tauri.InvocarAsync<RespostaBase<RelatorioEstoqueResp>>("gerar_relatorio_estoque_kardex", new { filtros });
+                    if (rEstoque != null && rEstoque.Sucesso) estoqueResp = rEstoque.Dados;
+                    else erro = rEstoque?.Mensagem ?? "Erro ao carregar relatório de estoque.";
+                    break;
+                case "compras":
+                    var rCompras = await Tauri.InvocarAsync<RespostaBase<RelatorioComprasResp>>("gerar_relatorio_compras", new { filtros });
+                    if (rCompras != null && rCompras.Sucesso) comprasResp = rCompras.Dados;
+                    else erro = rCompras?.Mensagem ?? "Erro ao carregar relatório de compras.";
+                    break;
+                case "financeiro":
+                    var rFin = await Tauri.InvocarAsync<RespostaBase<RelatorioFinanceiroResp>>("gerar_relatorio_financeiro", new { filtros });
+                    if (rFin != null && rFin.Sucesso) financeiroResp = rFin.Dados;
+                    else erro = rFin?.Mensagem ?? "Erro ao carregar relatório financeiro.";
+                    break;
+                case "gourmet":
+                    var rGourmet = await Tauri.InvocarAsync<RespostaBase<RelatorioGourmetDeliveryResp>>("gerar_relatorio_gourmet_delivery", new { filtros });
+                    if (rGourmet != null && rGourmet.Sucesso) gourmetResp = rGourmet.Dados;
+                    else erro = rGourmet?.Mensagem ?? "Erro ao carregar relatório gourmet/delivery.";
+                    break;
+                case "ranking":
+                    var rRank = await Tauri.InvocarAsync<RespostaBase<List<ProdutoMaisVendidoResp>>>("gerar_relatorio_produtos_mais_vendidos", new { filtros });
+                    if (rRank != null && rRank.Sucesso) rankingResp = rRank.Dados;
+                    else erro = rRank?.Mensagem ?? "Erro ao carregar ranking de vendas.";
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro na comunicação local: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private bool PodeExportar()
+    {
+        return abaAtiva switch
+        {
+            "vendas" => vendasResp != null,
+            "caixas" => caixasResp != null,
+            "estoque" => estoqueResp != null,
+            "compras" => comprasResp != null,
+            "financeiro" => financeiroResp != null,
+            "gourmet" => gourmetResp != null,
+            "ranking" => rankingResp != null,
+            _ => false
+        };
+    }
+
+    private async Task ExportarCSV()
+    {
+        StringBuilder csv = new StringBuilder();
+        string filename = $"relatorio_{abaAtiva}_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+        try
+        {
+            switch (abaAtiva)
+            {
+                case "vendas":
+                    if (vendasResp?.Vendas == null) return;
+                    csv.AppendLine("ID;Numero;Data;Cliente;Usuario;Status;Total Bruto;Desconto;Acrescimo;Total Liquido");
+                    foreach (var v in vendasResp.Vendas)
+                    {
+                        csv.AppendLine($"{v.Id};{v.NumeroVenda};{v.DataVenda};{v.ClienteNome};{v.UsuarioId};{v.Status};{v.TotalBrutoMinor};{v.DescontoTotalMinor};{v.AcrescimoTotalMinor};{v.TotalLiquidoMinor}");
+                    }
+                    break;
+                case "caixas":
+                    if (caixasResp?.Sessoes == null) return;
+                    csv.AppendLine("ID;Abertura;Fechamento;Operador;Terminal;Status;Moeda;Vlr Abertura;Vlr Esperado;Vlr Informado;Diferenca");
+                    foreach (var s in caixasResp.Sessoes)
+                    {
+                        csv.AppendLine($"{s.Id};{s.AbertoEm};{s.FechadoEm};{s.OperadorId};{s.TerminalId};{s.Status};{s.MoedaCodigo};{s.ValorAberturaMinor};{s.ValorFechamentoEsperadoMinor};{s.ValorFechamentoInformadoMinor};{s.DiferencaMinor}");
+                    }
+                    break;
+                case "estoque":
+                    if (estoqueResp == null) return;
+                    csv.AppendLine("POSICAO FISICA ATUAL");
+                    csv.AppendLine("Produto ID;Nome;SKU;Controla Estoque;Qtd;Custo Unitario");
+                    foreach (var p in estoqueResp.PosicaoEstoque)
+                    {
+                        csv.AppendLine($"{p.ProdutoId};{p.ProdutoNome};{p.ProdutoSku};{p.ControlaEstoque};{p.QuantidadeEscala3};{p.UltimoCustoMinor}");
+                    }
+                    csv.AppendLine();
+                    csv.AppendLine("KARDEX MOVIMENTACOES FILTRADAS");
+                    csv.AppendLine("ID;Produto ID;Produto Nome;Data;Tipo;Qtd;Origem;Usuario;Obs");
+                    foreach (var k in estoqueResp.ItensKardex)
+                    {
+                        csv.AppendLine($"{k.Id};{k.ProdutoId};{k.ProdutoNome};{k.DataMovimentacao};{k.TipoMovimentacao};{k.QuantidadeEscala3};{k.OrigemId};{k.UsuarioId};{k.Observacao}");
+                    }
+                    break;
+                case "compras":
+                    if (comprasResp?.Compras == null) return;
+                    csv.AppendLine("ID;Fornecedor;Data;Status;Moeda;Total Original;Total BRL;Total Itens");
+                    foreach (var c in comprasResp.Compras)
+                    {
+                        csv.AppendLine($"{c.Id};{c.FornecedorNome};{c.DataCompra};{c.Status};{c.MoedaCodigo};{c.TotalOriginalMinor};{c.TotalPrincipalBrlMinor};{c.TotalItensEscala3}");
+                    }
+                    break;
+                case "financeiro":
+                    if (financeiroResp == null) return;
+                    csv.AppendLine("CONTAS A PAGAR");
+                    csv.AppendLine("ID;Fornecedor;Vencimento;Status;Moeda;Valor Original;Valor Pendente");
+                    foreach (var cp in financeiroResp.ContasPagar)
+                    {
+                        csv.AppendLine($"{cp.Id};{cp.FornecedorNomeSnapshot};{cp.DataVencimento};{cp.Status};{cp.MoedaCodigo};{cp.ValorOriginalMinor};{cp.SaldoPendenteMinor}");
+                    }
+                    csv.AppendLine();
+                    csv.AppendLine("CONTAS A RECEBER");
+                    csv.AppendLine("ID;Cliente;Vencimento;Status;Moeda;Valor Original;Valor Pendente");
+                    foreach (var cr in financeiroResp.ContasReceber)
+                    {
+                        csv.AppendLine($"{cr.Id};{cr.ClienteNomeSnapshot};{cr.DataVencimento};{cr.Status};{cr.MoedaCodigo};{cr.ValorOriginalMinor};{cr.SaldoPendenteMinor}");
+                    }
+                    csv.AppendLine();
+                    csv.AppendLine("LANCAMENTOS FINANCEIROS");
+                    csv.AppendLine("ID;Data;Tipo;Forma;Moeda;Valor Original;Valor BRL;Operador;Obs");
+                    foreach (var l in financeiroResp.Lancamentos)
+                    {
+                        csv.AppendLine($"{l.Id};{l.DataPagamento};{l.TipoLancamento};{l.FormaPagamento};{l.MoedaCodigo};{l.ValorInformadoMinor};{l.ValorPrincipalMinor};{l.UsuarioId};{l.Observacao}");
+                    }
+                    break;
+                case "gourmet":
+                    if (gourmetResp == null) return;
+                    csv.AppendLine("METRICA;MOEDA/STATUS;VALOR");
+                    csv.AppendLine($"Total Pedidos Delivery;;{gourmetResp.TotalPedidosDelivery}");
+                    csv.AppendLine($"Total Taxas Entrega;;{gourmetResp.TaxaEntregaTotalMinor}");
+                    csv.AppendLine($"Total Atendimentos Gourmet;;{gourmetResp.TotalAtendimentosGourmet}");
+                    csv.AppendLine($"Ticket Medio Gourmet BRL;;{gourmetResp.TicketMedioGourmetBrlMinor}");
+                    if (gourmetResp.DeliveryPorStatus != null)
+                    {
+                        foreach (var d in gourmetResp.DeliveryPorStatus)
+                        {
+                            csv.AppendLine($"Entrega Status;{d.Status};{d.Quantidade}");
+                        }
+                    }
+                    if (gourmetResp.FaturamentoDeliveryMoeda != null)
+                    {
+                        foreach (var fd in gourmetResp.FaturamentoDeliveryMoeda)
+                        {
+                            csv.AppendLine($"Fat Delivery Moeda;{fd.MoedaCodigo};{fd.ValorMinor}");
+                        }
+                    }
+                    if (gourmetResp.FaturamentoGourmetMoeda != null)
+                    {
+                        foreach (var fg in gourmetResp.FaturamentoGourmetMoeda)
+                        {
+                            csv.AppendLine($"Fat Gourmet Moeda;{fg.MoedaCodigo};{fg.ValorMinor}");
+                        }
+                    }
+                    break;
+                case "ranking":
+                    if (rankingResp == null) return;
+                    csv.AppendLine("Produto ID;Nome;SKU;Qtd Vendida;Faturamento Bruto BRL");
+                    foreach (var r in rankingResp)
+                    {
+                        csv.AppendLine($"{r.ProdutoId};{r.ProdutoNome};{r.ProdutoSku};{r.QuantidadeVendidaEscala3};{r.FaturamentoBrutoMinor}");
+                    }
+                    break;
+            }
+
+            await JS.InvokeVoidAsync("aureon.downloadFile", filename, "text/csv;charset=utf-8", csv.ToString());
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro ao exportar CSV: {ex.Message}";
+        }
+    }
+
+    private async Task ImprimirRelatorio()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private string FormatarValor(long minor, string moeda)
+    {
+        decimal valor = minor / 100m;
+        if (moeda == "BRL")
+            return valor.ToString("C2", new CultureInfo("pt-BR"));
+        if (moeda == "USD")
+            return $"$ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        if (moeda == "EUR")
+            return $"€ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        return $"{moeda} {valor.ToString("N2")}";
+    }
+
+    private string FormatarQuantidade(long escala3)
+    {
+        decimal qtd = escala3 / 1000m;
+        return qtd.ToString("N3", new CultureInfo("pt-BR"));
+    }
+
+    private string FormatarDataHora(string isoString)
+    {
+        if (DateTime.TryParse(isoString, out var dt))
+        {
+            return dt.ToString("dd/MM/yyyy HH:mm:ss");
+        }
+        return isoString;
+    }
+
+    private string ObterBadgeStatusClass(string status)
+    {
+        switch (status)
+        {
+            // Caixas / Compras / Vendas / Contas
+            case "FINALIZADA":
+            case "PAGO":
+            case "CONCLUIDO":
+            case "ENTREGUE":
+                return "bg-success text-white";
+            case "PENDENTE":
+            case "PAGO_PARCIAL":
+            case "ABERTO":
+            case "EM_ANDAMENTO":
+                return "bg-warning text-dark";
+            case "CANCELADO":
+            case "CANCELADA":
+            case "RECUSADO":
+                return "bg-danger text-white";
+            default:
+                return "bg-secondary text-white";
+        }
+    }
+
+    #endregion
+}
+
+<style>
+    .font-outfit {
+        font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+    }
+    .tracking-tight {
+        letter-spacing: -0.025em;
+    }
+    .uppercase {
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .bg-card-dark {
+        background-color: #161922 !important;
+    }
+    .border-card {
+        border: 1px solid #232736 !important;
+    }
+    .shadow-glass {
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    }
+    .card-filtros {
+        background-color: #161922 !important;
+        border: 1px solid #232736 !important;
+    }
+    .input-dark {
+        background-color: #0d0f15;
+        border: 1px solid #232736;
+        color: white;
+    }
+    .input-dark:focus {
+        background-color: #0f121a;
+        border-color: #7b1fa2;
+        color: white;
+        box-shadow: none;
+    }
+    .btn-outline-dark-custom {
+        background-color: #0d0f15;
+        border: 1px solid #232736;
+        color: #a2a5b9;
+    }
+    .btn-outline-dark-custom:hover {
+        background-color: #1e2230;
+        color: white;
+    }
+    .btn-purple {
+        background-color: #7b1fa2;
+        color: white;
+        border: 1px solid #7b1fa2;
+    }
+    .btn-purple:hover {
+        background-color: #9c27b0;
+        color: white;
+    }
+    .sidebar-list {
+        background-color: #161922;
+        border: 1px solid #232736;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .sidebar-list .list-group-item {
+        background-color: transparent;
+        color: #cdcdde;
+        border: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+        padding: 14px 20px;
+        font-family: 'Outfit', sans-serif;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    }
+    .sidebar-list .list-group-item:hover {
+        background-color: #1e2230;
+        color: white;
+    }
+    .sidebar-list .list-group-item.active {
+        background-color: #7b1fa2 !important;
+        color: white !important;
+        font-weight: bold;
+    }
+    .bg-item-dark {
+        background-color: #0f121a !important;
+    }
+    .table-dark-custom {
+        background-color: #0f121a !important;
+        border: 1px solid #232736 !important;
+    }
+    .table-dark-custom th {
+        background-color: #0d0f15 !important;
+        color: #a2a5b9 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    .table-dark-custom td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+        color: #e2e8f0;
+        font-size: 13px;
+    }
+    .bg-dark-purple {
+        background-color: #4a148c;
+        color: #e1bee7;
+    }
+    .bg-subcard {
+        background-color: #0f121a;
+        border: 1px solid rgba(255, 255, 255, 0.02);
+    }
+    .border-left-success {
+        border-left: 4px solid #4caf50 !important;
+    }
+    .border-left-danger {
+        border-left: 4px solid #ff5252 !important;
+    }
+    .border-left-info {
+        border-left: 4px solid #00bcd4 !important;
+    }
+    .border-left-purple {
+        border-left: 4px solid #9c27b0 !important;
+    }
+    
+    /* Cores de Destaque */
+    .text-pink { color: #e91e63 !important; }
+    .text-yellow { color: #ffeb3b !important; }
+    
+    .print-only {
+        display: none;
+    }
+
+    /* Print Styles */
+    @@media print {
+        body {
+            background-color: white !important;
+            color: black !important;
+        }
+        .no-print {
+            display: none !important;
+        }
+        .print-only {
+            display: block !important;
+        }
+        .table {
+            color: black !important;
+            border-color: #ddd !important;
+        }
+        .table th {
+            background-color: #f5f5f5 !important;
+            color: black !important;
+            border: 1px solid #ddd !important;
+        }
+        .table td {
+            color: black !important;
+            border: 1px solid #ddd !important;
+        }
+        .badge {
+            border: 1px solid #000 !important;
+            color: black !important;
+            background: transparent !important;
+        }
+    }
+</style>
