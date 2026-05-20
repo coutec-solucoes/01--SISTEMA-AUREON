@@ -164,9 +164,27 @@ Decisões de arquitetura adotadas na Fase 9 — PDV Gourmet.
 
 ---
 
+---
+
 ## 🛠️ ADR 20: Delivery Operacional e Separação da Taxa de Entrega
 - **Contexto**: A Fase 10 introduz o módulo de Delivery, necessitando gerenciar pedidos locais e online, além de lidar com a taxa de entrega.
 - **Decisão (Taxa de Entrega Separada)**: A taxa de entrega é armazenada em coluna própria (`taxa_entrega_minor`) tanto no delivery quanto nas vendas. Ela jamais é misturada em `acrescimo_total_minor`.
 - **Decisão (Pagamento Delegado)**: O delivery não processa pagamentos. Ele é convertido em uma venda `EM_ANDAMENTO` e o pagamento ocorre no PDV (Fase 7).
 - **Decisão (Sem Float/Double)**: Valores monetários seguem como `i64` (minor units) e quantidades como `i64` (escala 3).
 - **Consequência**: Relatórios financeiros precisos (frete vs. consumo) e fluxo de caixa centralizado no núcleo de vendas existente.
+
+---
+
+# Registro de Decisões de Projeto (ADR) — Fase 11
+
+Decisões de arquitetura adotadas na Fase 11 — Estoque Operacional.
+
+---
+
+## 📦 ADR 21: Kardex Local Imutável e Baixa Negativa
+- **Contexto**: O sistema PDV precisa baixar o estoque ao final de cada venda, mas não pode de forma alguma bloquear a frente de caixa por falta de saldo, e deve manter um rastro contábil seguro offline.
+- **Decisão (Imutabilidade)**: A tabela de histórico `estoque_movimentacoes` no SQLite não permite `UPDATE` ou `DELETE`. Correções são tratadas unicamente como novos registros de estorno compensatório (ex: `ESTORNO_VENDA`).
+- **Decisão (Saldo Negativo)**: Foi explicitamente aprovado não utilizar restrições do tipo `CHECK(quantidade >= 0)`. O PDV aceita saldos negativos (ex: vende e fica -5). O acerto ocorre via Lançamento de Inventário (`registrar_inventario`).
+- **Decisão (Idempotência)**: O backend Rust engole pedidos repetidos e duplos cliques no frontend checando se já há um registro prévio na tabela com a mesma origem para aquela operação (`processar_baixa_venda`).
+- **Decisão (Escala e Inteiros)**: Nenhuma operação de estoque usou `double/float`. A API espera `i64` para quantidades (em `escala 3`). As views em Blazor formatam localmente via `decimal / 1000m`.
+- **Consequência**: Operação de caixa super-resiliente, livre de impeditivos sistêmicos operacionais e totalmente transparente à malha contábil (Kardex seguro).
