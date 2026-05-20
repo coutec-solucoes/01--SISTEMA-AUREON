@@ -44,6 +44,11 @@ fn migrations() -> Vec<Migration> {
             nome:   "pdv_operacional_fase8_cache",
             sql:    include_str!("../../../../database/migrations/sqlite/006_pdv_operacional_fase8_cache.sql"),
         },
+        Migration {
+            versao: 7,
+            nome:   "pdv_gourmet_fase9",
+            sql:    include_str!("../../../../database/migrations/sqlite/007_pdv_gourmet_fase9.sql"),
+        },
     ]
 }
 
