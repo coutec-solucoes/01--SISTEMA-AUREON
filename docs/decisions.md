@@ -204,3 +204,20 @@ Decisões de arquitetura adotadas na Fase 12 — Compras e Entrada Manual.
 - **Decisão (Último Custo)**: O último custo em BRL convertida (`ultimo_custo_minor`) do produto é atualizado na finalização da compra usando o custo unitário convertido pela taxa da compra, sem cálculo de preço médio ponderado no PDV.
 - **Consequência**: Consistência absoluta do estoque local, com histórico completo de auditoria no Kardex, rastreabilidade de custos em moedas estrangeiras, e garantia de imutabilidade de compras fechadas/canceladas.
 
+---
+
+# Registro de Decisões de Projeto (ADR) — Fase 13
+
+Decisões de arquitetura adotadas na Fase 13 — Financeiro Base.
+
+---
+
+## 🪙 ADR 23: Contas a Pagar, Contas a Receber, Livro-Caixa Imutável e Regras de Sessão Ativa
+- **Contexto**: A introdução de contas a pagar, contas a receber (crediário) e lançamentos de livro-caixa no PDV offline exige segurança nas baixas e conformidade contábil.
+- **Decisão (Imutabilidade do Livro-Caixa)**: Os registros da tabela `financeiro_lancamentos` são de inserção única (`INSERT ONLY`). Operações de alteração (`UPDATE`) ou exclusão (`DELETE`) são explicitamente proibidas no código-fonte e bloqueadas pela integridade referencial.
+- **Decisão (Isolamento do Crediário)**: Vendas finalizadas com a forma de pagamento `CREDITO_CLIENTE` geram um título a receber, mas seus saldos **não entram** no saldo físico do caixa ativo no ato da venda. O valor só entra no saldo real da sessão de caixa no exato momento da quitação parcial ou total via recebimento do crediário (`baixar_conta_receber`).
+- **Decisão (Sessão de Caixa Aberta para Baixas)**: É obrigatório que haja uma sessão de caixa aberta (`status = 'ABERTO'`) para a registradora em que a baixa de contas a pagar ou a receber é executada. O backend Rust valida isso a nível de banco de dados na transação atômica.
+- **Decisão (Multimoeda com Cotação Fixa)**: O valor principal em BRL é calculado no ato de lançamentos e baixas usando a taxa de câmbio da operação em escala 6, prevenindo distorções matemáticas com o uso estrito de inteiros (`i64/long`).
+- **Consequência**: Consistência absoluta do saldo físico de caixa no momento do fechamento, histórico imutável para auditorias fiscais e suporte offline robusto para recebimento de parcelas e pagamentos de despesas.
+
+
