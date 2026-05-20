@@ -10,6 +10,7 @@ pub mod commands_estoque;
 pub mod commands_compras;
 pub mod commands_financeiro;
 pub mod commands_relatorios;
+pub mod commands_impressao;
 pub mod estado;
 
 use aureon_shared::logging::inicializar_logs;
@@ -156,6 +157,8 @@ pub fn run() {
             commands_relatorios::gerar_relatorio_compras,
             commands_relatorios::gerar_relatorio_produtos_mais_vendidos,
             commands_relatorios::gerar_relatorio_gourmet_delivery,
+            // Commands de Impressao (Fase 15)
+            commands_impressao::testar_impressora,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

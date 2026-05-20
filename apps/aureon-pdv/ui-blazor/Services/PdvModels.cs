@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace AureonPdvUi.Services
 {
@@ -987,6 +988,82 @@ namespace AureonPdvUi.Services
         List<TotalPorMoeda> FaturamentoGourmetMoeda,
         long TicketMedioGourmetBrlMinor
     );
+
+    // ==========================================
+    // DTOs de Impressão Operacional (Fase 15)
+    // ==========================================
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum TipoDestinoImpressao
+    {
+        TCP_IP,
+        WINDOWS_RAW,
+        SIMULADOR
+    }
+
+    public record ImpressoraDestinoReq
+    {
+        [JsonPropertyName("impressora_id")]
+        public string? ImpressoraId { get; init; }
+
+        [JsonPropertyName("nome")]
+        public string Nome { get; init; } = string.Empty;
+
+        [JsonPropertyName("tipo_destino")]
+        public TipoDestinoImpressao TipoDestino { get; init; } = TipoDestinoImpressao.SIMULADOR;
+
+        [JsonPropertyName("endereco_ip")]
+        public string? EnderecoIp { get; init; }
+
+        [JsonPropertyName("porta")]
+        public ushort? Porta { get; init; }
+
+        [JsonPropertyName("nome_spooler")]
+        public string? NomeSpooler { get; init; }
+
+        [JsonPropertyName("caminho_simulador")]
+        public string? CaminhoSimulador { get; init; }
+
+        [JsonPropertyName("largura_colunas")]
+        public byte LarguraColunas { get; init; } = 48;
+
+        [JsonPropertyName("cortar_papel")]
+        public bool CortarPapel { get; init; } = true;
+
+        [JsonPropertyName("abrir_gaveta")]
+        public bool AbrirGaveta { get; init; } = false;
+    }
+
+    public record TesteImpressoraReq
+    {
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("texto_teste")]
+        public string? TextoTeste { get; init; }
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+    }
+
+    public record ImpressaoResultadoResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; init; }
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; init; } = string.Empty;
+
+        [JsonPropertyName("destino_usado")]
+        public string DestinoUsado { get; init; } = string.Empty;
+
+        [JsonPropertyName("caminho_arquivo_simulado")]
+        public string? CaminhoArquivoSimulado { get; init; }
+
+        [JsonPropertyName("bytes_gerados")]
+        public int BytesGerados { get; init; }
+    }
 }
+
 
 

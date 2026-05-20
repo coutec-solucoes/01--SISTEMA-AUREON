@@ -1203,3 +1203,45 @@ pub struct RelatorioGourmetDeliveryResp {
 
 
 
+
+// ==========================================
+// DTOs de Impressão Operacional (Fase 15)
+// ==========================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TipoDestinoImpressao {
+    TcpIp,
+    WindowsRaw,
+    Simulador,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImpressoraDestinoReq {
+    pub impressora_id: Option<String>,
+    pub nome: String,
+    pub tipo_destino: TipoDestinoImpressao,
+    pub endereco_ip: Option<String>,
+    pub porta: Option<u16>,
+    pub nome_spooler: Option<String>,
+    pub caminho_simulador: Option<String>,
+    pub largura_colunas: u8, // 32, 42, 48
+    pub cortar_papel: bool,
+    pub abrir_gaveta: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TesteImpressoraReq {
+    pub destino: ImpressoraDestinoReq,
+    pub texto_teste: Option<String>,
+    pub usuario_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImpressaoResultadoResp {
+    pub sucesso: bool,
+    pub mensagem: String,
+    pub destino_usado: String,
+    pub caminho_arquivo_simulado: Option<String>,
+    pub bytes_gerados: usize,
+}
