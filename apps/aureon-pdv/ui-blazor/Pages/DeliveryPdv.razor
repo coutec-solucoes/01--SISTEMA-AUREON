@@ -1,0 +1,395 @@
+@page "/delivery"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+@inject NavigationManager Nav
+
+<PageTitle>Delivery - Aureon PDV</PageTitle>
+
+<div class="delivery-container fade-in">
+    @if (CarregandoGeral)
+    {
+        <div style="text-align:center; padding: 40px; color: var(--cor-texto-sub);">Carregando Delivery...</div>
+    }
+    else if (!CaixaAberto)
+    {
+        <div class="card" style="text-align: center; border-left: 4px solid #29b6f6; padding: 40px; margin: 24px;">
+            <h2 style="margin-bottom: 16px; color: #29b6f6;">Caixa Fechado</h2>
+            <p style="color: var(--cor-texto-sub); margin-bottom: 24px;">Para operar o Delivery, o caixa deve estar aberto.</p>
+            <a href="/caixa" class="btn btn-primario">Ir para o Caixa</a>
+        </div>
+    }
+    else if (ExibindoDetalhe && PedidoSelecionado != null)
+    {
+        <AureonPdvUi.Pages.PedidoDeliveryDetalhe
+            DeliveryId="@PedidoSelecionado.Id"
+            SessaoCaixaId="@SessaoId"
+            UsuarioId="@_usuarioId"
+            OnVoltar="FecharDetalhe" />
+    }
+    else
+    {
+        <!-- CABEÇALHO -->
+        <div class="delivery-header">
+            <div style="display: flex; align-items: center; gap: 24px;">
+                <h2 style="margin: 0; font-size: 22px;">🛵 Delivery</h2>
+                <!-- Filtro de abas por status -->
+                <div class="delivery-tabs">
+                    @foreach (var status in TodosStatus)
+                    {
+                        var count = Pedidos.Count(p => p.Status == status);
+                        <button class="delivery-tab @(AbaAtiva == status ? "active" : "")"
+                                @onclick="@(() => AbaAtiva = status)">
+                            @status
+                            @if (count > 0)
+                            {
+                                <span class="tab-badge">@count</span>
+                            }
+                        </button>
+                    }
+                    <button class="delivery-tab @(AbaAtiva == "TODOS" ? "active" : "")" @onclick="@(() => AbaAtiva = "TODOS")">
+                        TODOS <span class="tab-badge">@Pedidos.Count</span>
+                    </button>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="CarregarPedidos" disabled="@Carregando">
+                    ↺ Atualizar
+                </button>
+                <button class="btn btn-delivery" @onclick="AbrirModalNovoPedido" disabled="@Carregando">
+                    + Novo Pedido Local
+                </button>
+            </div>
+        </div>
+
+        @if (MensagemErro != null)
+        {
+            <div style="color: #f44336; font-size: 13px; margin-bottom: 16px; padding: 12px; background: rgba(244,67,54,0.1); border-radius: 6px;">
+                @MensagemErro
+            </div>
+        }
+
+        <!-- KANBAN DE PEDIDOS -->
+        <div class="pedidos-grid">
+            @if (Carregando)
+            {
+                <div style="grid-column: 1 / -1; text-align: center; color: var(--cor-texto-sub); padding: 40px;">
+                    Carregando pedidos...
+                </div>
+            }
+            else
+            {
+                var lista = AbaAtiva == "TODOS" ? Pedidos : Pedidos.Where(p => p.Status == AbaAtiva).ToList();
+
+                @if (!lista.Any())
+                {
+                    <div style="grid-column: 1 / -1; text-align: center; color: var(--cor-texto-sub); padding: 40px;">
+                        Nenhum pedido @(AbaAtiva != "TODOS" ? $"com status {AbaAtiva}" : "").
+                    </div>
+                }
+                else
+                {
+                    @foreach (var pedido in lista.OrderByDescending(p => p.AbertaEm))
+                    {
+                        var isAtivo = pedido.Status != "FECHADO" && pedido.Status != "CANCELADO";
+                        var totalGeral = pedido.TotalConsumoMinor + pedido.TaxaEntregaMinor;
+
+                        <div class="pedido-card status-del-@pedido.Status.ToLower() @(isAtivo ? "" : "inativo")"
+                             @onclick="() => AbrirDetalhe(pedido)">
+
+                            <!-- Cabeçalho do Card -->
+                            <div class="pedido-card-header">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="pedido-numero">#@pedido.NumeroPedido</span>
+                                    @if (pedido.Origem == "ONLINE")
+                                    {
+                                        <span class="badge-online">ONLINE</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-local">LOCAL</span>
+                                    }
+                                </div>
+                                <span class="del-status-badge">@pedido.Status</span>
+                            </div>
+
+                            <!-- Cliente -->
+                            <div class="pedido-card-cliente">
+                                <div style="font-weight: 600; font-size: 14px;">@pedido.NomeClienteInformal</div>
+                                @if (!string.IsNullOrEmpty(pedido.Telefone))
+                                {
+                                    <div style="font-size: 11px; color: var(--cor-texto-sub);">📞 @pedido.Telefone</div>
+                                }
+                            </div>
+
+                            <!-- Tipo de entrega -->
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span class="badge-tipo-@pedido.TipoPedido.ToLower()">
+                                    @(pedido.TipoPedido == "ENTREGA" ? "🏠 ENTREGA" : "🏪 RETIRADA")
+                                </span>
+                                @if (!string.IsNullOrEmpty(pedido.EntregadorId))
+                                {
+                                    <span style="font-size: 10px; color: #29b6f6;">🚴 Entregador</span>
+                                }
+                            </div>
+
+                            <!-- Valores -->
+                            <div class="pedido-card-valores">
+                                <div style="font-size: 11px; color: var(--cor-texto-sub);">
+                                    Consumo: @FormatarValor(pedido.TotalConsumoMinor)
+                                    @if (pedido.TaxaEntregaMinor > 0)
+                                    {
+                                        <span> + Taxa: @FormatarValor(pedido.TaxaEntregaMinor)</span>
+                                    }
+                                </div>
+                                <div class="pedido-total">@FormatarValor(totalGeral)</div>
+                            </div>
+
+                            <!-- Aviso de pedidos ONLINE / NOVO esperando -->
+                            @if (pedido.Status == "NOVO" && pedido.Origem == "ONLINE")
+                            {
+                                <div style="background: rgba(255,193,7,0.15); border-left: 3px solid #ffc107; padding: 6px 10px; border-radius: 4px; font-size: 11px; color: #ffc107; margin-top: 8px;">
+                                    ⚠️ Aguardando aceite ou recusa
+                                </div>
+                            }
+
+                            <!-- Aviso de FECHADO = convertido em venda -->
+                            @if (pedido.Status == "FECHADO")
+                            {
+                                <div style="background: rgba(0,230,118,0.1); border-left: 3px solid #00e676; padding: 6px 10px; border-radius: 4px; font-size: 11px; color: #00e676; margin-top: 8px;">
+                                    ✔ Convertido — pagamento no PDV
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            }
+        </div>
+    }
+</div>
+
+<!-- MODAL NOVO PEDIDO LOCAL -->
+@if (ExibirModalNovoPedido)
+{
+    <AureonPdvUi.Shared.NovoPedidoDeliveryModal
+        SessaoCaixaId="@SessaoId"
+        UsuarioId="@_usuarioId"
+        OnSucesso="AoNovoPedidoCriado"
+        OnFechar="() => ExibirModalNovoPedido = false" />
+}
+
+<style>
+    .delivery-container {
+        height: calc(100vh - 120px);
+        display: flex;
+        flex-direction: column;
+        padding: 0 24px;
+    }
+    .delivery-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: 16px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .delivery-tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .delivery-tab {
+        background: none;
+        border: none;
+        color: var(--cor-texto-sub);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 6px 12px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        letter-spacing: 0.5px;
+    }
+    .delivery-tab:hover { color: white; background: rgba(255,255,255,0.05); }
+    .delivery-tab.active { color: #29b6f6; background: rgba(41,182,246,0.1); }
+    .tab-badge {
+        background: rgba(255,255,255,0.15);
+        border-radius: 10px;
+        padding: 1px 6px;
+        font-size: 10px;
+    }
+    .delivery-tab.active .tab-badge { background: rgba(41,182,246,0.3); }
+    .btn-delivery {
+        background: linear-gradient(135deg, #0288d1, #29b6f6);
+        color: white;
+        border: none;
+    }
+    .btn-delivery:hover { opacity: 0.9; }
+
+    /* Grid de pedidos */
+    .pedidos-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+        overflow-y: auto;
+        flex-grow: 1;
+        padding-bottom: 24px;
+    }
+    .pedido-card {
+        background: var(--cor-surface);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .pedido-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.3); }
+    .pedido-card.inativo { opacity: 0.6; }
+    .pedido-card-header { display: flex; justify-content: space-between; align-items: center; }
+    .pedido-numero { font-size: 18px; font-weight: 700; }
+    .pedido-card-cliente { display: flex; flex-direction: column; gap: 2px; }
+    .pedido-card-valores { margin-top: 4px; }
+    .pedido-total { font-size: 20px; font-weight: 700; color: #29b6f6; }
+
+    /* Status cores */
+    .status-del-novo { border-left: 4px solid #ffc107; }
+    .status-del-aceito { border-left: 4px solid #29b6f6; }
+    .status-del-preparando { border-left: 4px solid #ab47bc; }
+    .status-del-pronto { border-left: 4px solid #00e676; }
+    .status-del-despachado { border-left: 4px solid #ff9800; }
+    .status-del-fechado { border-left: 4px solid rgba(255,255,255,0.2); }
+    .status-del-cancelado { border-left: 4px solid #f44336; }
+
+    /* Badges */
+    .del-status-badge {
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        background: rgba(255,255,255,0.1);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    .status-del-novo .del-status-badge { background: rgba(255,193,7,0.2); color: #ffc107; }
+    .status-del-aceito .del-status-badge { background: rgba(41,182,246,0.2); color: #29b6f6; }
+    .status-del-preparando .del-status-badge { background: rgba(171,71,188,0.2); color: #ab47bc; }
+    .status-del-pronto .del-status-badge { background: rgba(0,230,118,0.2); color: #00e676; }
+    .status-del-despachado .del-status-badge { background: rgba(255,152,0,0.2); color: #ff9800; }
+    .status-del-fechado .del-status-badge { background: rgba(255,255,255,0.1); color: #aaa; }
+    .status-del-cancelado .del-status-badge { background: rgba(244,67,54,0.2); color: #f44336; }
+
+    .badge-online {
+        font-size: 9px; font-weight: 700; padding: 2px 6px;
+        border-radius: 3px; background: rgba(255,193,7,0.2); color: #ffc107; letter-spacing: 0.5px;
+    }
+    .badge-local {
+        font-size: 9px; font-weight: 700; padding: 2px 6px;
+        border-radius: 3px; background: rgba(41,182,246,0.15); color: #29b6f6; letter-spacing: 0.5px;
+    }
+    .badge-tipo-entrega {
+        font-size: 10px; padding: 3px 8px; border-radius: 4px;
+        background: rgba(255,152,0,0.15); color: #ff9800;
+    }
+    .badge-tipo-retirada {
+        font-size: 10px; padding: 3px 8px; border-radius: 4px;
+        background: rgba(41,182,246,0.1); color: #29b6f6;
+    }
+</style>
+
+@code {
+    private bool CarregandoGeral = true;
+    private bool Carregando = false;
+    private bool CaixaAberto = false;
+    private string SessaoId = "";
+    private string _usuarioId = "USR-001";
+
+    private string AbaAtiva = "TODOS";
+    private List<DeliveryOperacionalResp> Pedidos = new();
+    private string? MensagemErro;
+
+    private bool ExibindoDetalhe = false;
+    private DeliveryOperacionalResp? PedidoSelecionado;
+    private bool ExibirModalNovoPedido = false;
+
+    private static readonly List<string> TodosStatus = new()
+    {
+        "NOVO", "ACEITO", "PREPARANDO", "PRONTO", "DESPACHADO", "FECHADO", "CANCELADO"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await VerificarCaixa();
+    }
+
+    private async Task VerificarCaixa()
+    {
+        CarregandoGeral = true;
+        var res = await Tauri.InvocarAsync<RespostaBase<SessaoCaixaResp?>>("obter_sessao_ativa", new { registradora_id = "TERM-1" });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            CaixaAberto = true;
+            SessaoId = res.Dados.Id;
+            await CarregarPedidos();
+        }
+        else
+        {
+            CaixaAberto = false;
+        }
+        CarregandoGeral = false;
+    }
+
+    private async Task CarregarPedidos()
+    {
+        Carregando = true;
+        MensagemErro = null;
+        var res = await Tauri.InvocarAsync<RespostaBase<List<DeliveryOperacionalResp>>>("listar_pedidos_delivery");
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            Pedidos = res.Dados;
+        }
+        else
+        {
+            MensagemErro = res?.Mensagem ?? "Erro ao carregar pedidos de delivery.";
+        }
+        Carregando = false;
+    }
+
+    private void AbrirDetalhe(DeliveryOperacionalResp pedido)
+    {
+        PedidoSelecionado = pedido;
+        ExibindoDetalhe = true;
+    }
+
+    private async Task FecharDetalhe()
+    {
+        ExibindoDetalhe = false;
+        PedidoSelecionado = null;
+        await CarregarPedidos();
+    }
+
+    private void AbrirModalNovoPedido()
+    {
+        ExibirModalNovoPedido = true;
+    }
+
+    private async Task AoNovoPedidoCriado(DeliveryOperacionalResp novoPedido)
+    {
+        ExibirModalNovoPedido = false;
+        await CarregarPedidos();
+        // Abre o detalhe do pedido recém criado
+        PedidoSelecionado = novoPedido;
+        ExibindoDetalhe = true;
+    }
+
+    private string FormatarValor(long minor)
+    {
+        return (minor / 100m).ToString("C2", new CultureInfo("pt-BR"));
+    }
+}

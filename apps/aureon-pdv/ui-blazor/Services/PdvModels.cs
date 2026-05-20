@@ -475,7 +475,125 @@ namespace AureonPdvUi.Services
     public record FecharEmVendaReq(
         string origem_id,
         string sessao_caixa_id,
+        string usuario_id,
+        string origem_tipo = "MESA"
+    );
+
+    public record FechamentoEmVendaResp(
+        string VendaId,
+        string OrigemTipo,
+        string OrigemId,
+        long TotalMinor,
+        long TotalItens,
+        string StatusVenda
+    );
+
+    // ========================================================================
+    // DELIVERY OPERACIONAL — DTOs
+    // ========================================================================
+
+    public record DeliveryItemResp(
+        string Id,
+        string DeliveryId,
+        string ProdutoId,
+        string DescricaoProduto,
+        string? CodigoProduto,
+        long QuantidadeEscala3,
+        long PrecoUnitarioMinor,
+        long DescontoItemMinor,
+        long AcrescimoItemMinor,
+        long TotalItemMinor,
+        string? ObservacaoProducao,
+        string? LocalProducaoId,
+        string Status,
+        bool EnviadoProducao,
+        bool Cancelado,
+        string CriadoEm = ""
+    );
+
+    public record DeliveryOperacionalResp(
+        string Id,
+        int NumeroPedido,
+        string? ClienteId,
+        string NomeClienteInformal,
+        string Telefone,
+        string? EnderecoCompleto,
+        string TipoPedido,
+        string Status,
+        string Origem,
+        string? EntregadorId,
+        long TaxaEntregaMinor,
+        long TotalConsumoMinor,
+        string? SessaoCaixaId,
+        string? Observacao,
+        string? PrevisaoEntrega,
+        string AbertaEm,
+        string? FechadoEm,
+        List<DeliveryItemResp> Itens
+    );
+
+    public record EntregadorResp(
+        string Id,
+        string Nome,
+        string? Documento,
+        bool Ativo
+    );
+
+    public record CriarPedidoLocalReq(
+        string nome_cliente_informal,
+        string telefone,
+        string tipo_pedido,
+        string? endereco_completo,
+        long taxa_entrega_minor,
+        string sessao_caixa_id,
+        string? observacao,
+        string? cliente_id,
         string usuario_id
+    );
+
+    public record AceitarPedidoReq(
+        string delivery_id,
+        string sessao_caixa_id
+    );
+
+    public record RecusarPedidoReq(
+        string delivery_id,
+        string motivo,
+        string usuario_id
+    );
+
+    public record AtualizarStatusDeliveryReq(
+        string delivery_id,
+        string novo_status,
+        string usuario_id
+    );
+
+    public record DefinirEntregadorReq(
+        string delivery_id,
+        string entregador_id,
+        string usuario_id
+    );
+
+    public record AdicionarItemDeliveryReq(
+        string delivery_id,
+        string produto_id,
+        string descricao_produto,
+        string? codigo_produto,
+        long quantidade_escala3,
+        long preco_unitario_minor,
+        long desconto_item_minor,
+        long acrescimo_item_minor,
+        string? observacao_producao,
+        string? local_producao_id,
+        string usuario_id
+    );
+
+    public record CancelarItemDeliveryReq(
+        string item_id,
+        string motivo_cancelamento,
+        string usuario_id,
+        string? supervisor_id,
+        string? autorizacao_id
     );
 }
 

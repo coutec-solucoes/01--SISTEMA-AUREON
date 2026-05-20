@@ -1,0 +1,170 @@
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+
+<div class="modal-overlay">
+    <div class="modal-content card" style="max-width: 500px; width: 100%;">
+        <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+            🛵 <span>Novo Pedido Local</span>
+        </h3>
+
+        @if (MensagemErro != null)
+        {
+            <div style="color: #f44336; font-size: 13px; margin-bottom: 16px; padding: 12px; background: rgba(244,67,54,0.1); border-radius: 6px;">
+                @MensagemErro
+            </div>
+        }
+
+        <!-- Nome do cliente -->
+        <div style="margin-bottom: 14px;">
+            <label style="font-size: 12px; color: var(--cor-texto-sub);">Nome do Cliente *</label>
+            <input type="text" class="input-moderno" @bind="NomeCliente" placeholder="Ex: João Silva" />
+        </div>
+
+        <!-- Telefone -->
+        <div style="margin-bottom: 14px;">
+            <label style="font-size: 12px; color: var(--cor-texto-sub);">Telefone *</label>
+            <input type="text" class="input-moderno" @bind="Telefone" placeholder="Ex: (11) 99999-0000" />
+        </div>
+
+        <!-- Tipo de pedido -->
+        <div style="margin-bottom: 14px;">
+            <label style="font-size: 12px; color: var(--cor-texto-sub);">Tipo do Pedido *</label>
+            <div style="display: flex; gap: 10px; margin-top: 6px;">
+                <button class="@("btn-tipo " + (TipoPedido == "RETIRADA" ? "active" : ""))"
+                        @onclick="@(() => TipoPedido = "RETIRADA")">
+                    🏪 Retirada
+                </button>
+                <button class="@("btn-tipo " + (TipoPedido == "ENTREGA" ? "active" : ""))"
+                        @onclick="@(() => TipoPedido = "ENTREGA")">
+                    🏠 Entrega
+                </button>
+            </div>
+        </div>
+
+        <!-- Endereço (somente ENTREGA) -->
+        @if (TipoPedido == "ENTREGA")
+        {
+            <div style="margin-bottom: 14px;">
+                <label style="font-size: 12px; color: var(--cor-texto-sub);">Endereço completo *</label>
+                <textarea class="input-moderno" @bind="Endereco" placeholder="Rua, número, bairro, cidade"
+                          style="resize: vertical; min-height: 60px;"></textarea>
+            </div>
+        }
+
+        <!-- Taxa de entrega -->
+        <div style="margin-bottom: 14px;">
+            <label style="font-size: 12px; color: var(--cor-texto-sub);">Taxa de Entrega (R$)</label>
+            <input type="number" class="input-moderno" @bind="TaxaEntregaDecimal"
+                   step="0.01" min="0" placeholder="0,00"
+                   style="max-width: 160px;" />
+            <div style="font-size: 11px; color: var(--cor-texto-sub); margin-top: 4px;">
+                Deixe 0 se não houver taxa ou for retirada.
+            </div>
+        </div>
+
+        <!-- Observação -->
+        <div style="margin-bottom: 20px;">
+            <label style="font-size: 12px; color: var(--cor-texto-sub);">Observação (opcional)</label>
+            <input type="text" class="input-moderno" @bind="Observacao" placeholder="Ex: Sem cebola, toque 2 vezes" />
+        </div>
+
+        <!-- Info do pedido LOCAL -->
+        <div style="background: rgba(41,182,246,0.08); border-left: 3px solid #29b6f6; padding: 10px 14px; border-radius: 4px; font-size: 12px; color: var(--cor-texto-sub); margin-bottom: 20px;">
+            ℹ️ Pedidos locais nascem com status <strong style="color: #29b6f6;">ACEITO</strong> diretamente.
+        </div>
+
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="OnFechar" disabled="@Processando">
+                Cancelar
+            </button>
+            <button class="btn" style="background: linear-gradient(135deg,#0288d1,#29b6f6); color:white; font-weight: 700;"
+                    @onclick="CriarPedido"
+                    disabled="@(Processando || !PodeSalvar())">
+                @(Processando ? "Criando..." : "Criar Pedido")
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .btn-tipo {
+        flex: 1;
+        padding: 10px 16px;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 6px;
+        background: rgba(255,255,255,0.04);
+        color: var(--cor-texto-sub);
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    .btn-tipo.active {
+        background: rgba(41,182,246,0.15);
+        border-color: #29b6f6;
+        color: #29b6f6;
+    }
+    .btn-tipo:hover:not(.active) {
+        background: rgba(255,255,255,0.08);
+        color: white;
+    }
+</style>
+
+@code {
+    [Parameter] public string SessaoCaixaId { get; set; } = "";
+    [Parameter] public string UsuarioId { get; set; } = "";
+    [Parameter] public EventCallback<DeliveryOperacionalResp> OnSucesso { get; set; }
+    [Parameter] public EventCallback OnFechar { get; set; }
+
+    private string NomeCliente = "";
+    private string Telefone = "";
+    private string TipoPedido = "RETIRADA";
+    private string Endereco = "";
+    private decimal TaxaEntregaDecimal = 0m;
+    private string Observacao = "";
+    private bool Processando = false;
+    private string? MensagemErro;
+
+    private bool PodeSalvar()
+    {
+        if (string.IsNullOrWhiteSpace(NomeCliente)) return false;
+        if (string.IsNullOrWhiteSpace(Telefone)) return false;
+        if (TipoPedido == "ENTREGA" && string.IsNullOrWhiteSpace(Endereco)) return false;
+        return true;
+    }
+
+    private async Task CriarPedido()
+    {
+        if (!PodeSalvar()) return;
+        Processando = true;
+        MensagemErro = null;
+
+        // Converte taxa para minor unit (centavos) — sem float operacional
+        long taxaMinor = (long)Math.Round(TaxaEntregaDecimal * 100m);
+
+        var req = new CriarPedidoLocalReq(
+            nome_cliente_informal: NomeCliente.Trim(),
+            telefone: Telefone.Trim(),
+            tipo_pedido: TipoPedido,
+            endereco_completo: TipoPedido == "ENTREGA" ? Endereco.Trim() : null,
+            taxa_entrega_minor: taxaMinor,
+            sessao_caixa_id: SessaoCaixaId,
+            observacao: string.IsNullOrWhiteSpace(Observacao) ? null : Observacao.Trim(),
+            cliente_id: null,
+            usuario_id: UsuarioId
+        );
+
+        var res = await Tauri.InvocarAsync<RespostaBase<DeliveryOperacionalResp>>("criar_pedido_local", new { dto = req });
+
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            await OnSucesso.InvokeAsync(res.Dados);
+        }
+        else
+        {
+            MensagemErro = res?.Mensagem ?? "Erro ao criar pedido.";
+            Processando = false;
+        }
+    }
+}
