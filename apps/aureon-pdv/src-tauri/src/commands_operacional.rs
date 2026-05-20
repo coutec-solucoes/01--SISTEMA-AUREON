@@ -254,15 +254,41 @@ pub async fn solicitar_autorizacao_supervisor(
     // A validação real usaria um cache local e hash. Como não temos supervisores_cache populado ainda,
     // vamos simular a validação falhando apenas se pin for vazio.
     let mut conn = db.lock().unwrap();
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
     
-    // Simulação: "1234" aprova, qualquer outro nega
-    let aprovado = dto.pin_supervisor == "1234";
-    // Como não temos tabela de supervisores real, fingimos que o ID do supervisor é algo fixo
-    let supervisor_id = if aprovado { "SUP-001".to_string() } else { "SUP-UNKNOWN".to_string() };
+    let (aprovado, supervisor_id) = {
+        let mut stmt = conn.prepare("SELECT id, pin_hash, ativo FROM supervisores_cache").map_err(|e| e.to_string())?;
+        
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, bool>(2)?,
+            ))
+        }).map_err(|e| e.to_string())?;
 
-    let id = Uuid::new_v4().to_string();
-    let agora = Utc::now().to_rfc3339();
+        let mut ap = false;
+        let mut sid = "SUP-000".to_string();
+
+        for res in rows {
+            if let Ok((id, ph, ativo)) = res {
+                if ativo && bcrypt::verify(&dto.pin_supervisor, &ph).unwrap_or(false) {
+                    ap = true;
+                    sid = id;
+                    break;
+                }
+            }
+        }
+        (ap, sid)
+    };
+
+    let aprovado = aprovado;
+    let supervisor_id = supervisor_id;
+
+    let auth_id = Uuid::new_v4().to_string();
+    let agora = chrono::Utc::now().to_rfc3339();
+
+    // Inicia transação para gravação
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     tx.execute(
         "INSERT INTO supervisor_autorizacoes_local (
@@ -270,13 +296,13 @@ pub async fn solicitar_autorizacao_supervisor(
             criado_em, terminal_id, sessao_caixa_id, entidade_tipo, entidade_id
         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
-            id, dto.operacao, dto.usuario_solicitante_id, supervisor_id, dto.motivo, aprovado,
+            auth_id, dto.operacao, dto.usuario_solicitante_id, supervisor_id, dto.motivo, aprovado,
             agora, terminal_id, dto.sessao_caixa_id, dto.entidade_tipo, dto.entidade_id
         ],
     ).map_err(|e| e.to_string())?;
 
     let resp = AutorizacaoResp {
-        id: id.clone(),
+        id: auth_id.clone(),
         operacao: dto.operacao,
         usuario_solicitante_id: dto.usuario_solicitante_id,
         supervisor_id,
@@ -888,21 +914,12 @@ pub async fn buscar_clientes_pdv(
     termo: String,
 ) -> Result<RespostaBase<Vec<ClienteResp>>, String> {
     let conn = db.lock().unwrap();
-    
-    // Na Fase 8 usaremos apenas um mock / cache basico
     let query = format!("%{}%", termo);
-    
-    // Tenta acessar clientes_cache, se não existir, retorna array vazio via erro ignorado.
-    let mut stmt = match conn.prepare(
+
+    let mut stmt = conn.prepare(
         "SELECT id, nome, documento, ativo FROM clientes_cache 
          WHERE nome LIKE ?1 OR documento LIKE ?1 LIMIT 20"
-    ) {
-        Ok(s) => s,
-        Err(_) => {
-            // Falha silenciosa para quando a tabela de cache nao existir
-            return Ok(RespostaBase::ok("", vec![]));
-        }
-    };
+    ).map_err(|e| e.to_string())?;
 
     let mut lista = Vec::new();
     let res = stmt.query_map([query], |row| {
@@ -931,7 +948,27 @@ pub async fn associar_cliente_venda(
     let mut conn = db.lock().unwrap();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    // 1. Validar venda
+    // 1. Validar cliente no cache local (se não for nulo/vazio)
+    if !req.cliente_id.is_empty() {
+        let cliente_ativo: Result<bool, rusqlite::Error> = tx.query_row(
+            "SELECT ativo FROM clientes_cache WHERE id = ?1",
+            params![req.cliente_id],
+            |row| row.get(0),
+        );
+
+        match cliente_ativo {
+            Ok(true) => {}
+            Ok(false) => {
+                return Ok(RespostaBase::falha_manual("O cliente selecionado está inativo no cadastro.", "ERR_OP", ""));
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                return Ok(RespostaBase::falha_manual("Cliente não cadastrado ou não sincronizado no cache local.", "ERR_OP", ""));
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+
+    // 2. Validar venda
     let status_venda: String = tx.query_row(
         "SELECT status FROM vendas WHERE id = ?1",
         params![req.venda_id],
@@ -943,9 +980,10 @@ pub async fn associar_cliente_venda(
     }
 
     // Atualizar
+    let cli_id_opt = if req.cliente_id.is_empty() { None } else { Some(req.cliente_id.clone()) };
     tx.execute(
         "UPDATE vendas SET cliente_id = ?1, atualizado_em = ?2 WHERE id = ?3",
-        params![req.cliente_id, Utc::now().to_rfc3339(), req.venda_id],
+        params![cli_id_opt, Utc::now().to_rfc3339(), req.venda_id],
     ).map_err(|e| e.to_string())?;
 
     // Outbox

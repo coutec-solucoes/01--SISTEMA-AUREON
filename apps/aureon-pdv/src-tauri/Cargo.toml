@@ -26,6 +26,7 @@ aureon-shared = { workspace = true }
 aureon-domain = { workspace = true }
 aureon-infra  = { workspace = true }
 rusqlite      = { workspace = true }
+bcrypt = "0.19.1"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

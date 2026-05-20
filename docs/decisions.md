@@ -111,3 +111,38 @@ Decisões de arquitetura adotadas na Fase 7 — PDV Núcleo.
 - **Contexto**: A atuação em regiões de fronteira exige troco e pagamento em Reais, Dólar e Guarani no mesmo ticket e fechamento de caixa.
 - **Decisão**: A estrutura de caixa (`sessoes_caixa_moedas`) armazena abertura, esperado, informado e diferença para cada moeda independentemente. Pagamentos travam a cotação e realizam rateio exato para o banco.
 - **Consequência**: Dispensa integrações contábeis complexas na retaguarda, o PDV já devolve o DRE exato e as sobras de gaveta na respectiva moeda apurada.
+
+---
+
+# Registro de Decisões de Projeto (ADR) — Fase 8
+
+Decisões de arquitetura adotadas na Fase 8 — PDV Operacional.
+
+---
+
+## 🔒 ADR 15: Validação do Supervisor via Cache Local com Hash Bcrypt
+- **Contexto**: O sistema necessita autorizar ações críticas (sangria, vale, reimpressão, estornos) de forma segura no PDV local sem conectividade síncrona com a retaguarda PostgreSQL.
+- **Decisão**: Banimento de qualquer PIN hardcoded ("1234") nos fontes. A autorização do supervisor é autenticada comparando a senha inserida contra o campo `pin_hash` na tabela `supervisores_cache` local. O hash é validado por meio da biblioteca Bcrypt.
+- **Consequência**: Garante alto nível de segurança mesmo em ambiente puramente offline, impedindo vazamentos de PINs por meio de engenharia reversa no binário do PDV ou leitura simples de logs do SQLite.
+
+---
+
+## 👥 ADR 16: Associação de Clientes com Validação no Cache Local
+- **Contexto**: Operações de balcão necessitam associar o CPF/CNPJ de clientes ao carrinho de compras e bloquear vendas para cadastros inativos/bloqueados no retaguarda.
+- **Decisão**: A associação de cliente (`associar_cliente_venda`) efetua uma consulta na tabela `clientes_cache` local. Caso o cliente selecionado retorne com o status `ativo = 0`, a operação é imediatamente abortada e retorna erro financeiro amigável, impedindo o checkout de clientes devedores ou bloqueados.
+- **Consequência**: Operação veloz e alinhada às restrições corporativas sem latência de rede.
+
+---
+
+## ⚡ ADR 17: Persistência Atômica de Eventos e Outbox
+- **Contexto**: Toda movimentação local de gaveta (sangria, suprimento, vale), reimpressões ou cancelamentos deve gerar um evento de sincronização que será enviado ao servidor no próximo ciclo de sync.
+- **Decisão**: Todas as criações de registros operacionais (ex: tabela `caixa_movimentacoes`) e suas respectivas inserções no `sync_outbox` são envelopadas em uma única transação atômica (`conn.transaction`).
+- **Consequência**: Garantia de que a fila de sincronização nunca ficará inconsistente com os dados reais de gaveta locais, mesmo em casos de quedas de energia repentinas do terminal de venda.
+
+---
+
+## 📦 ADR 18: Cache Local via Migration Incremental e Seeds de Teste
+- **Contexto**: Para suportar a validação real de clientes e supervisores sem acoplar a rede síncrona, faz-se necessário expandir o modelo relacional local de dados temporários.
+- **Decisão**: Criada a migration `006_pdv_operacional_fase8_cache.sql` para estruturar as tabelas `clientes_cache` e `supervisores_cache`. O script inclui sementes seguras com os hashes gerados (ex: a senha padrão "1234" vira hash Bcrypt no banco) permitindo que o sistema inicialize pronto para testes no primeiro build sem intervenção manual de sync.
+- **Consequência**: Facilidade extrema de testes de integração na UI local e robustez no gerenciamento incremental de esquema relacional local.
+

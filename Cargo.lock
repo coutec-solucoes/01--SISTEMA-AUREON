@@ -266,6 +266,7 @@ dependencies = [
  "aureon-domain",
  "aureon-infra",
  "aureon-shared",
+ "bcrypt",
  "chrono",
  "reqwest 0.12.28",
  "rusqlite",
