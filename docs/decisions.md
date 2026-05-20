@@ -188,3 +188,19 @@ Decisões de arquitetura adotadas na Fase 11 — Estoque Operacional.
 - **Decisão (Idempotência)**: O backend Rust engole pedidos repetidos e duplos cliques no frontend checando se já há um registro prévio na tabela com a mesma origem para aquela operação (`processar_baixa_venda`).
 - **Decisão (Escala e Inteiros)**: Nenhuma operação de estoque usou `double/float`. A API espera `i64` para quantidades (em `escala 3`). As views em Blazor formatam localmente via `decimal / 1000m`.
 - **Consequência**: Operação de caixa super-resiliente, livre de impeditivos sistêmicos operacionais e totalmente transparente à malha contábil (Kardex seguro).
+
+---
+
+# Registro de Decisões de Projeto (ADR) — Fase 12
+
+Decisões de arquitetura adotadas na Fase 12 — Compras e Entrada Manual.
+
+---
+
+## 🛒 ADR 22: Compras Manuais, Entrada no Estoque, Estorno e Custo Unitário em Cotação Snapshot
+- **Contexto**: A entrada manual de mercadorias no PDV local deve registrar a entrada no estoque, alimentar o Kardex, atualizar o último custo e suportar transações em múltiplas moedas com cotação travada.
+- **Decisão (Snapshot de Câmbio)**: A cotação da compra é gravada em escala 6 no momento da criação da compra (`taxa_cambio_escala6`). Todos os custos e totais convertidos usam matemática inteira com essa taxa de câmbio snapshot, independente de variações cambiais futuras.
+- **Decisão (Entrada e Estorno)**: Ao finalizar uma compra (`FINALIZADA`), as quantidades em escala 3 dos produtos configurados com `controla_estoque = 1` são adicionadas ao `produtos_estoque_cache` e uma movimentação `ENTRADA_COMPRA` é gravada no Kardex de forma atômica. Se a compra for cancelada (`CANCELADA`), gera-se uma nova movimentação do tipo `ESTORNO_ENTRADA_COMPRA` com sinal inverso no Kardex, deduzindo os saldos, sem alterar o histórico anterior.
+- **Decisão (Último Custo)**: O último custo em BRL convertida (`ultimo_custo_minor`) do produto é atualizado na finalização da compra usando o custo unitário convertido pela taxa da compra, sem cálculo de preço médio ponderado no PDV.
+- **Consequência**: Consistência absoluta do estoque local, com histórico completo de auditoria no Kardex, rastreabilidade de custos em moedas estrangeiras, e garantia de imutabilidade de compras fechadas/canceladas.
+
