@@ -146,4 +146,18 @@ Decisões de arquitetura adotadas na Fase 8 — PDV Operacional.
 - **Decisão**: Criada a migration `006_pdv_operacional_fase8_cache.sql` para estruturar estritamente as tabelas `clientes_cache` e `supervisores_cache` e seus índices locais (apenas DDL). Todos os dados de semente para homologação e desenvolvimento (como o supervisor default e o PIN `"1234"`) foram isolados em um script SQL externo: `database/seeds/dev/sqlite/seed_fase8_dev.sql`.
 - **Consequência**: Garantia de que credenciais e dados de teste jamais serão embarcados automaticamente em ambientes de produção, enquanto a flexibilidade de testes locais é mantida através de comandos de seeding manuais ou manuais controlados.
 
+---
 
+# Registro de Decisões de Projeto (ADR) — Fase 9
+
+Decisões de arquitetura adotadas na Fase 9 — PDV Gourmet.
+
+---
+
+## 🍽️ ADR 19: Fluxo de Fechamento Transicional (Mesa/Comanda)
+- **Contexto**: O Gourmet exige que mesas continuem operacionais enquanto o faturamento ocorre.
+- **Decisão (Fechamento Transicional)**: A mesa/comanda não é extinta imediatamente no pedido da conta. Ao chamar `fechar_em_venda`, cria-se o espelho de venda com status `EM_ANDAMENTO` sem `numero_venda`. O PDV balcão assume o faturamento. Se pago, a mesa vira `FECHADA`.
+- **Decisão (Tabelas de Operação Isoladas)**: Diferenciar `mesas_cache` e `mesas_operacionais`. A primeira é estrutural do restaurante. A segunda nasce e morre no ciclo de vida de uso do cliente. Idem para comandas.
+- **Decisão (Bloqueio de Saldo)**: Se houver venda `EM_ANDAMENTO`, a adição de novos itens, transferências ou cancelamentos no Gourmet são explicitamente bloqueados para não corromper o troco em processamento do caixa.
+- **Decisão (Inteiros para Escalas)**: Segue-se estritamente a lei global do Aureon: NENHUM float/double no Rust. Minor units para `TotalConsumoMinor` e escala 3 para `QuantidadeEscala3`.
+- **Consequência**: Consistência absoluta entre o consumo da mesa e o caixa final, prevenindo race conditions em ambientes multi-usuário.
