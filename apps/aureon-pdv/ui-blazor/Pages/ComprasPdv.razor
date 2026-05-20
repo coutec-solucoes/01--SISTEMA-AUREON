@@ -1,0 +1,303 @@
+@page "/compras"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+@inject NavigationManager Nav
+
+<div class="container-fluid py-4">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white m-0">Central de Compras e Entradas</h2>
+            <p class="text-muted small m-0">Lançamento de notas de compras manuais e entrada física de estoque</p>
+        </div>
+        <button class="btn btn-purple" @onclick="AbrirNovaCompra">
+            <i class="bi bi-plus-lg me-2"></i>Registrar Compra Manual
+        </button>
+    </div>
+
+    <!-- Filtros por Status -->
+    <div class="card p-3 mb-4 card-filtros">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn @(statusFiltro == null ? "btn-active-filter" : "btn-outline-filter")" @onclick="() => MudarFiltro(null)">
+                        Todas
+                    </button>
+                    <button type="button" class="btn @(statusFiltro == "EM_ANDAMENTO" ? "btn-active-filter" : "btn-outline-filter")" @onclick='() => MudarFiltro("EM_ANDAMENTO")'>
+                        Em Andamento
+                    </button>
+                    <button type="button" class="btn @(statusFiltro == "FINALIZADA" ? "btn-active-filter" : "btn-outline-filter")" @onclick='() => MudarFiltro("FINALIZADA")'>
+                        Finalizadas
+                    </button>
+                    <button type="button" class="btn @(statusFiltro == "CANCELADA" ? "btn-active-filter" : "btn-outline-filter")" @onclick='() => MudarFiltro("CANCELADA")'>
+                        Canceladas
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-outline-secondary" @onclick="CarregarCompras">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Atualizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Compras -->
+    @if (erro != null)
+    {
+        <div class="alert alert-danger">@erro</div>
+    }
+
+    @if (carregando)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-purple" role="status"></div>
+            <p class="text-muted mt-2">Carregando notas de compras...</p>
+        </div>
+    }
+    else if (compras == null || !compras.Any())
+    {
+        <div class="card p-5 text-center bg-card-dark border-dashed">
+            <i class="bi bi-box-seam fs-1 text-muted mb-3"></i>
+            <h5 class="text-white">Nenhuma compra encontrada</h5>
+            <p class="text-muted small">Crie uma nova compra manual para dar entrada de mercadorias no estoque local.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle table-dark-custom">
+                <thead>
+                    <tr>
+                        <th>Nota / Série</th>
+                        <th>Fornecedor</th>
+                        <th>Moeda</th>
+                        <th class="text-end">Cotação</th>
+                        <th class="text-end">Total da Nota</th>
+                        <th>Data</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in compras)
+                    {
+                        <tr>
+                            <td class="fw-bold text-white">
+                                @(string.IsNullOrEmpty(c.NumeroNota) ? "S/N" : c.NumeroNota)
+                                @if (!string.IsNullOrEmpty(c.Serie))
+                                {
+                                    <span class="badge bg-secondary ms-1">Série @c.Serie</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="d-block text-white-50">@c.FornecedorNomeSnapshot</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-dark-purple">@c.MoedaCodigo</span>
+                            </td>
+                            <td class="text-end">
+                                @((c.TaxaCambioEscala6 / 1000000m).ToString("N4"))
+                            </td>
+                            <td class="text-end fw-bold text-success">
+                                @FormatarValor(c.TotalCompraMinor, c.MoedaCodigo)
+                            </td>
+                            <td>
+                                @FormatarData(c.CriadoEm)
+                            </td>
+                            <td class="text-center">
+                                <span class="badge-status status-@c.Status.ToLower()">@c.Status</span>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-outline-purple" @onclick="() => AbrirDetalhe(c.Id)">
+                                    <i class="bi bi-eye me-1"></i> Detalhes
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (exibirNovaCompraModal)
+{
+    <NovaCompraModal OnFechar="FecharNovaCompra" OnSucesso="AoCriarCompra" />
+}
+
+<style>
+    .btn-purple {
+        background-color: #8e24aa;
+        color: white;
+        border: none;
+    }
+    .btn-purple:hover {
+        background-color: #ab47bc;
+        color: white;
+    }
+    .btn-outline-purple {
+        color: #ab47bc;
+        border-color: #ab47bc;
+        background: transparent;
+    }
+    .btn-outline-purple:hover {
+        background-color: #ab47bc;
+        color: white;
+    }
+    .card-filtros {
+        background-color: #1e1e2d !important;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .btn-outline-filter {
+        background-color: #151521;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: #a2a5b9;
+    }
+    .btn-outline-filter:hover {
+        background-color: #2b2b40;
+        color: #ffffff;
+    }
+    .btn-active-filter {
+        background-color: #8e24aa;
+        color: #ffffff;
+        border: 1px solid #8e24aa;
+    }
+    .bg-card-dark {
+        background-color: #1e1e2d !important;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .border-dashed {
+        border-style: dashed !important;
+    }
+    .table-dark-custom {
+        background-color: #1e1e2d !important;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .table-dark-custom th {
+        background-color: #151521 !important;
+        color: #a2a5b9 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 12px;
+    }
+    .table-dark-custom td {
+        padding: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        color: #cdcdde;
+    }
+    .bg-dark-purple {
+        background-color: #4a148c;
+        color: #e1bee7;
+    }
+    .badge-status {
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 11px;
+        display: inline-block;
+    }
+    .status-em_andamento {
+        background-color: rgba(255, 152, 0, 0.15);
+        color: #ff9800;
+        border: 1px solid rgba(255, 152, 0, 0.3);
+    }
+    .status-finalizada {
+        background-color: rgba(76, 175, 80, 0.15);
+        color: #4caf50;
+        border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+    .status-cancelada {
+        background-color: rgba(244, 67, 54, 0.15);
+        color: #f44336;
+        border: 1px solid rgba(244, 67, 54, 0.3);
+    }
+</style>
+
+@code {
+    private List<CompraResp> compras = new();
+    private string? statusFiltro;
+    private bool carregando = true;
+    private string? erro;
+
+    private bool exibirNovaCompraModal = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarCompras();
+    }
+
+    private async Task CarregarCompras()
+    {
+        carregando = true;
+        erro = null;
+        try
+        {
+            var resp = await Tauri.InvocarAsync<RespostaBase<List<CompraResp>>>("listar_compras", new { status = statusFiltro });
+            if (resp.Sucesso && resp.Dados != null)
+            {
+                compras = resp.Dados;
+            }
+            else
+            {
+                erro = resp.Mensagem;
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro ao carregar compras: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private async Task MudarFiltro(string? status)
+    {
+        statusFiltro = status;
+        await CarregarCompras();
+    }
+
+    private void AbrirNovaCompra()
+    {
+        exibirNovaCompraModal = true;
+    }
+
+    private void FecharNovaCompra()
+    {
+        exibirNovaCompraModal = false;
+    }
+
+    private void AoCriarCompra(CompraResp compraNova)
+    {
+        exibirNovaCompraModal = false;
+        Nav.NavigateTo($"/compra/detalhe/{compraNova.Id}");
+    }
+
+    private void AbrirDetalhe(string id)
+    {
+        Nav.NavigateTo($"/compra/detalhe/{id}");
+    }
+
+    private string FormatarValor(long minor, string moeda)
+    {
+        decimal valor = minor / 100m;
+        if (moeda == "BRL")
+            return valor.ToString("C2", new CultureInfo("pt-BR"));
+        if (moeda == "USD")
+            return $"$ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        if (moeda == "EUR")
+            return $"€ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        return $"{moeda} {valor.ToString("N2")}";
+    }
+
+    private string FormatarData(string isoString)
+    {
+        if (DateTime.TryParse(isoString, out var dt))
+        {
+            return dt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+        }
+        return isoString;
+    }
+}

@@ -1,0 +1,656 @@
+@page "/compra/detalhe/{CompraId}"
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+@inject NavigationManager Nav
+
+<div class="container-fluid py-4">
+    <!-- Cabeçalho de Detalhe -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-outline-secondary" @onclick="Voltar">
+                <i class="bi bi-arrow-left me-1"></i>Voltar
+            </button>
+            <h3 class="text-white m-0">Compra #@CompraId.Substring(0, Math.Min(CompraId.Length, 8))</h3>
+            @if (compra != null)
+            {
+                <span class="badge-status status-@compra.Status.ToLower()">@compra.Status</span>
+            }
+        </div>
+        
+        <!-- Botões de Ação Cabeçalho -->
+        @if (compra != null && compra.Status == "EM_ANDAMENTO")
+        {
+            <div class="d-flex gap-2">
+                <button class="btn btn-danger" @onclick="PrepararCancelarEmAndamento">
+                    <i class="bi bi-x-circle me-1"></i> Cancelar Compra
+                </button>
+                <button class="btn btn-success" @onclick="Finalizar" disabled="@(compra.Itens == null || !compra.Itens.Any(i => !i.Cancelado) || processando)">
+                    @if (processando)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    }
+                    <i class="bi bi-check-circle me-1"></i> Finalizar Compra
+                </button>
+            </div>
+        }
+        else if (compra != null && compra.Status == "FINALIZADA")
+        {
+            <div>
+                <button class="btn btn-danger" @onclick="PrepararCancelarFinalizada">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> Estornar / Cancelar Compra
+                </button>
+            </div>
+        }
+    </div>
+
+    @if (erroGeral != null)
+    {
+        <div class="alert alert-danger">@erroGeral</div>
+    }
+
+    @if (mensagemSucesso != null)
+    {
+        <div class="alert alert-success">@mensagemSucesso</div>
+    }
+
+    @if (carregandoGeral)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-purple" role="status"></div>
+            <p class="text-muted mt-2">Carregando detalhes da compra...</p>
+        </div>
+    }
+    else if (compra == null)
+    {
+        <div class="alert alert-warning text-center">Compra não encontrada.</div>
+    }
+    else
+    {
+        <div class="row">
+            <!-- Coluna da Esquerda: Itens -->
+            <div class="col-lg-8 mb-4">
+                <div class="card card-compra h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="m-0 text-white">Itens da Compra</h5>
+                        @if (compra.Status == "EM_ANDAMENTO")
+                        {
+                            <button class="btn btn-sm btn-purple" @onclick="AbrirAdicionarItem">
+                                <i class="bi bi-plus-lg me-1"></i> Adicionar Produto
+                            </button>
+                        }
+                    </div>
+                    <div class="card-body p-0">
+                        @if (compra.Itens == null || !compra.Itens.Any())
+                        {
+                            <div class="p-5 text-center text-muted">
+                                <i class="bi bi-basket fs-1 d-block mb-3"></i>
+                                Nenhum item adicionado nesta compra ainda.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-dark table-striped table-hover align-middle m-0 table-itens-compra">
+                                    <thead>
+                                        <tr>
+                                            <th>Produto</th>
+                                            <th class="text-end">Qtd</th>
+                                            <th class="text-end">Custo Unit.</th>
+                                            <th class="text-end">Subtotal</th>
+                                            <th>Rastreabilidade</th>
+                                            @if (compra.Status == "EM_ANDAMENTO")
+                                            {
+                                                <th class="text-center">Ações</th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in compra.Itens)
+                                        {
+                                            <tr class="@(item.Cancelado ? "item-cancelado-linha" : "")">
+                                                <td>
+                                                    <div class="fw-bold text-white">@item.DescricaoProdutoSnapshot</div>
+                                                    <div class="small text-muted">ID: @item.ProdutoId</div>
+                                                </td>
+                                                <td class="text-end font-monospace">
+                                                    @((item.QuantidadeEscala3 / 1000m).ToString("N3"))
+                                                </td>
+                                                <td class="text-end font-monospace">
+                                                    @FormatarValor(item.CustoUnitarioMinor, compra.MoedaCodigo)
+                                                </td>
+                                                <td class="text-end font-monospace text-success fw-bold">
+                                                    @FormatarValor(item.TotalItemMinor, compra.MoedaCodigo)
+                                                </td>
+                                                <td>
+                                                    @if (item.Cancelado)
+                                                    {
+                                                        <span class="badge bg-danger">Cancelado</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="small">
+                                                            @if (!string.IsNullOrEmpty(item.Lote))
+                                                            {
+                                                                <span class="d-block text-white-50">Lote: @item.Lote</span>
+                                                            }
+                                                            @if (!string.IsNullOrEmpty(item.Validade))
+                                                            {
+                                                                <span class="d-block text-white-50">Val: @item.Validade</span>
+                                                            }
+                                                            @if (!string.IsNullOrEmpty(item.Serial))
+                                                            {
+                                                                <span class="d-block text-white-50">Serial: @item.Serial</span>
+                                                            }
+                                                            @if (!string.IsNullOrEmpty(item.Imei))
+                                                            {
+                                                                <span class="d-block text-white-50">IMEI: @item.Imei</span>
+                                                            }
+                                                            @if (string.IsNullOrEmpty(item.Lote) && string.IsNullOrEmpty(item.Validade) && string.IsNullOrEmpty(item.Serial) && string.IsNullOrEmpty(item.Imei))
+                                                            {
+                                                                <span class="text-muted italic">-</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </td>
+                                                @if (compra.Status == "EM_ANDAMENTO")
+                                                {
+                                                    <td class="text-center">
+                                                        @if (!item.Cancelado)
+                                                        {
+                                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoverItem(item.Id)">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        }
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coluna da Direita: Cabeçalho / Totais / Info -->
+            <div class="col-lg-4 mb-4">
+                <!-- Info Cabeçalho -->
+                <div class="card card-compra mb-4">
+                    <div class="card-header">
+                        <h5 class="m-0 text-white">Informações Gerais</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <span class="text-muted small d-block">Fornecedor:</span>
+                            <span class="fw-bold text-white">@compra.FornecedorNomeSnapshot</span>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <span class="text-muted small d-block">Nota Fiscal:</span>
+                                <span class="text-white">@(string.IsNullOrEmpty(compra.NumeroNota) ? "-" : compra.NumeroNota)</span>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted small d-block">Série:</span>
+                                <span class="text-white">@(string.IsNullOrEmpty(compra.Serie) ? "-" : compra.Serie)</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="text-muted small d-block">Chave XML:</span>
+                            <span class="text-white font-monospace small" style="word-break: break-all;">
+                                @(string.IsNullOrEmpty(compra.ChaveAcessoXmlFiscal) ? "-" : compra.ChaveAcessoXmlFiscal)
+                            </span>
+                        </div>
+                        <div class="row mb-3 border-top pt-3 border-secondary">
+                            <div class="col-6">
+                                <span class="text-muted small d-block">Moeda:</span>
+                                <span class="badge bg-dark-purple">@compra.MoedaCodigo</span>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted small d-block">Cotação Câmbio:</span>
+                                <span class="text-white font-monospace">@((compra.TaxaCambioEscala6 / 1000000m).ToString("N6"))</span>
+                            </div>
+                        </div>
+                        <div class="mb-3 border-top pt-3 border-secondary">
+                            <span class="text-muted small d-block">Criado em:</span>
+                            <span class="text-white">@FormatarData(compra.CriadoEm)</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(compra.FinalizadaEm))
+                        {
+                            <div class="mb-3">
+                                <span class="text-muted small d-block">Finalizada em:</span>
+                                <span class="text-success fw-bold">@FormatarData(compra.FinalizadaEm)</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(compra.CanceladaEm))
+                        {
+                            <div class="mb-3">
+                                <span class="text-muted small d-block">Cancelada em:</span>
+                                <span class="text-danger fw-bold">@FormatarData(compra.CanceladaEm)</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(compra.MotivoCancelamento))
+                            {
+                                <div class="mb-3 p-2 bg-dark rounded border border-danger">
+                                    <span class="text-muted small d-block">Motivo Cancelamento:</span>
+                                    <span class="text-danger small">@compra.MotivoCancelamento</span>
+                                </div>
+                            }
+                        }
+                        @if (!string.IsNullOrEmpty(compra.Observacao))
+                        {
+                            <div class="mb-0 border-top pt-3 border-secondary">
+                                <span class="text-muted small d-block">Observação:</span>
+                                <span class="text-white-50 small">@compra.Observacao</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Totais da Nota -->
+                <div class="card card-compra card-totais">
+                    <div class="card-header">
+                        <h5 class="m-0 text-white">Resumo Financeiro</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Subtotal Itens:</span>
+                            <span class="text-white font-monospace">@FormatarValor(compra.SubtotalItensMinor, compra.MoedaCodigo)</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Frete:</span>
+                            <span class="text-white font-monospace">@FormatarValor(compra.FreteTotalMinor, compra.MoedaCodigo)</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Outras Despesas:</span>
+                            <span class="text-white font-monospace">@FormatarValor(compra.OutrasDespesasMinor, compra.MoedaCodigo)</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Impostos:</span>
+                            <span class="text-white font-monospace">@FormatarValor(compra.ImpostosTotalMinor, compra.MoedaCodigo)</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 text-danger">
+                            <span>(-) Descontos:</span>
+                            <span class="font-monospace">- @FormatarValor(compra.DescontoTotalMinor, compra.MoedaCodigo)</span>
+                        </div>
+                        <hr class="border-secondary" />
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="h6 text-white fw-bold m-0">Total Nota:</span>
+                            <span class="h4 text-success fw-bold font-monospace m-0">@FormatarValor(compra.TotalCompraMinor, compra.MoedaCodigo)</span>
+                        </div>
+
+                        <!-- Custo Equivalente em BRL se for outra moeda -->
+                        @if (compra.MoedaCodigo != "BRL")
+                        {
+                            <div class="mt-3 p-2 bg-dark rounded border border-secondary text-end small">
+                                <span class="text-muted d-block small">Total Equivalente em BRL (Cotação Snapshot):</span>
+                                <strong class="text-info font-monospace">
+                                    @FormatarValor((long)Math.Round((compra.TotalCompraMinor * (double)compra.TaxaCambioEscala6) / 1000000.0), "BRL")
+                                </strong>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal Cancelar em Andamento -->
+@if (mostrarModalCancelarEmAndamento)
+{
+    <div class="modal-overlay">
+        <div class="modal-content card" style="max-width: 400px; width: 100%;">
+            <h4 class="mb-3 text-danger">Cancelar Compra em Andamento</h4>
+            <p class="small text-muted">Esta ação irá descartar a compra atual. Ela não poderá ser recuperada.</p>
+            
+            <div class="mb-3">
+                <label class="form-label small fw-bold text-white">Motivo <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" @bind="motivoCancelamento" placeholder="Ex: Erro ao preencher fornecedor" />
+            </div>
+
+            @if (erroOperacao != null)
+            {
+                <div class="alert alert-danger small">@erroOperacao</div>
+            }
+
+            <div class="d-flex gap-2 justify-content-end mt-3">
+                <button class="btn btn-secondary" @onclick="() => mostrarModalCancelarEmAndamento = false">Voltar</button>
+                <button class="btn btn-danger" @onclick="ConfirmarCancelarEmAndamento" disabled="@(string.IsNullOrWhiteSpace(motivoCancelamento) || processando)">
+                    Confirmar Cancelamento
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal Cancelar Finalizada (Estorno) -->
+@if (mostrarModalCancelarFinalizada)
+{
+    <div class="modal-overlay">
+        <div class="modal-content card" style="max-width: 450px; width: 100%;">
+            <h4 class="mb-3 text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Cancelar Compra Finalizada</h4>
+            
+            <div class="alert alert-warning py-2 small border border-warning m-0 mb-3">
+                <strong>Atenção:</strong> O cancelamento desta compra gerará movimentações automáticas de <strong>estorno de estoque (saída)</strong> no Kardex para todos os itens ativos recebidos.
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label small fw-bold text-white">Motivo do Cancelamento <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" @bind="motivoCancelamento" placeholder="Ex: Devolução ao fornecedor ou nota errada" />
+            </div>
+
+            @if (erroOperacao != null)
+            {
+                <div class="alert alert-danger small">@erroOperacao</div>
+            }
+
+            <div class="d-flex gap-2 justify-content-end mt-3">
+                <button class="btn btn-secondary" @onclick="() => mostrarModalCancelarFinalizada = false">Voltar</button>
+                <button class="btn btn-danger" @onclick="ConfirmarCancelarFinalizada" disabled="@(string.IsNullOrWhiteSpace(motivoCancelamento) || processando)">
+                    Confirmar Estorno / Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal Adicionar Item -->
+@if (mostrarModalAdicionarItem)
+{
+    <CompraItemModal CompraId="@CompraId" MoedaCodigo="@compra!.MoedaCodigo"
+                     OnFechar="FecharAdicionarItem" OnSucesso="AoAdicionarItemSucesso" />
+}
+
+<style>
+    .card-compra {
+        background-color: #1e1e2d !important;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .card-compra .card-header {
+        background-color: #151521 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .table-itens-compra th {
+        background-color: #151521 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    .item-cancelado-linha {
+        opacity: 0.4;
+        text-decoration: line-through;
+    }
+    .card-totais {
+        border-left: 4px solid #8e24aa !important;
+    }
+    .btn-purple {
+        background-color: #8e24aa;
+        color: white;
+        border: none;
+    }
+    .btn-purple:hover {
+        background-color: #ab47bc;
+        color: white;
+    }
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 1050;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal-content {
+        background: #1e1e2d !important;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: #ffffff;
+        padding: 20px;
+    }
+</style>
+
+@code {
+    [Parameter] public string CompraId { get; set; } = "";
+
+    private CompraResp? compra;
+    private bool carregandoGeral = true;
+    private bool processando = false;
+    private string? erroGeral;
+    private string? mensagemSucesso;
+    private string? erroOperacao;
+
+    private bool mostrarModalCancelarEmAndamento = false;
+    private bool mostrarModalCancelarFinalizada = false;
+    private bool mostrarModalAdicionarItem = false;
+
+    private string motivoCancelamento = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarCompra();
+    }
+
+    private async Task CarregarCompra()
+    {
+        carregandoGeral = true;
+        erroGeral = null;
+        try
+        {
+            var resp = await Tauri.InvocarAsync<RespostaBase<CompraResp>>("obter_compra", new { id = CompraId });
+            if (resp.Sucesso && resp.Dados != null)
+            {
+                compra = resp.Dados;
+            }
+            else
+            {
+                erroGeral = resp.Mensagem ?? "Erro ao buscar detalhes da compra.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = $"Erro ao carregar detalhes: {ex.Message}";
+        }
+        finally
+        {
+            carregandoGeral = false;
+        }
+    }
+
+    private void Voltar()
+    {
+        Nav.NavigateTo("/compras");
+    }
+
+    private void AbrirAdicionarItem()
+    {
+        mostrarModalAdicionarItem = true;
+    }
+
+    private void FecharAdicionarItem()
+    {
+        mostrarModalAdicionarItem = false;
+    }
+
+    private async Task AoAdicionarItemSucesso()
+    {
+        mostrarModalAdicionarItem = false;
+        mensagemSucesso = "Item adicionado com sucesso.";
+        await CarregarCompra();
+    }
+
+    private async Task RemoverItem(string itemId)
+    {
+        erroGeral = null;
+        mensagemSucesso = null;
+        try
+        {
+            var req = new { item_id = itemId };
+            var resp = await Tauri.InvocarAsync<RespostaBase<CompraResp>>("remover_item_compra", req);
+            if (resp.Sucesso && resp.Dados != null)
+            {
+                compra = resp.Dados;
+                mensagemSucesso = "Item removido com sucesso.";
+            }
+            else
+            {
+                erroGeral = resp.Mensagem ?? "Erro ao remover item.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = $"Erro ao remover item: {ex.Message}";
+        }
+    }
+
+    private void PrepararCancelarEmAndamento()
+    {
+        motivoCancelamento = "";
+        erroOperacao = null;
+        mostrarModalCancelarEmAndamento = true;
+    }
+
+    private async Task ConfirmarCancelarEmAndamento()
+    {
+        if (string.IsNullOrWhiteSpace(motivoCancelamento))
+        {
+            erroOperacao = "O motivo é obrigatório.";
+            return;
+        }
+
+        processando = true;
+        erroOperacao = null;
+        mensagemSucesso = null;
+
+        try
+        {
+            var req = new CancelarCompraEmAndamentoReq(
+                compra_id: CompraId,
+                motivo: motivoCancelamento,
+                usuario_id: "USR-001"
+            );
+
+            var resp = await Tauri.InvocarAsync<RespostaBase<CompraResp>>("cancelar_compra_em_andamento", new { dto = req });
+            if (resp.Sucesso)
+            {
+                mostrarModalCancelarEmAndamento = false;
+                mensagemSucesso = "Compra em andamento cancelada com sucesso.";
+                await CarregarCompra();
+            }
+            else
+            {
+                erroOperacao = resp.Mensagem ?? "Erro ao cancelar compra.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroOperacao = $"Erro ao cancelar: {ex.Message}";
+        }
+        finally
+        {
+            processando = false;
+        }
+    }
+
+    private void PrepararCancelarFinalizada()
+    {
+        motivoCancelamento = "";
+        erroOperacao = null;
+        mostrarModalCancelarFinalizada = true;
+    }
+
+    private async Task ConfirmarCancelarFinalizada()
+    {
+        if (string.IsNullOrWhiteSpace(motivoCancelamento))
+        {
+            erroOperacao = "O motivo é obrigatório.";
+            return;
+        }
+
+        processando = true;
+        erroOperacao = null;
+        mensagemSucesso = null;
+
+        try
+        {
+            var req = new CancelarCompraFinalizadaReq(
+                compra_id: CompraId,
+                motivo: motivoCancelamento,
+                usuario_id: "USR-001"
+            );
+
+            var resp = await Tauri.InvocarAsync<RespostaBase<CompraResp>>("cancelar_compra_finalizada", new { dto = req });
+            if (resp.Sucesso)
+            {
+                mostrarModalCancelarFinalizada = false;
+                mensagemSucesso = "Compra finalizada cancelada. Estorno de entrada gerado no Kardex.";
+                await CarregarCompra();
+            }
+            else
+            {
+                erroOperacao = resp.Mensagem ?? "Erro ao estornar/cancelar compra.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroOperacao = $"Erro de comunicação: {ex.Message}";
+        }
+        finally
+        {
+            processando = false;
+        }
+    }
+
+    private async Task Finalizar()
+    {
+        processando = true;
+        erroGeral = null;
+        mensagemSucesso = null;
+
+        try
+        {
+            var req = new { compra_id = CompraId, usuario_id = "USR-001" };
+            var resp = await Tauri.InvocarAsync<RespostaBase<CompraResp>>("finalizar_compra", req);
+            if (resp.Sucesso)
+            {
+                mensagemSucesso = "Compra finalizada com sucesso! Entrada registrada no estoque e Kardex.";
+                await CarregarCompra();
+            }
+            else
+            {
+                erroGeral = resp.Mensagem ?? "Erro ao finalizar compra.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erroGeral = $"Erro ao finalizar: {ex.Message}";
+        }
+        finally
+        {
+            processando = false;
+        }
+    }
+
+    private string FormatarValor(long minor, string moeda)
+    {
+        decimal valor = minor / 100m;
+        if (moeda == "BRL")
+            return valor.ToString("C2", new CultureInfo("pt-BR"));
+        if (moeda == "USD")
+            return $"$ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        if (moeda == "EUR")
+            return $"€ {valor.ToString("N2", CultureInfo.InvariantCulture)}";
+        return $"{moeda} {valor.ToString("N2")}";
+    }
+
+    private string FormatarData(string isoString)
+    {
+        if (DateTime.TryParse(isoString, out var dt))
+        {
+            return dt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+        }
+        return isoString;
+    }
+}

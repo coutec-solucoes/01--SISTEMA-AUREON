@@ -1,0 +1,270 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="modal-overlay">
+    <div class="modal-content card" style="max-width: 600px; width: 100%;">
+        <div class="modal-header d-flex justify-content-between align-items-center mb-3">
+            <h4 class="m-0 text-primary">Adicionar Item à Compra</h4>
+            <button type="button" class="btn-close btn-close-white" @onclick="Fechar"></button>
+        </div>
+
+        @if (erro != null)
+        {
+            <div class="alert alert-danger">@erro</div>
+        }
+
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <!-- Busca de Produto -->
+            <div class="mb-3">
+                <label class="form-label fw-bold">Buscar Produto (Código ou Código de Barras) <span class="text-danger">*</span></label>
+                @if (produtoSelecionado == null)
+                {
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Ex: 0001 ou EAN..."
+                               @bind="buscaCodigo" @bind:event="oninput" @onkeyup="AoDigitarBusca" />
+                        <button class="btn btn-outline-secondary" @onclick="PesquisarProduto" type="button">Buscar</button>
+                    </div>
+                    @if (buscandoProduto)
+                    {
+                        <p class="text-muted small mt-1"><em>Buscando produto...</em></p>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-info py-2 d-flex justify-content-between align-items-center m-0">
+                        <div>
+                            <strong>@produtoSelecionado.Nome</strong>
+                            <span class="text-muted small ms-2">Código: @produtoSelecionado.Codigo</span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-danger py-0 px-2" @onclick="LimparProduto">Alterar</button>
+                    </div>
+                }
+            </div>
+
+            @if (produtoSelecionado != null)
+            {
+                <div class="row">
+                    <!-- Quantidade -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Quantidade <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" step="0.001" min="0.001" @bind="quantidade" />
+                        <span class="text-muted small">Escala de 3 casas decimais (ex: 1,500)</span>
+                    </div>
+
+                    <!-- Custo Unitário -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Custo Unitário (@MoedaCodigo) <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" step="0.01" min="0.00" @bind="custoUnitario" />
+                        <span class="text-muted small">Custo unitário na moeda de compra</span>
+                    </div>
+                </div>
+
+                <div class="row border-top pt-3 mt-2 border-secondary">
+                    <h5 class="text-muted col-12 mb-3">Informações de Lote e Rastreabilidade (Opcional)</h5>
+                    
+                    <!-- Lote -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Lote</label>
+                        <input type="text" class="form-control" placeholder="Ex: LOT-2026" @bind="lote" />
+                    </div>
+
+                    <!-- Validade -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Validade</label>
+                        <input type="text" class="form-control" placeholder="Ex: 2026-12-31 ou 12/26" @bind="validade" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Número Serial -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Número Serial</label>
+                        <input type="text" class="form-control" placeholder="Ex: SN-123456" @bind="serial" />
+                    </div>
+
+                    <!-- IMEI -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">IMEI</label>
+                        <input type="text" class="form-control" placeholder="Ex: IMEI-987654" @bind="imei" />
+                    </div>
+                </div>
+
+                <div class="alert alert-secondary py-2 mt-2 m-0 small">
+                    <strong>Total Estimado:</strong> @(MoedaCodigo) @((quantidade * custoUnitario).ToString("N2"))
+                </div>
+            }
+        </div>
+
+        <div class="modal-footer d-flex gap-2 justify-content-end mt-3">
+            <button type="button" class="btn btn-secondary" @onclick="Fechar">Cancelar</button>
+            <button type="button" class="btn btn-primary" @onclick="Confirmar" 
+                    disabled="@(produtoSelecionado == null || processando)">
+                @if (processando)
+                {
+                    <span class="spinner-border spinner-border-sm role="status" aria-hidden="true"></span>
+                }
+                Adicionar Item
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 1050;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal-content {
+        background: #1e1e2d !important;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: #ffffff;
+        padding: 20px;
+    }
+    .form-control {
+        background-color: #151521 !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+    }
+    .form-control:focus {
+        border-color: #ab47bc !important;
+        box-shadow: 0 0 0 0.25rem rgba(171, 71, 188, 0.25) !important;
+    }
+</style>
+
+@code {
+    [Parameter] public string CompraId { get; set; } = "";
+    [Parameter] public string MoedaCodigo { get; set; } = "BRL";
+    [Parameter] public EventCallback OnFechar { get; set; }
+    [Parameter] public EventCallback OnSucesso { get; set; }
+
+    private string buscaCodigo = "";
+    private ProdutoPdvResp? produtoSelecionado;
+    private bool buscandoProduto = false;
+
+    private decimal quantidade = 1.000m;
+    private decimal custoUnitario = 0.00m;
+    private string? lote;
+    private string? validade;
+    private string? serial;
+    private string? imei;
+
+    private bool processando = false;
+    private string? erro;
+
+    private async Task AoDigitarBusca(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await PesquisarProduto();
+        }
+    }
+
+    private async Task PesquisarProduto()
+    {
+        if (string.IsNullOrWhiteSpace(buscaCodigo)) return;
+
+        buscandoProduto = true;
+        erro = null;
+        try
+        {
+            var resp = await Tauri.InvocarAsync<RespostaBase<ProdutoPdvResp?>>("buscar_produto_pdv", new { codigo = buscaCodigo });
+            if (resp.Sucesso && resp.Dados != null)
+            {
+                produtoSelecionado = resp.Dados;
+            }
+            else
+            {
+                erro = "Produto não cadastrado ou inativo no cache local.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro ao buscar produto: {ex.Message}";
+        }
+        finally
+        {
+            buscandoProduto = false;
+        }
+    }
+
+    private void LimparProduto()
+    {
+        produtoSelecionado = null;
+        buscaCodigo = "";
+        quantidade = 1.000m;
+        custoUnitario = 0.00m;
+    }
+
+    private async Task Confirmar()
+    {
+        if (produtoSelecionado == null)
+        {
+            erro = "Por favor, selecione um produto.";
+            return;
+        }
+
+        if (quantidade <= 0)
+        {
+            erro = "A quantidade deve ser maior que zero.";
+            return;
+        }
+
+        if (custoUnitario < 0)
+        {
+            erro = "O custo unitário não pode ser negativo.";
+            return;
+        }
+
+        processando = true;
+        erro = null;
+
+        try
+        {
+            long quantidadeEscala3 = (long)Math.Round(quantidade * 1000m);
+            long custoUnitarioMinor = (long)Math.Round(custoUnitario * 100m);
+
+            var req = new AdicionarItemCompraReq(
+                compra_id: CompraId,
+                produto_id: produtoSelecionado.ProdutoId,
+                quantidade_escala3: quantidadeEscala3,
+                custo_unitario_minor: custoUnitarioMinor,
+                lote: string.IsNullOrWhiteSpace(lote) ? null : lote,
+                validade: string.IsNullOrWhiteSpace(validade) ? null : validade,
+                serial: string.IsNullOrWhiteSpace(serial) ? null : serial,
+                imei: string.IsNullOrWhiteSpace(imei) ? null : imei
+            );
+
+            var resp = await Tauri.InvocarAsync<RespostaBase<CompraItemResp>>("adicionar_item_compra", new { dto = req });
+            if (resp.Sucesso)
+            {
+                await OnSucesso.InvokeAsync();
+            }
+            else
+            {
+                erro = resp.Mensagem ?? "Erro ao adicionar item.";
+            }
+        }
+        catch (Exception ex)
+        {
+            erro = $"Erro de comunicação: {ex.Message}";
+        }
+        finally
+        {
+            processando = false;
+        }
+    }
+
+    private async Task Fechar()
+    {
+        await OnFechar.InvokeAsync();
+    }
+}
