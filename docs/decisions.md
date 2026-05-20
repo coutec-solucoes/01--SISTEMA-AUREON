@@ -161,3 +161,12 @@ Decisões de arquitetura adotadas na Fase 9 — PDV Gourmet.
 - **Decisão (Bloqueio de Saldo)**: Se houver venda `EM_ANDAMENTO`, a adição de novos itens, transferências ou cancelamentos no Gourmet são explicitamente bloqueados para não corromper o troco em processamento do caixa.
 - **Decisão (Inteiros para Escalas)**: Segue-se estritamente a lei global do Aureon: NENHUM float/double no Rust. Minor units para `TotalConsumoMinor` e escala 3 para `QuantidadeEscala3`.
 - **Consequência**: Consistência absoluta entre o consumo da mesa e o caixa final, prevenindo race conditions em ambientes multi-usuário.
+
+---
+
+## 🛠️ ADR 20: Delivery Operacional e Separação da Taxa de Entrega
+- **Contexto**: A Fase 10 introduz o módulo de Delivery, necessitando gerenciar pedidos locais e online, além de lidar com a taxa de entrega.
+- **Decisão (Taxa de Entrega Separada)**: A taxa de entrega é armazenada em coluna própria (`taxa_entrega_minor`) tanto no delivery quanto nas vendas. Ela jamais é misturada em `acrescimo_total_minor`.
+- **Decisão (Pagamento Delegado)**: O delivery não processa pagamentos. Ele é convertido em uma venda `EM_ANDAMENTO` e o pagamento ocorre no PDV (Fase 7).
+- **Decisão (Sem Float/Double)**: Valores monetários seguem como `i64` (minor units) e quantidades como `i64` (escala 3).
+- **Consequência**: Relatórios financeiros precisos (frete vs. consumo) e fluxo de caixa centralizado no núcleo de vendas existente.
