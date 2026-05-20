@@ -595,5 +595,50 @@ namespace AureonPdvUi.Services
         string? supervisor_id,
         string? autorizacao_id
     );
+
+    // --- FASE 11: ESTOQUE OPERACIONAL ---
+
+    public record EstoqueSaldoResp(
+        string ProdutoId,
+        string? Codigo,
+        string Descricao,
+        bool ControlaEstoque,
+        long QuantidadeEscala3,
+        string? AtualizadoEm
+    );
+
+    public record EstoqueMovimentacaoResp(
+        string Id,
+        string ProdutoId,
+        long QuantidadeEscala3,
+        long SaldoAposEscala3,
+        string TipoMovimentacao,
+        string OrigemTipo,
+        string OrigemId,
+        string? Motivo,
+        string UsuarioId,
+        string CriadoEm
+    );
+
+    public record AjusteEstoqueReq(
+        string idempotency_key,
+        string produto_id,
+        string tipo_ajuste,
+        long quantidade_escala3,
+        string motivo,
+        string usuario_id
+    );
+
+    public record ContagemInventario(
+        string produto_id,
+        long saldo_real_escala3
+    );
+
+    public record InventarioEstoqueReq(
+        string idempotency_key,
+        List<ContagemInventario> contagens,
+        string? motivo,
+        string usuario_id
+    );
 }
 

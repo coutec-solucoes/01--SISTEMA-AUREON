@@ -768,3 +768,53 @@ pub struct CancelarItemDeliveryReq {
     pub supervisor_id: Option<String>,
     pub sessao_caixa_id: String,
 }
+
+// --- FASE 11: ESTOQUE OPERACIONAL ---
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EstoqueSaldoResp {
+    pub produto_id: String,
+    pub codigo: Option<String>,
+    pub descricao: String,
+    pub controla_estoque: bool,
+    pub quantidade_escala3: i64,
+    pub atualizado_em: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EstoqueMovimentacaoResp {
+    pub id: String,
+    pub produto_id: String,
+    pub quantidade_escala3: i64,
+    pub saldo_apos_escala3: i64,
+    pub tipo_movimentacao: String,
+    pub origem_tipo: String,
+    pub origem_id: String,
+    pub motivo: Option<String>,
+    pub usuario_id: String,
+    pub criado_em: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AjusteEstoqueReq {
+    pub idempotency_key: Option<String>,
+    pub produto_id: String,
+    pub tipo_ajuste: String, // "AJUSTE_ENTRADA" | "AJUSTE_SAIDA"
+    pub quantidade_escala3: i64,
+    pub motivo: String,
+    pub usuario_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ContagemInventario {
+    pub produto_id: String,
+    pub saldo_real_escala3: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InventarioEstoqueReq {
+    pub idempotency_key: Option<String>,
+    pub contagens: Vec<ContagemInventario>,
+    pub motivo: Option<String>,
+    pub usuario_id: String,
+}

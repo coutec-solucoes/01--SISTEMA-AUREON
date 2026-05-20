@@ -6,6 +6,7 @@ pub mod commands_pagamento;
 pub mod commands_operacional;
 pub mod commands_gourmet;
 pub mod commands_delivery;
+pub mod commands_estoque;
 pub mod estado;
 
 use aureon_shared::logging::inicializar_logs;
@@ -117,6 +118,11 @@ pub fn run() {
             commands_delivery::adicionar_item_delivery,
             commands_delivery::cancelar_item_delivery,
             commands_delivery::fechar_delivery_em_venda,
+            // Commands de Estoque (Fase 11)
+            commands_estoque::consultar_saldos_estoque,
+            commands_estoque::listar_kardex_produto,
+            commands_estoque::ajustar_estoque_manual,
+            commands_estoque::registrar_inventario,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
