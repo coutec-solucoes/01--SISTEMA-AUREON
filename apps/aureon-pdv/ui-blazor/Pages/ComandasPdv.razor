@@ -1,0 +1,234 @@
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+
+@if (ExibindoDetalhe && ComandaSelecionada != null)
+{
+    <AureonPdvUi.Pages.ComandaDetalhe ComandaId="@ComandaSelecionada.Id" SessaoCaixaId="@SessaoCaixaId" UsuarioId="@UsuarioId" OnVoltar="FecharDetalhe" />
+}
+else
+{
+    <div class="comandas-container">
+        
+        <div class="comandas-busca card" style="margin-bottom: 24px;">
+            <h3 style="margin-bottom: 16px;">Localizar ou Abrir Comanda</h3>
+            <form @onsubmit="BuscarOuAbrirComanda" style="display: flex; gap: 12px;">
+                <input type="number" class="input-moderno" placeholder="Número da Comanda" 
+                       @bind="NumeroComanda" @bind:event="oninput" 
+                       disabled="@Processando" autofocus style="flex-grow: 1; font-size: 18px;" />
+                
+                <button type="submit" class="btn btn-primario" disabled="@(Processando || string.IsNullOrWhiteSpace(NumeroComanda))">
+                    ACESSAR
+                </button>
+            </form>
+            @if (ErroAcao != null)
+            {
+                <div style="color: #f44336; font-size: 13px; margin-top: 8px;">@ErroAcao</div>
+            }
+        </div>
+
+        <h3 style="margin-bottom: 16px; font-size: 14px; color: var(--cor-texto-sub);">Comandas Ativas no Salão</h3>
+        
+        <div class="comandas-grid">
+            @if (Carregando)
+            {
+                <div style="grid-column: 1 / -1; text-align: center; color: var(--cor-texto-sub);">Carregando comandas...</div>
+            }
+            else if (ComandasAtivas.Count == 0)
+            {
+                <div style="grid-column: 1 / -1; text-align: center; color: var(--cor-texto-sub); padding: 40px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                    Nenhuma comanda ativa no momento.
+                </div>
+            }
+            else
+            {
+                @foreach (var comanda in ComandasAtivas)
+                {
+                    <div class="mesa-card status-@comanda.Status.ToLower()" @onclick="() => AbrirDetalhe(comanda)">
+                        <div class="mesa-header">
+                            <span class="mesa-numero">#@comanda.NumeroComanda</span>
+                            <span class="mesa-status-badge">@comanda.Status</span>
+                        </div>
+                        <div class="mesa-body">
+                            <div class="mesa-consumo">@FormatarValor(comanda.TotalConsumoMinor)</div>
+                            @if (!string.IsNullOrEmpty(comanda.ClienteNomeInformal))
+                            {
+                                <div class="mesa-info">@comanda.ClienteNomeInformal</div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .comandas-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
+        padding-bottom: 24px;
+    }
+    .mesa-card {
+        background: var(--cor-surface);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        min-height: 120px;
+    }
+    .mesa-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .status-aberta { border-left: 4px solid #00e676; background: rgba(0,230,118,0.05); }
+    .status-bloqueada { border-left: 4px solid #f44336; opacity: 0.5; }
+
+    .mesa-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 16px;
+    }
+    .mesa-numero {
+        font-size: 24px;
+        font-weight: 700;
+    }
+    .mesa-status-badge {
+        font-size: 10px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: rgba(255,255,255,0.1);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    .status-aberta .mesa-status-badge { background: rgba(0,230,118,0.2); color: #00e676; }
+    .status-bloqueada .mesa-status-badge { background: rgba(244,67,54,0.2); color: #f44336; }
+
+    .mesa-body {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+    .mesa-consumo {
+        font-size: 18px;
+        font-weight: 600;
+        color: #00e676;
+    }
+    .mesa-info {
+        font-size: 12px;
+        color: var(--cor-texto-sub);
+        margin-top: 4px;
+    }
+</style>
+
+@code {
+    [Parameter] public string SessaoCaixaId { get; set; } = "";
+    [Parameter] public string UsuarioId { get; set; } = "";
+
+    private bool Carregando = true;
+    private bool Processando = false;
+    private List<ComandaOperacionalResp> ComandasAtivas = new();
+
+    private string NumeroComanda = "";
+    private string? ErroAcao;
+
+    private bool ExibindoDetalhe = false;
+    private ComandaOperacionalResp? ComandaSelecionada;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarComandas();
+    }
+
+    private async Task CarregarComandas()
+    {
+        Carregando = true;
+        var res = await Tauri.InvocarAsync<RespostaBase<List<ComandaOperacionalResp>>>("listar_comandas_pdv");
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            // O listar ja deve trazer ABERTAS e BLOQUEADAS
+            ComandasAtivas = res.Dados;
+        }
+        Carregando = false;
+    }
+
+    private async Task BuscarOuAbrirComanda()
+    {
+        if (string.IsNullOrWhiteSpace(NumeroComanda)) return;
+        Processando = true;
+        ErroAcao = null;
+
+        if (!int.TryParse(NumeroComanda, out int num))
+        {
+            ErroAcao = "Número inválido.";
+            Processando = false;
+            return;
+        }
+
+        var resBusca = await Tauri.InvocarAsync<RespostaBase<ComandaOperacionalResp>>("obter_comanda_por_numero", new { numero = num });
+
+        if (resBusca?.Sucesso == true && resBusca.Dados != null)
+        {
+            var com = resBusca.Dados;
+            if (com.Status == "LIVRE")
+            {
+                // Abre a comanda agora
+                var reqAbrir = new AbrirComandaReq(
+                    com.NumeroComanda, 
+                    null, 
+                    null, 
+                    null,
+                    UsuarioId, 
+                    SessaoCaixaId,
+                    null
+                );
+                var resAbrir = await Tauri.InvocarAsync<RespostaBase<ComandaOperacionalResp>>("abrir_comanda", new { dto = reqAbrir });
+                if (resAbrir?.Sucesso == true && resAbrir.Dados != null)
+                {
+                    AbrirDetalhe(resAbrir.Dados);
+                }
+                else
+                {
+                    ErroAcao = resAbrir?.Mensagem ?? "Erro ao abrir comanda.";
+                }
+            }
+            else
+            {
+                // Ja ta aberta, só entra nos detalhes
+                AbrirDetalhe(com);
+            }
+        }
+        else
+        {
+            ErroAcao = "Comanda não encontrada.";
+        }
+
+        Processando = false;
+    }
+
+    private void AbrirDetalhe(ComandaOperacionalResp comanda)
+    {
+        ComandaSelecionada = comanda;
+        ExibindoDetalhe = true;
+        NumeroComanda = "";
+    }
+
+    private async Task FecharDetalhe()
+    {
+        ExibindoDetalhe = false;
+        ComandaSelecionada = null;
+        await CarregarComandas();
+    }
+
+    private string FormatarValor(long minor)
+    {
+        return (minor / 100m).ToString("C2", new CultureInfo("pt-BR"));
+    }
+}

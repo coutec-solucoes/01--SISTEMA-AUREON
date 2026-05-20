@@ -100,6 +100,7 @@ pub fn run() {
             commands_gourmet::gerar_texto_producao,
             commands_gourmet::reimprimir_envio_producao,
             commands_gourmet::listar_envios_producao,
+            commands_gourmet::listar_todos_envios_producao,
             // Commands de Fechamento em Venda (Fase 9 Bloco 3)
             commands_gourmet::fechar_mesa_em_venda,
             commands_gourmet::fechar_comanda_em_venda,

@@ -1,0 +1,185 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="modal-overlay">
+    <div class="modal-content card" style="max-width: 600px; width: 100%;">
+        <h3 style="margin-bottom: 16px;">Transferir Mesa</h3>
+
+        @if (Carregando)
+        {
+            <div style="text-align: center; color: var(--cor-texto-sub);">Carregando destinos...</div>
+        }
+        else
+        {
+            <div style="margin-bottom: 16px;">
+                <label style="font-size: 12px; color: var(--cor-texto-sub);">Destino (Mesas Abertas)</label>
+                <select class="input-moderno" @bind="DestinoId" disabled="@Processando">
+                    <option value="">-- Selecione a Mesa de Destino --</option>
+                    @foreach (var m in MesasAbertas)
+                    {
+                        if (m.Id != OrigemId)
+                        {
+                            <option value="@m.Id">Mesa @m.MesaNumero (@m.ClienteNomeInformal)</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="font-size: 12px; color: var(--cor-texto-sub);">Tipo de Transferência</label>
+                <div style="display: flex; gap: 16px; margin-top: 8px;">
+                    <label style="cursor: pointer;">
+                        <input type="radio" name="tipoTransfMesa" value="TOTAL" checked="@(Tipo == "TOTAL")" @onchange="@(() => Tipo = "TOTAL")" disabled="@Processando" />
+                        Total (Fecha a mesa atual)
+                    </label>
+                    <label style="cursor: pointer;">
+                        <input type="radio" name="tipoTransfMesa" value="PARCIAL" checked="@(Tipo == "PARCIAL")" @onchange="@(() => Tipo = "PARCIAL")" disabled="@Processando" />
+                        Parcial (Selecionar itens)
+                    </label>
+                </div>
+            </div>
+
+            @if (Tipo == "PARCIAL")
+            {
+                <div style="max-height: 200px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px; margin-bottom: 16px;">
+                    @if (ItensDisponiveis.Count == 0)
+                    {
+                        <div style="color: var(--cor-texto-sub); font-size: 13px;">Nenhum item disponível para transferência.</div>
+                    }
+                    else
+                    {
+                        @foreach (var item in ItensDisponiveis)
+                        {
+                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                <input type="checkbox" checked="@ItensSelecionados.Contains(item.Id)" 
+                                       @onchange="@(e => ToggleItem(item.Id, e.Value))" disabled="@Processando" />
+                                <span style="font-size: 13px;">@item.DescricaoProduto</span>
+                                <span style="font-size: 12px; color: var(--cor-texto-sub); margin-left: auto;">
+                                    Qtd: @(item.QuantidadeEscala3 / 1000m)
+                                </span>
+                            </label>
+                        }
+                    }
+                </div>
+            }
+
+            <div style="margin-bottom: 16px;">
+                <label style="font-size: 12px; color: var(--cor-texto-sub);">Motivo / Observação</label>
+                <input type="text" class="input-moderno" @bind="Motivo" placeholder="Motivo da transferência" disabled="@Processando" />
+            </div>
+
+            @if (Erro != null)
+            {
+                <div style="color: #f44336; font-size: 13px; margin-bottom: 16px;">@Erro</div>
+            }
+
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="OnFechar" disabled="@Processando">Cancelar</button>
+                <button class="btn btn-primario" @onclick="Confirmar" disabled="@(Processando || string.IsNullOrEmpty(DestinoId))">
+                    Transferir
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string OrigemId { get; set; } = "";
+    [Parameter] public string UsuarioId { get; set; } = "";
+    [Parameter] public EventCallback OnSucesso { get; set; }
+    [Parameter] public EventCallback OnFechar { get; set; }
+
+    private bool Carregando = true;
+    private bool Processando = false;
+    private string? Erro;
+
+    private List<MesaOperacionalResp> MesasAbertas = new();
+    private List<GourmetItemResp> ItensDisponiveis = new();
+    
+    private string DestinoId = "";
+    private string Tipo = "TOTAL";
+    private string Motivo = "";
+    private HashSet<string> ItensSelecionados = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        Carregando = true;
+        Erro = null;
+
+        // Buscar mesas
+        var resMesas = await Tauri.InvocarAsync<RespostaBase<List<MesaOperacionalResp>>>("listar_mesas_pdv");
+        if (resMesas?.Sucesso == true && resMesas.Dados != null)
+        {
+            MesasAbertas = resMesas.Dados.Where(m => m.Status == "ABERTA").ToList();
+        }
+
+        // Buscar itens se for usar parcial
+        var resDetalhe = await Tauri.InvocarAsync<RespostaBase<MesaDetalheResp>>("obter_mesa", new { id = OrigemId });
+        if (resDetalhe?.Sucesso == true && resDetalhe.Dados != null)
+        {
+            ItensDisponiveis = resDetalhe.Dados.Itens.Where(i => !i.Cancelado).ToList();
+        }
+
+        Carregando = false;
+    }
+
+    private void ToggleItem(string id, object? checkedValue)
+    {
+        bool isChecked = checkedValue as bool? ?? false;
+        if (isChecked) ItensSelecionados.Add(id);
+        else ItensSelecionados.Remove(id);
+    }
+
+    private async Task Confirmar()
+    {
+        if (string.IsNullOrEmpty(DestinoId))
+        {
+            Erro = "Selecione o destino.";
+            return;
+        }
+        if (Tipo == "PARCIAL" && ItensSelecionados.Count == 0)
+        {
+            Erro = "Selecione pelo menos um item.";
+            return;
+        }
+
+        Processando = true;
+        Erro = null;
+
+        string m = string.IsNullOrWhiteSpace(Motivo) ? "Transferência via PDV" : Motivo;
+
+        if (Tipo == "TOTAL")
+        {
+            var req = new TransferirTotalReq(OrigemId, DestinoId, UsuarioId, m);
+            var res = await Tauri.InvocarAsync<RespostaBase<bool>>("transferir_mesa_total", new { dto = req });
+            if (res?.Sucesso == true)
+            {
+                await OnSucesso.InvokeAsync();
+            }
+            else
+            {
+                Erro = res?.Mensagem ?? "Erro na transferência total.";
+            }
+        }
+        else
+        {
+            var req = new TransferirItensReq(OrigemId, DestinoId, ItensSelecionados.ToList(), UsuarioId, m);
+            var res = await Tauri.InvocarAsync<RespostaBase<bool>>("transferir_itens_mesa", new { dto = req });
+            if (res?.Sucesso == true)
+            {
+                await OnSucesso.InvokeAsync();
+            }
+            else
+            {
+                Erro = res?.Mensagem ?? "Erro na transferência parcial.";
+            }
+        }
+
+        Processando = false;
+    }
+}

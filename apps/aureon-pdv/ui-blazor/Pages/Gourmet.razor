@@ -1,0 +1,123 @@
+@page "/gourmet"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+@inject NavigationManager Nav
+
+<PageTitle>Gourmet - Mesas e Comandas</PageTitle>
+
+<div class="gourmet-container fade-in">
+    @if (CarregandoGeral)
+    {
+        <div style="text-align:center; padding: 40px; color: var(--cor-texto-sub);">Carregando Gourmet...</div>
+    }
+    else if (!CaixaAberto)
+    {
+        <div class="card" style="text-align: center; border-left: 4px solid #ff9800; padding: 40px; margin: 24px;">
+            <h2 style="margin-bottom: 16px; color: #ff9800;">Caixa Fechado</h2>
+            <p style="color: var(--cor-texto-sub); margin-bottom: 24px;">Para operar mesas e comandas, o caixa deve estar aberto.</p>
+            <a href="/caixa" class="btn btn-primario">Ir para o Caixa</a>
+        </div>
+    }
+    else
+    {
+        <div class="gourmet-header">
+            <div class="gourmet-tabs">
+                <button class="gourmet-tab @(AbaAtiva == "MESAS" ? "active" : "")" @onclick="@(() => AbaAtiva = "MESAS")">Mesas</button>
+                <button class="gourmet-tab @(AbaAtiva == "COMANDAS" ? "active" : "")" @onclick="@(() => AbaAtiva = "COMANDAS")">Comandas</button>
+                <button class="gourmet-tab @(AbaAtiva == "PRODUCAO" ? "active" : "")" @onclick="@(() => AbaAtiva = "PRODUCAO")">Produção</button>
+            </div>
+            <div class="gourmet-actions">
+                <!-- Ações globais se necessário -->
+            </div>
+        </div>
+
+        <div class="gourmet-content">
+            @if (AbaAtiva == "MESAS")
+            {
+                <AureonPdvUi.Pages.MesasPdv SessaoCaixaId="@SessaoId" UsuarioId="@_usuarioId" />
+            }
+            else if (AbaAtiva == "COMANDAS")
+            {
+                <AureonPdvUi.Pages.ComandasPdv SessaoCaixaId="@SessaoId" UsuarioId="@_usuarioId" />
+            }
+            else if (AbaAtiva == "PRODUCAO")
+            {
+                <AureonPdvUi.Pages.ProducaoPdv />
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .gourmet-container {
+        height: calc(100vh - 120px);
+        display: flex;
+        flex-direction: column;
+        padding: 0 24px;
+    }
+    .gourmet-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: 16px;
+    }
+    .gourmet-tabs {
+        display: flex;
+        gap: 16px;
+    }
+    .gourmet-tab {
+        background: none;
+        border: none;
+        color: var(--cor-texto-sub);
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 8px 16px;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+    .gourmet-tab:hover {
+        color: white;
+        background: rgba(255,255,255,0.05);
+    }
+    .gourmet-tab.active {
+        color: #ff9800;
+        background: rgba(255, 152, 0, 0.1);
+    }
+    .gourmet-content {
+        flex-grow: 1;
+        overflow-y: auto;
+    }
+</style>
+
+@code {
+    private bool CarregandoGeral = true;
+    private bool CaixaAberto = false;
+    private string SessaoId = "";
+    private string _usuarioId = "USR-001"; // Fixo p/ teste
+    
+    private string AbaAtiva = "MESAS";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await VerificarCaixa();
+    }
+
+    private async Task VerificarCaixa()
+    {
+        CarregandoGeral = true;
+        var res = await Tauri.InvocarAsync<RespostaBase<SessaoCaixaResp?>>("obter_sessao_ativa", new { registradora_id = "TERM-1" });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            CaixaAberto = true;
+            SessaoId = res.Dados.Id;
+        }
+        else
+        {
+            CaixaAberto = false;
+        }
+        CarregandoGeral = false;
+    }
+}

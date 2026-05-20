@@ -291,6 +291,44 @@ pub async fn finalizar_venda(
         }),
     )?;
 
+    // Ressalva 1: se venda originou de MESA ou COMANDA, fechar a origem
+    let origem_gourmet: Option<(String, String)> = tx.query_row(
+        "SELECT origem_tipo, origem_id FROM vendas WHERE id = ?1 AND origem_tipo IN ('MESA', 'COMANDA')",
+        rusqlite::params![&venda_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).ok();
+
+    if let Some((ref orig_tipo, ref orig_id)) = origem_gourmet {
+        match orig_tipo.as_str() {
+            "MESA" => {
+                tx.execute(
+                    "UPDATE mesas_operacionais SET status = 'FECHADA', fechada_em = ?1 WHERE id = ?2",
+                    rusqlite::params![&agora, orig_id],
+                ).map_err(|e| e.to_string())?;
+            }
+            "COMANDA" => {
+                tx.execute(
+                    "UPDATE comandas_operacionais SET status = 'FECHADA', fechada_em = ?1 WHERE id = ?2",
+                    rusqlite::params![&agora, orig_id],
+                ).map_err(|e| e.to_string())?;
+            }
+            _ => {}
+        }
+
+        outbox_inserir(
+            &tx,
+            "ORIGEM_GOURMET_FECHADA_POR_PAGAMENTO",
+            json!({
+                "venda_id": &venda_id,
+                "numero_venda": numero_venda,
+                "origem_tipo": orig_tipo,
+                "origem_id": orig_id,
+                "fechado_em": &agora
+            }),
+        )?;
+    }
+
+
     tx.commit().map_err(|e| e.to_string())?;
 
     // Retornar resumo atualizado com numero_venda preenchido

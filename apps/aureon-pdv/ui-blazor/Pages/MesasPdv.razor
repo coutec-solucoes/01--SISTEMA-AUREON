@@ -1,0 +1,291 @@
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+
+@if (ExibindoDetalhe && MesaSelecionada != null)
+{
+    <AureonPdvUi.Pages.MesaDetalhe MesaId="@MesaSelecionada.Id" SessaoCaixaId="@SessaoCaixaId" UsuarioId="@UsuarioId" OnVoltar="FecharDetalhe" />
+}
+else
+{
+    <div class="mesas-grid">
+        @if (Carregando)
+        {
+            <div style="grid-column: 1 / -1; text-align: center; color: var(--cor-texto-sub);">Carregando mesas...</div>
+        }
+        else
+        {
+            @foreach (var mesa in Mesas)
+            {
+                <div class="mesa-card status-@mesa.Status.ToLower()" @onclick="() => ClicarMesa(mesa)">
+                    <div class="mesa-header">
+                        <span class="mesa-numero">@mesa.MesaNumero</span>
+                        <span class="mesa-status-badge">@mesa.Status</span>
+                    </div>
+                    <div class="mesa-body">
+                        @if (mesa.Status == "ABERTA")
+                        {
+                            <div class="mesa-consumo">@FormatarValor(mesa.TotalConsumoMinor)</div>
+                            <div class="mesa-info">@mesa.ClienteNomeInformal</div>
+                        }
+                        else if (mesa.Status == "RESERVADA")
+                        {
+                            <div class="mesa-info" style="color: #ff9800;">Reservada para:<br/>@mesa.ClienteNomeInformal</div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <!-- Modal de Ação para Mesa Livre -->
+    @if (ExibirModalAcaoLivre && MesaAcao != null)
+    {
+        <div class="modal-overlay">
+            <div class="modal-content card" style="max-width: 400px; width: 100%;">
+                <h3 style="margin-bottom: 16px;">Mesa @MesaAcao.MesaNumero - LIVRE</h3>
+                
+                @if (ErroAcao != null)
+                {
+                    <div style="color: #f44336; font-size: 13px; margin-bottom: 16px;">@ErroAcao</div>
+                }
+
+                <div style="margin-bottom: 16px;">
+                    <label style="font-size: 12px; color: var(--cor-texto-sub);">Cliente (Opcional)</label>
+                    <input type="text" class="input-moderno" @bind="InputClienteLivre" placeholder="Nome do cliente" />
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button class="btn btn-primario" @onclick="AbrirMesa" disabled="@Processando">ABRIR MESA</button>
+                    <button class="btn" style="background: rgba(255,152,0,0.2); color: #ff9800;" @onclick="ReservarMesa" disabled="@Processando">RESERVAR</button>
+                </div>
+                <div style="margin-top: 8px;">
+                    <button class="btn" style="background: rgba(244,67,54,0.1); color: #f44336; width: 100%;" @onclick="BloquearMesa" disabled="@Processando">BLOQUEAR MESA</button>
+                </div>
+                
+                <div style="margin-top: 24px; text-align: right;">
+                    <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="FecharModalAcao" disabled="@Processando">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<style>
+    .mesas-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
+        padding-bottom: 24px;
+    }
+    .mesa-card {
+        background: var(--cor-surface);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        min-height: 120px;
+    }
+    .mesa-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    /* Cores de Status */
+    .status-livre { border-left: 4px solid var(--cor-texto-sub); opacity: 0.7; }
+    .status-aberta { border-left: 4px solid #00e676; background: rgba(0,230,118,0.05); }
+    .status-reservada { border-left: 4px solid #ff9800; background: rgba(255,152,0,0.05); }
+    .status-bloqueada { border-left: 4px solid #f44336; opacity: 0.5; }
+
+    .mesa-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 16px;
+    }
+    .mesa-numero {
+        font-size: 24px;
+        font-weight: 700;
+    }
+    .mesa-status-badge {
+        font-size: 10px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: rgba(255,255,255,0.1);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    .status-aberta .mesa-status-badge { background: rgba(0,230,118,0.2); color: #00e676; }
+    .status-reservada .mesa-status-badge { background: rgba(255,152,0,0.2); color: #ff9800; }
+    .status-bloqueada .mesa-status-badge { background: rgba(244,67,54,0.2); color: #f44336; }
+
+    .mesa-body {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+    .mesa-consumo {
+        font-size: 18px;
+        font-weight: 600;
+        color: #00e676;
+    }
+    .mesa-info {
+        font-size: 12px;
+        color: var(--cor-texto-sub);
+        margin-top: 4px;
+    }
+</style>
+
+@code {
+    [Parameter] public string SessaoCaixaId { get; set; } = "";
+    [Parameter] public string UsuarioId { get; set; } = "";
+
+    private bool Carregando = true;
+    private bool Processando = false;
+    private List<MesaOperacionalResp> Mesas = new();
+
+    private bool ExibindoDetalhe = false;
+    private MesaOperacionalResp? MesaSelecionada;
+
+    // Ações Mesa Livre
+    private bool ExibirModalAcaoLivre = false;
+    private MesaOperacionalResp? MesaAcao;
+    private string InputClienteLivre = "";
+    private string? ErroAcao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarMesas();
+    }
+
+    private async Task CarregarMesas()
+    {
+        Carregando = true;
+        var res = await Tauri.InvocarAsync<RespostaBase<List<MesaOperacionalResp>>>("listar_mesas_pdv");
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            Mesas = res.Dados;
+        }
+        Carregando = false;
+    }
+
+    private void ClicarMesa(MesaOperacionalResp mesa)
+    {
+        if (mesa.Status == "LIVRE")
+        {
+            MesaAcao = mesa;
+            InputClienteLivre = "";
+            ErroAcao = null;
+            ExibirModalAcaoLivre = true;
+        }
+        else if (mesa.Status == "ABERTA" || mesa.Status == "RESERVADA")
+        {
+            MesaSelecionada = mesa;
+            ExibindoDetalhe = true;
+        }
+    }
+
+    private void FecharModalAcao()
+    {
+        ExibirModalAcaoLivre = false;
+        MesaAcao = null;
+    }
+
+    private async Task FecharDetalhe()
+    {
+        ExibindoDetalhe = false;
+        MesaSelecionada = null;
+        await CarregarMesas();
+    }
+
+    // Ações
+    private async Task AbrirMesa()
+    {
+        if (MesaAcao == null) return;
+        Processando = true;
+        ErroAcao = null;
+
+        var req = new AbrirMesaReq(
+            MesaAcao.MesaNumero, 
+            $"Mesa {MesaAcao.MesaNumero}", 
+            string.IsNullOrWhiteSpace(InputClienteLivre) ? null : InputClienteLivre, 
+            null, 
+            UsuarioId, 
+            SessaoCaixaId,
+            null
+        );
+
+        var res = await Tauri.InvocarAsync<RespostaBase<MesaOperacionalResp>>("abrir_mesa", new { dto = req });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            FecharModalAcao();
+            // Abre detalhes da mesa recém aberta
+            MesaSelecionada = res.Dados;
+            ExibindoDetalhe = true;
+        }
+        else
+        {
+            ErroAcao = res?.Mensagem ?? "Erro ao abrir mesa.";
+        }
+        Processando = false;
+    }
+
+    private async Task ReservarMesa()
+    {
+        if (MesaAcao == null) return;
+        Processando = true;
+        ErroAcao = null;
+
+        var req = new ReservarMesaReq(
+            MesaAcao.MesaNumero, 
+            $"Mesa {MesaAcao.MesaNumero}", 
+            string.IsNullOrWhiteSpace(InputClienteLivre) ? "Reserva s/ nome" : InputClienteLivre, 
+            null, 
+            UsuarioId, 
+            SessaoCaixaId,
+            null
+        );
+
+        var res = await Tauri.InvocarAsync<RespostaBase<MesaOperacionalResp>>("reservar_mesa", new { dto = req });
+        if (res?.Sucesso == true)
+        {
+            FecharModalAcao();
+            await CarregarMesas();
+        }
+        else
+        {
+            ErroAcao = res?.Mensagem ?? "Erro ao reservar mesa.";
+        }
+        Processando = false;
+    }
+
+    private async Task BloquearMesa()
+    {
+        if (MesaAcao == null) return;
+        Processando = true;
+        ErroAcao = null;
+
+        var req = new BloquearMesaReq(MesaAcao.MesaNumero, UsuarioId, SessaoCaixaId);
+
+        var res = await Tauri.InvocarAsync<RespostaBase<MesaOperacionalResp>>("bloquear_mesa", new { dto = req });
+        if (res?.Sucesso == true)
+        {
+            FecharModalAcao();
+            await CarregarMesas();
+        }
+        else
+        {
+            ErroAcao = res?.Mensagem ?? "Erro ao bloquear mesa.";
+        }
+        Processando = false;
+    }
+
+    private string FormatarValor(long minor)
+    {
+        return (minor / 100m).ToString("C2", new CultureInfo("pt-BR"));
+    }
+}

@@ -1,0 +1,438 @@
+@using AureonPdvUi.Services
+@using System.Globalization
+@inject TauriService Tauri
+@inject NavigationManager Nav
+
+<div class="detalhe-container">
+    @if (CarregandoGeral)
+    {
+        <div style="text-align: center; color: var(--cor-texto-sub); padding: 40px;">Carregando detalhes...</div>
+    }
+    else if (Detalhe == null)
+    {
+        <div style="text-align: center; color: #f44336; padding: 40px;">
+            Erro ao carregar detalhes da mesa.
+            <button class="btn" style="margin-top: 16px;" @onclick="OnVoltar">Voltar</button>
+        </div>
+    }
+    else
+    {
+        var mesa = Detalhe.Mesa;
+        
+        <!-- CABEÇALHO DA MESA -->
+        <div class="detalhe-header">
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <button class="btn btn-voltar" @onclick="OnVoltar">← Voltar</button>
+                <h2 style="margin: 0;">Mesa @mesa.MesaNumero</h2>
+                <span class="status-badge status-@mesa.Status.ToLower()">@mesa.Status</span>
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+                <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="AbrirTransferencia" disabled="@(Processando || mesa.Status == "BLOQUEADA")">
+                    Transferir
+                </button>
+                <button class="btn btn-primario" @onclick="FecharEmVenda" disabled="@(Processando || Detalhe.Itens.Count == 0 || mesa.Status == "BLOQUEADA")">
+                    FECHAR MESA (Pagamento)
+                </button>
+            </div>
+        </div>
+
+        <div class="detalhe-grid">
+            
+            <!-- ESQUERDA: Itens -->
+            <div class="card" style="display: flex; flex-direction: column; flex: 2; min-width: 0;">
+                <h3 style="margin-bottom: 16px; font-size: 16px;">Consumo</h3>
+
+                <!-- Busca de Produto -->
+                <form @onsubmit="AdicionarItemSubmit" style="display: flex; gap: 8px; margin-bottom: 16px;">
+                    <input type="text" class="input-moderno" placeholder="Código do Produto" 
+                           @bind="BuscaCodigo" @bind:event="oninput" 
+                           disabled="@(Processando || mesa.Status == "BLOQUEADA")" style="flex-grow: 1; font-size: 14px;" />
+                    
+                    <input type="number" class="input-moderno" style="width: 80px; text-align: center;" 
+                           @bind="BuscaQtd" step="0.001" min="0.001" 
+                           disabled="@(Processando || mesa.Status == "BLOQUEADA")" />
+                    
+                    <button type="submit" class="btn btn-primario" disabled="@(Processando || string.IsNullOrWhiteSpace(BuscaCodigo) || mesa.Status == "BLOQUEADA")">
+                        Adicionar
+                    </button>
+                </form>
+                @if (ErroAcao != null)
+                {
+                    <div style="color: #f44336; font-size: 13px; margin-bottom: 16px;">@ErroAcao</div>
+                }
+
+                <!-- Lista de Itens -->
+                <div style="flex-grow: 1; overflow-y: auto;">
+                    @if (Detalhe.Itens.Count == 0)
+                    {
+                        <div style="color: var(--cor-texto-sub); text-align: center; padding: 20px;">Nenhum item lançado.</div>
+                    }
+                    else
+                    {
+                        <table style="width: 100%; text-align: left; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--cor-texto-sub); font-size: 12px;">
+                                    <th style="padding: 8px 0;">Item</th>
+                                    <th style="padding: 8px 0; text-align:right;">Qtd</th>
+                                    <th style="padding: 8px 0; text-align:right;">Total</th>
+                                    <th style="padding: 8px 0; text-align:center;">Prod</th>
+                                    <th style="padding: 8px 0; text-align:center;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (int i = Detalhe.Itens.Count - 1; i >= 0; i--)
+                                {
+                                    var item = Detalhe.Itens[i];
+                                    var isCancelado = item.Cancelado;
+                                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); @(isCancelado ? "opacity:0.4; text-decoration:line-through;" : "")">
+                                        <td style="padding: 12px 0;">
+                                            <div style="font-weight: 600; font-size: 14px;">@item.DescricaoProduto</div>
+                                            <div style="font-size: 11px; color: var(--cor-texto-sub);">
+                                                @FormatarValor(item.PrecoUnitarioMinor)
+                                                @if (!string.IsNullOrEmpty(item.ObservacaoProducao))
+                                                {
+                                                    <span style="color: #ff9800; margin-left: 8px;">(@item.ObservacaoProducao)</span>
+                                                }
+                                            </div>
+                                        </td>
+                                        <td style="padding: 12px 0; text-align:right;">@FormatarQtd(item.QuantidadeEscala3)</td>
+                                        <td style="padding: 12px 0; text-align:right; font-weight:600;">@FormatarValor(item.TotalItemMinor)</td>
+                                        <td style="padding: 12px 0; text-align:center;">
+                                            @if (item.EnviadoProducao)
+                                            {
+                                                <span style="color: #00e676; font-size: 10px; border: 1px solid #00e676; padding: 2px 4px; border-radius: 4px;">ENVIADO</span>
+                                            }
+                                            else if (!isCancelado)
+                                            {
+                                                <span style="color: #ff9800; font-size: 10px;">Pendente</span>
+                                            }
+                                        </td>
+                                        <td style="padding: 12px 0; text-align:center;">
+                                            @if (!isCancelado && mesa.Status != "BLOQUEADA")
+                                            {
+                                                <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(244,67,54,0.1); color: #f44336;"
+                                                        @onclick="() => PrepararCancelamento(item)">Cancelar</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+
+            <!-- DIREITA: Totais e Produção -->
+            <div style="display: flex; flex-direction: column; flex: 1; min-width: 250px; gap: 16px;">
+                
+                <div class="card" style="display: flex; flex-direction: column;">
+                    <h3 style="font-size: 14px; color: var(--cor-texto-sub); margin-bottom: 24px;">Resumo</h3>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+                        <span style="font-size: 16px; font-weight: 600;">Total</span>
+                        <span style="font-size: 28px; font-weight: 700; color: #00e676;">
+                            @FormatarValor(mesa.TotalConsumoMinor)
+                        </span>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(mesa.ClienteNomeInformal))
+                    {
+                        <div style="font-size: 13px; color: var(--cor-texto-sub); margin-bottom: 8px;">
+                            Cliente: <span style="color: white;">@mesa.ClienteNomeInformal</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="card">
+                    <h3 style="font-size: 14px; color: var(--cor-texto-sub); margin-bottom: 16px;">Produção</h3>
+                    <p style="font-size: 12px; color: var(--cor-texto-sub); margin-bottom: 16px;">
+                        Itens pendentes serão agrupados e enviados aos setores de preparo.
+                    </p>
+                    <button class="btn" style="background: rgba(0,230,118,0.1); color: #00e676; width: 100%; border: 1px solid rgba(0,230,118,0.3);" 
+                            @onclick="EnviarParaProducao" disabled="@(Processando || !TemItensPendentes())">
+                        Enviar Pendentes
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    }
+
+    <!-- Modal Cancelamento -->
+    @if (ItemParaCancelar != null)
+    {
+        <div class="modal-overlay">
+            <div class="modal-content card" style="max-width: 400px; width: 100%;">
+                <h3 style="margin-bottom: 16px; color: #f44336;">Cancelar Item</h3>
+                <p style="font-size: 14px; margin-bottom: 16px;">@ItemParaCancelar.DescricaoProduto</p>
+                
+                <div style="margin-bottom: 16px;">
+                    <label style="font-size: 12px; color: var(--cor-texto-sub);">Motivo</label>
+                    <input type="text" class="input-moderno" @bind="MotivoCancelamento" placeholder="Ex: Cliente desistiu" />
+                </div>
+
+                @if (ItemParaCancelar.EnviadoProducao)
+                {
+                    <div style="background: rgba(255,152,0,0.1); border-left: 4px solid #ff9800; padding: 12px; margin-bottom: 16px; font-size: 12px;">
+                        <strong style="color: #ff9800;">Atenção:</strong> Este item já foi para a produção. Será gerado um aviso de cancelamento para o setor.
+                    </div>
+                }
+
+                @if (ErroCancelamento != null)
+                {
+                    <div style="color: #f44336; font-size: 13px; margin-bottom: 16px;">@ErroCancelamento</div>
+                }
+
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="btn" style="background: rgba(255,255,255,0.1);" @onclick="() => ItemParaCancelar = null" disabled="@Processando">Voltar</button>
+                    <button class="btn" style="background: #f44336;" @onclick="ConfirmarCancelamento" disabled="@Processando">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (ExibirModalTransferencia)
+{
+    <AureonPdvUi.Pages.TransferenciaMesaModal 
+        OrigemId="@MesaId" 
+        UsuarioId="@UsuarioId" 
+        OnSucesso="AoTransferir" 
+        OnFechar="() => ExibirModalTransferencia = false" />
+}
+
+<style>
+    .detalhe-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    .detalhe-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+    .detalhe-grid {
+        display: flex;
+        gap: 24px;
+        flex-grow: 1;
+        min-height: 0;
+    }
+    .btn-voltar {
+        background: rgba(255,255,255,0.1);
+        padding: 8px 16px;
+    }
+    .status-badge {
+        font-size: 12px;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+    .status-aberta { background: rgba(0,230,118,0.2); color: #00e676; }
+    .status-reservada { background: rgba(255,152,0,0.2); color: #ff9800; }
+    .status-bloqueada { background: rgba(244,67,54,0.2); color: #f44336; }
+</style>
+
+@code {
+    [Parameter] public string MesaId { get; set; } = "";
+    [Parameter] public string SessaoCaixaId { get; set; } = "";
+    [Parameter] public string UsuarioId { get; set; } = "";
+    [Parameter] public EventCallback OnVoltar { get; set; }
+
+    private bool CarregandoGeral = true;
+    private bool Processando = false;
+    private MesaDetalheResp? Detalhe;
+
+    private string BuscaCodigo = "";
+    private decimal BuscaQtd = 1m;
+    private string? ErroAcao;
+
+    // Cancelamento
+    private GourmetItemResp? ItemParaCancelar;
+    private string MotivoCancelamento = "";
+    private string? ErroCancelamento;
+
+    // Transferência
+    private bool ExibirModalTransferencia = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDetalhe();
+    }
+
+    private async Task CarregarDetalhe()
+    {
+        CarregandoGeral = true;
+        ErroAcao = null;
+        var res = await Tauri.InvocarAsync<RespostaBase<MesaDetalheResp>>("obter_mesa", new { id = MesaId });
+        if (res?.Sucesso == true && res.Dados != null)
+        {
+            Detalhe = res.Dados;
+        }
+        else
+        {
+            Detalhe = null;
+        }
+        CarregandoGeral = false;
+    }
+
+    private bool TemItensPendentes()
+    {
+        return Detalhe?.Itens.Any(i => !i.Cancelado && !i.EnviadoProducao) ?? false;
+    }
+
+    private async Task AdicionarItemSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(BuscaCodigo) || Detalhe == null) return;
+        Processando = true;
+        ErroAcao = null;
+
+        try
+        {
+            var resProd = await Tauri.InvocarAsync<RespostaBase<ProdutoPdvResp?>>("buscar_produto_pdv", new { codigo = BuscaCodigo });
+            if (resProd?.Sucesso == true && resProd.Dados != null)
+            {
+                var prod = resProd.Dados;
+                long qtdEscala3 = (long)Math.Round(BuscaQtd * 1000m);
+
+                var req = new AdicionarItemGourmetReq(
+                    origem_tipo: "MESA",
+                    origem_id: MesaId,
+                    produto_id: prod.ProdutoId,
+                    quantidade_escala3: qtdEscala3,
+                    preco_unitario_minor: prod.PrecoVendaMinor,
+                    desconto_item_minor: 0,
+                    acrescimo_item_minor: 0,
+                    observacao_producao: null,
+                    local_producao_id: "GERAL" // Fixo para simplificar
+                );
+
+                var resAdd = await Tauri.InvocarAsync<RespostaBase<GourmetItemResp>>("adicionar_item_mesa", new { dto = req });
+                if (resAdd?.Sucesso == true)
+                {
+                    BuscaCodigo = "";
+                    BuscaQtd = 1m;
+                    // Recarrega detalhe para ver consumo total atualizado
+                    await CarregarDetalhe(); 
+                }
+                else
+                {
+                    ErroAcao = resAdd?.Mensagem ?? "Erro ao adicionar item.";
+                }
+            }
+            else
+            {
+                ErroAcao = "Produto não encontrado.";
+            }
+        }
+        finally
+        {
+            Processando = false;
+        }
+    }
+
+    private void PrepararCancelamento(GourmetItemResp item)
+    {
+        ItemParaCancelar = item;
+        MotivoCancelamento = "";
+        ErroCancelamento = null;
+    }
+
+    private async Task ConfirmarCancelamento()
+    {
+        if (ItemParaCancelar == null || string.IsNullOrWhiteSpace(MotivoCancelamento))
+        {
+            ErroCancelamento = "Motivo é obrigatório.";
+            return;
+        }
+        Processando = true;
+        ErroCancelamento = null;
+
+        var req = new CancelarItemGourmetReq(
+            ItemParaCancelar.Id,
+            UsuarioId,
+            MotivoCancelamento,
+            null, // Se precisar supervisor, deveria chamar modal supervisor, simplificado aqui
+            null
+        );
+
+        var res = await Tauri.InvocarAsync<RespostaBase<string>>("cancelar_item_mesa", new { dto = req });
+        if (res?.Sucesso == true)
+        {
+            ItemParaCancelar = null;
+            await CarregarDetalhe();
+        }
+        else
+        {
+            ErroCancelamento = res?.Mensagem ?? "Erro ao cancelar item.";
+        }
+        Processando = false;
+    }
+
+    private async Task EnviarParaProducao()
+    {
+        Processando = true;
+        ErroAcao = null;
+
+        var req = new EnviarProducaoReq("MESA", MesaId, UsuarioId);
+        var res = await Tauri.InvocarAsync<RespostaBase<List<ProducaoEnvioResp>>>("enviar_itens_producao", new { dto = req });
+        
+        if (res?.Sucesso == true)
+        {
+            await CarregarDetalhe();
+        }
+        else
+        {
+            ErroAcao = res?.Mensagem ?? "Erro ao enviar para produção.";
+        }
+        Processando = false;
+    }
+
+    private void AbrirTransferencia()
+    {
+        ExibirModalTransferencia = true;
+    }
+
+    private async Task AoTransferir()
+    {
+        ExibirModalTransferencia = false;
+        await CarregarDetalhe();
+        // Se a mesa foi toda transferida, ela pode ficar livre. Voltar?
+        if (Detalhe?.Mesa.Status == "LIVRE" || Detalhe?.Mesa.Status == "FECHADA")
+        {
+            await OnVoltar.InvokeAsync();
+        }
+    }
+
+    private async Task FecharEmVenda()
+    {
+        Processando = true;
+        ErroAcao = null;
+
+        var req = new FecharEmVendaReq(MesaId, SessaoCaixaId, UsuarioId);
+        var res = await Tauri.InvocarAsync<RespostaBase<VendaResumoResp>>("fechar_mesa_em_venda", new { dto = req });
+
+        if (res?.Sucesso == true)
+        {
+            // Venda foi criada EM_ANDAMENTO. Redirecionar para o PDV.
+            Nav.NavigateTo("/pdv");
+        }
+        else
+        {
+            ErroAcao = res?.Mensagem ?? "Erro ao fechar mesa.";
+            Processando = false;
+        }
+    }
+
+    private string FormatarValor(long minor)
+    {
+        return (minor / 100m).ToString("C2", new CultureInfo("pt-BR"));
+    }
+
+    private string FormatarQtd(long qtdEscala3)
+    {
+        return (qtdEscala3 / 1000m).ToString("0.###", CultureInfo.InvariantCulture);
+    }
+}

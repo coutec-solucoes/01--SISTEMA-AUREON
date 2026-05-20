@@ -437,4 +437,45 @@ namespace AureonPdvUi.Services
         ComandaOperacionalResp Comanda,
         List<GourmetItemResp> Itens
     );
+
+    // ========================================================================
+    // BLOCO 3: TRANSFERÊNCIAS, PRODUÇÃO E FECHAMENTO
+    // ========================================================================
+
+    public record TransferirTotalReq(
+        string origem_id,
+        string destino_id,
+        string usuario_id,
+        string motivo
+    );
+
+    public record TransferirItensReq(
+        string origem_id,
+        string destino_id,
+        List<string> itens_ids,
+        string usuario_id,
+        string motivo
+    );
+
+    public record EnviarProducaoReq(
+        string origem_tipo,
+        string origem_id,
+        string usuario_id
+    );
+
+    public record ProducaoEnvioResp(
+        string Id,
+        string OrigemTipo,
+        string OrigemId,
+        string SetorProducaoId,
+        string Status,
+        string CriadoEm
+    );
+
+    public record FecharEmVendaReq(
+        string origem_id,
+        string sessao_caixa_id,
+        string usuario_id
+    );
 }
+

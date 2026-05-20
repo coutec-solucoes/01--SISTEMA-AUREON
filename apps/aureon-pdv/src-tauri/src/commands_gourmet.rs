@@ -1093,7 +1093,20 @@ fn adicionar_item_gourmet_interno(
     };
 
     if op_status == "BLOQUEADA" {
-        return Err("A origem está bloqueada. Não é possível adicionar novos itens.".to_string());
+        return Err("A origem esta bloqueada. Nao e possivel adicionar novos itens.".to_string());
+    }
+
+    // Ressalva 2: bloquear novos lancamentos se a origem ja tem venda EM_ANDAMENTO
+    let venda_em_andamento: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM vendas WHERE origem_tipo = ?1 AND origem_id = ?2 AND status = 'EM_ANDAMENTO'",
+        params![&dto.origem_tipo, &dto.origem_id],
+        |r| r.get(0),
+    ).unwrap_or(false);
+    if venda_em_andamento {
+        return Err(format!(
+            "{} ja possui venda EM_ANDAMENTO. Finalize ou cancele o pagamento antes de adicionar itens.",
+            dto.origem_tipo
+        ));
     }
 
     // 2. Verificar se o produto existe no cache e está ativo
@@ -1200,10 +1213,10 @@ fn cancelar_item_gourmet_interno(
     dto: CancelarItemGourmetReq,
 ) -> Result<String, String> {
     if dto.motivo_cancelamento.trim().is_empty() {
-        return Err("Justificativa de cancelamento é obrigatória.".to_string());
+        return Err("Justificativa de cancelamento e obrigatorio.".to_string());
     }
 
-    // Buscar item
+    // Buscar item: origem_tipo, origem_id, enviado_producao
     let item: Option<(String, String, i32)> = conn
         .query_row(
             "SELECT origem_tipo, origem_id, enviado_producao FROM gourmet_itens WHERE id = ?1 AND cancelado = 0 AND status != 'TRANSFERIDO'",
@@ -1214,13 +1227,37 @@ fn cancelar_item_gourmet_interno(
 
     let (origem_tipo, origem_id, enviado_producao) = match item {
         Some(x) => x,
-        None => return Err("Item não encontrado, já cancelado ou já transferido.".to_string()),
+        None => return Err("Item nao encontrado, ja cancelado ou ja transferido.".to_string()),
     };
 
-    // Validar se exige supervisor (exige se já foi enviado para a produção)
-    if enviado_producao == 1 && dto.supervisor_id.is_none() {
-        return Err("Item já foi enviado para a produção. É necessária autorização de supervisor para cancelar.".to_string());
+    // Ressalva 2: bloquear cancelamento se a origem ja tem venda EM_ANDAMENTO
+    let venda_em_andamento: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM vendas WHERE origem_tipo = ?1 AND origem_id = ?2 AND status = 'EM_ANDAMENTO'",
+        params![&origem_tipo, &origem_id],
+        |r| r.get(0),
+    ).unwrap_or(false);
+    if venda_em_andamento {
+        return Err(format!(
+            "{} ja possui uma venda EM_ANDAMENTO vinculada. Cancele ou finalize o pagamento antes de alterar itens.",
+            origem_tipo
+        ));
     }
+
+    // Validar se exige supervisor (exige se ja foi enviado para a producao)
+    if enviado_producao == 1 && dto.supervisor_id.is_none() {
+        return Err("Item ja foi enviado para a producao. E necessaria autorizacao de supervisor para cancelar.".to_string());
+    }
+
+    // Ressalva 3: buscar envio de producao vinculado para gerar evento de cancelamento
+    let envio_producao_id: Option<String> = if enviado_producao == 1 {
+        conn.query_row(
+            "SELECT envio_id FROM producao_envios_itens WHERE item_id = ?1 LIMIT 1",
+            params![&dto.item_id],
+            |r| r.get(0),
+        ).ok()
+    } else {
+        None
+    };
 
     let agora = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -1245,6 +1282,14 @@ fn cancelar_item_gourmet_interno(
         ],
     ).map_err(|e| e.to_string())?;
 
+    // Se estava em producao, marcar producao_envios_itens como cancelamento
+    if enviado_producao == 1 {
+        tx.execute(
+            "UPDATE producao_envios_itens SET cancelamento = 1 WHERE item_id = ?1",
+            params![&dto.item_id],
+        ).map_err(|e| e.to_string())?;
+    }
+
     let event_name = match origem_tipo.as_str() {
         "MESA" => "MESA_ITEM_CANCELADO",
         _ => "COMANDA_ITEM_CANCELADO",
@@ -1264,6 +1309,39 @@ fn cancelar_item_gourmet_interno(
             "cancelado_em": &agora
         }),
     )?;
+
+    // Ressalva 3: eventos especificos de cancelamento de producao
+    if enviado_producao == 1 {
+        inserir_outbox(
+            &tx,
+            "ITEM_CANCELAMENTO_ENVIADO_PRODUCAO",
+            json!({
+                "item_id": &dto.item_id,
+                "origem_tipo": &origem_tipo,
+                "origem_id": &origem_id,
+                "envio_id": &envio_producao_id,
+                "usuario_cancelamento_id": &dto.usuario_cancelamento_id,
+                "supervisor_id": &dto.supervisor_id,
+                "motivo": &dto.motivo_cancelamento,
+                "cancelado_em": &agora
+            }),
+        )?;
+
+        if let Some(ref env_id) = envio_producao_id {
+            inserir_outbox(
+                &tx,
+                "PRODUCAO_CANCELAMENTO_GERADO",
+                json!({
+                    "envio_id": env_id,
+                    "item_id": &dto.item_id,
+                    "origem_tipo": &origem_tipo,
+                    "origem_id": &origem_id,
+                    "usuario_cancelamento_id": &dto.usuario_cancelamento_id,
+                    "cancelado_em": &agora
+                }),
+            )?;
+        }
+    }
 
     tx.commit().map_err(|e| e.to_string())?;
 
@@ -2036,6 +2114,43 @@ pub async fn reimprimir_envio_producao(
     tx.commit().map_err(|e| e.to_string())?;
 
     Ok(RespostaBase::ok("Envio de produção registrado como reimpresso", dto.envio_id))
+}
+
+#[tauri::command]
+pub async fn listar_todos_envios_producao(
+    estado: State<'_, EstadoApp>,
+) -> Result<RespostaBase<Vec<ProducaoEnvioResp>>, String> {
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, origem_tipo, origem_id, setor_producao_id, usuario_id, status, criado_em
+         FROM producao_envios
+         ORDER BY criado_em DESC LIMIT 50"
+    ).map_err(|e| e.to_string())?;
+
+    let envios: Vec<(String, String, String, String, String, String, String)> = stmt.query_map(
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?))
+    ).map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+
+    let mut result = Vec::new();
+    for e in envios {
+        result.push(ProducaoEnvioResp {
+            id: e.0,
+            origem_tipo: e.1,
+            origem_id: e.2,
+            setor_producao_id: e.3,
+            usuario_id: e.4,
+            status: e.5,
+            texto_producao: String::new(), // Não carregado na lista geral
+            itens: Vec::new(),             // Não carregado na lista geral
+            criado_em: e.6,
+        });
+    }
+
+    Ok(RespostaBase::ok("Todos envios de produção listados", result))
 }
 
 #[tauri::command]
