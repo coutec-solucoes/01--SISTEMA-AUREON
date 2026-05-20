@@ -217,30 +217,93 @@ pub async fn obter_resumo_caixa(
 ) -> Result<RespostaBase<serde_json::Value>, String> {
     let conn = db.lock().unwrap();
     
-    // Simplificado para retornar um map de totais por moeda para exibição
+    // Obter todas as moedas da sessão
     let mut stmt = conn.prepare(
-        "SELECT moeda_codigo, 
-                SUM(CASE WHEN tipo_movimentacao = 'SUPRIMENTO' THEN valor_minor ELSE 0 END) as total_suprimentos,
-                SUM(CASE WHEN tipo_movimentacao IN ('SANGRIA', 'VALE_FUNCIONARIO') THEN valor_minor ELSE 0 END) as total_sangrias
-         FROM caixa_movimentacoes 
-         WHERE sessao_caixa_id = ?1 AND cancelado = 0
-         GROUP BY moeda_codigo"
+        "SELECT moeda_codigo, valor_abertura_minor 
+         FROM sessoes_caixa_moedas 
+         WHERE sessao_id = ?1"
     ).map_err(|e| e.to_string())?;
 
-    let mut map_moedas = serde_json::Map::new();
+    let rows = stmt.query_map(params![&sessao_caixa_id], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    }).map_err(|e| e.to_string())?;
 
-    let _ = stmt.query_map(params![sessao_caixa_id], |row| {
-        let moeda: String = row.get(0)?;
-        let suprimentos: i64 = row.get(1)?;
-        let sangrias: i64 = row.get(2)?;
-        map_moedas.insert(moeda, serde_json::json!({
-            "total_suprimentos_minor": suprimentos,
-            "total_sangrias_minor": sangrias
+    let mut lista_resumo = Vec::new();
+
+    for r in rows {
+        let (moeda, abertura) = r.map_err(|e| e.to_string())?;
+
+        // Vendas (excluindo CREDITO_CLIENTE)
+        let vendas: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(vp.valor_informado_minor), 0) FROM venda_pagamentos vp
+             INNER JOIN vendas v ON v.id = vp.venda_id
+             WHERE v.sessao_caixa_id = ?1 AND vp.moeda_codigo = ?2 AND v.status = 'FINALIZADA'
+               AND vp.forma_pagamento <> 'CREDITO_CLIENTE'",
+            params![&sessao_caixa_id, &moeda],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        // Suprimentos
+        let suprimentos: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(valor_minor), 0) FROM caixa_movimentacoes
+             WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2 AND cancelado = 0 AND tipo_movimentacao = 'SUPRIMENTO'",
+            params![&sessao_caixa_id, &moeda],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        // Sangrias
+        let sangrias: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(valor_minor), 0) FROM caixa_movimentacoes
+             WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2 AND cancelado = 0 AND tipo_movimentacao = 'SANGRIA'",
+            params![&sessao_caixa_id, &moeda],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        // Vales
+        let vales: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(valor_minor), 0) FROM caixa_movimentacoes
+             WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2 AND cancelado = 0 AND tipo_movimentacao = 'VALE_FUNCIONARIO'",
+            params![&sessao_caixa_id, &moeda],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        // Recebimentos Financeiros (ex: baixa de contas a receber)
+        let recebimentos_fin: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(valor_informado_minor), 0) FROM financeiro_lancamentos
+             WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2 AND tipo_lancamento = 'RECEBIMENTO'",
+            params![&sessao_caixa_id, &moeda],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        // Pagamentos Financeiros (ex: despesas, compras pagas com dinheiro do caixa)
+        let pagamentos_fin: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(valor_informado_minor), 0) FROM financeiro_lancamentos
+             WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2 AND tipo_lancamento = 'PAGAMENTO'",
+            params![&sessao_caixa_id, &moeda],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        let esperado = abertura + vendas + suprimentos - sangrias - vales + recebimentos_fin - pagamentos_fin;
+
+        lista_resumo.push(serde_json::json!({
+            "moedaCodigo": moeda.clone(),
+            "moeda_codigo": moeda,
+            "aberturaMinor": abertura,
+            "abertura_minor": abertura,
+            "vendasMinor": vendas,
+            "vendas_minor": vendas,
+            "suprimentosMinor": suprimentos,
+            "suprimentos_minor": suprimentos,
+            "sangriasMinor": sangrias,
+            "sangrias_minor": sangrias,
+            "valesFuncionariosMinor": vales,
+            "vales_funcionarios_minor": vales,
+            "esperadoMinor": esperado,
+            "esperado_minor": esperado
         }));
-        Ok(())
-    }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>();
+    }
 
-    Ok(RespostaBase::ok("", serde_json::Value::Object(map_moedas)))
+    Ok(RespostaBase::ok("", serde_json::Value::Array(lista_resumo)))
 }
 
 // --- Supervisor ---

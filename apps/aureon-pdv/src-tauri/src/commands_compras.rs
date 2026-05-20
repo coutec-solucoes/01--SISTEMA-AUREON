@@ -601,6 +601,9 @@ pub fn finalizar_compra(
 
     let agora = Utc::now().to_rfc3339();
 
+    // FASE 13 - FINANCEIRO: Gerar contas_pagar automaticamente
+    gerar_conta_pagar_compra(&tx, &compra_id, &usuario_id)?;
+
     // 4. Mudar status da compra
     tx.execute(
         "UPDATE compras
@@ -646,6 +649,9 @@ pub fn cancelar_compra_finalizada(
     if dto.motivo.trim().is_empty() {
         return Err("O motivo do cancelamento é obrigatório.".to_string());
     }
+
+    // FASE 13 - FINANCEIRO: Cancelar conta a pagar correspondente
+    cancelar_conta_pagar_compra(&tx, &dto.compra_id, &dto.usuario_id)?;
 
     // 2. Verificar se houve ENTRADA_COMPRA e se já houve ESTORNO_ENTRADA_COMPRA (Idempotência)
     let entrada_existe: bool = tx.query_row(
@@ -735,5 +741,155 @@ pub fn cancelar_compra_finalizada(
 
     let compra = obter_compra_interna(&conn, &dto.compra_id)?;
     Ok(RespostaBase::ok("Compra cancelada com sucesso", compra))
+}
+
+fn gerar_conta_pagar_compra(
+    tx: &rusqlite::Transaction<'_>,
+    compra_id: &str,
+    usuario_id: &str,
+) -> Result<(), String> {
+    // 1. Idempotência: verificar se já existe contas_pagar com compra_id
+    let existe: bool = tx.query_row(
+        "SELECT COUNT(*) > 0 FROM contas_pagar WHERE compra_id = ?1",
+        rusqlite::params![compra_id],
+        |row| row.get(0)
+    ).unwrap_or(false);
+
+    if existe {
+        return Ok(());
+    }
+
+    // 2. Buscar dados da compra
+    let (
+        fornecedor_id,
+        fornecedor_nome_snapshot,
+        data_emissao_opt,
+        moeda_codigo,
+        taxa_cambio_escala6,
+        total_compra_minor,
+        criado_em
+    ) = tx.query_row(
+        "SELECT fornecedor_id, fornecedor_nome_snapshot, data_emissao, moeda_codigo,
+                taxa_cambio_escala6, total_compra_minor, criado_em 
+         FROM compras WHERE id = ?1",
+        [compra_id],
+        |row| Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Option<String>>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, i64>(4)?,
+            row.get::<_, i64>(5)?,
+            row.get::<_, String>(6)?,
+        ))
+    ).map_err(|e| format!("Erro ao obter compra para gerar contas a pagar: {e}"))?;
+
+    let agora = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let data_emissao = data_emissao_opt.unwrap_or_else(|| criado_em.clone());
+    
+    let vencimento_dt = Utc::now() + chrono::Duration::days(30);
+    let data_vencimento = vencimento_dt.format("%Y-%m-%d %H:%M:%S").to_string();
+
+    let valor_original_principal_minor = match total_compra_minor.checked_mul(taxa_cambio_escala6) {
+        Some(val) => val / 1_000_000,
+        None => return Err("Overflow no cálculo de conversão do valor principal da compra".to_string()),
+    };
+
+    let saldo_pendente_minor = total_compra_minor; 
+
+    let cp_id = uuid::Uuid::new_v4().to_string();
+
+    tx.execute(
+        "INSERT INTO contas_pagar (
+            id, fornecedor_id, fornecedor_nome_snapshot, compra_id, descricao, moeda_codigo,
+            valor_original_minor, taxa_cambio_escala6, valor_original_principal_minor,
+            data_emissao, data_vencimento, status, saldo_pendente_minor, criado_em,
+            atualizado_em, usuario_id, observacao
+        ) VALUES (?1, ?2, ?3, ?4, 'Compra manual / Nota de compra', ?5, ?6, ?7, ?8, ?9, ?10, 'PENDENTE', ?11, ?12, ?12, ?13, NULL)",
+        rusqlite::params![
+            cp_id,
+            fornecedor_id,
+            fornecedor_nome_snapshot,
+            compra_id,
+            moeda_codigo,
+            total_compra_minor,
+            taxa_cambio_escala6,
+            valor_original_principal_minor,
+            data_emissao,
+            data_vencimento,
+            saldo_pendente_minor,
+            agora,
+            usuario_id
+        ]
+    ).map_err(|e| format!("Erro ao inserir contas_pagar da compra: {e}"))?;
+
+    // outbox CONTA_PAGAR_CRIADA
+    inserir_outbox(
+        tx,
+        "CONTA_PAGAR_CRIADA",
+        json!({
+            "id": cp_id,
+            "fornecedor_id": fornecedor_id,
+            "fornecedor_nome_snapshot": fornecedor_nome_snapshot,
+            "compra_id": compra_id,
+            "descricao": "Compra manual / Nota de compra",
+            "moeda_codigo": moeda_codigo,
+            "valor_original_minor": total_compra_minor,
+            "taxa_cambio_escala6": taxa_cambio_escala6,
+            "valor_original_principal_minor": valor_original_principal_minor,
+            "data_emissao": data_emissao,
+            "data_vencimento": data_vencimento,
+            "status": "PENDENTE",
+            "saldo_pendente_minor": saldo_pendente_minor,
+            "criado_em": agora,
+            "usuario_id": usuario_id
+        })
+    )?;
+
+    Ok(())
+}
+
+fn cancelar_conta_pagar_compra(
+    tx: &rusqlite::Transaction<'_>,
+    compra_id: &str,
+    usuario_id: &str,
+) -> Result<(), String> {
+    // 1. Obter contas_pagar vinculada
+    let conta_opt: Option<(String, String)> = tx.query_row(
+        "SELECT id, status FROM contas_pagar WHERE compra_id = ?1",
+        [compra_id],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    ).ok();
+
+    if let Some((cp_id, status)) = conta_opt {
+        if status == "PAGO_PARCIAL" || status == "PAGO" {
+            return Err("Não é possível estornar esta compra porque o título financeiro correspondente já possui pagamentos baixados.".to_string());
+        }
+
+        if status == "PENDENTE" {
+            let agora = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+            tx.execute(
+                "UPDATE contas_pagar 
+                 SET status = 'CANCELADO', saldo_pendente_minor = 0, atualizado_em = ?1, observacao = 'Cancelado por estorno de compra'
+                 WHERE id = ?2",
+                rusqlite::params![agora, cp_id],
+            ).map_err(|e| format!("Erro ao cancelar conta a pagar vinculada: {e}"))?;
+
+            // outbox CONTA_PAGAR_CANCELADA
+            inserir_outbox(
+                tx,
+                "CONTA_PAGAR_CANCELADA",
+                json!({
+                    "conta_pagar_id": cp_id,
+                    "cancelado_em": agora,
+                    "motivo": "Cancelado por estorno de compra",
+                    "usuario_id": usuario_id
+                })
+            )?;
+        }
+    }
+
+    Ok(())
 }
 

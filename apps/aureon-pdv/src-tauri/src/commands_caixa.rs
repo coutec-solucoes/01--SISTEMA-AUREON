@@ -242,7 +242,22 @@ pub async fn fechar_caixa(
             |row| row.get(0),
         ).unwrap_or(0);
 
-        let valor_esperado = valor_abertura + valor_vendas + valor_suprimentos - valor_sangrias;
+        // FASE 13 - FINANCEIRO: Integrar recebimentos/pagamentos financeiros no fechamento
+        let valor_recebimentos_fin: i64 = tx.query_row(
+            "SELECT COALESCE(SUM(valor_informado_minor), 0) FROM financeiro_lancamentos
+             WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2 AND tipo_lancamento = 'RECEBIMENTO'",
+            rusqlite::params![&dto.sessao_id, &saldo_inf.moeda_codigo],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        let valor_pagamentos_fin: i64 = tx.query_row(
+            "SELECT COALESCE(SUM(valor_informado_minor), 0) FROM financeiro_lancamentos
+             WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2 AND tipo_lancamento = 'PAGAMENTO'",
+            rusqlite::params![&dto.sessao_id, &saldo_inf.moeda_codigo],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        let valor_esperado = valor_abertura + valor_vendas + valor_suprimentos - valor_sangrias + valor_recebimentos_fin - valor_pagamentos_fin;
         let diferenca = saldo_inf.valor_minor - valor_esperado;
 
         tx.execute(
