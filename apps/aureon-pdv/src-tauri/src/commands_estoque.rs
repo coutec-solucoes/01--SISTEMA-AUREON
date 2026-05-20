@@ -87,6 +87,144 @@ pub fn registrar_movimentacao_estoque(
     Ok(mov_id)
 }
 
+/// Processa a baixa de estoque ao finalizar uma venda.
+pub fn processar_baixa_venda(
+    tx: &Transaction,
+    venda_id: &str,
+    usuario_id: &str,
+) -> Result<(), AureonError> {
+    // 1. Idempotência: verificar se já existe baixa
+    {
+        let mut stmt_check = tx.prepare(
+            "SELECT id FROM estoque_movimentacoes WHERE origem_id = ? AND tipo_movimentacao = 'VENDA'"
+        ).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+        
+        let mut rows_check = stmt_check.query([venda_id]).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+        if rows_check.next().map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?.is_some() {
+            return Ok(()); // Já baixado, ignorar silenciosamente
+        }
+    }
+
+    // 2. Buscar itens ativos e que controlam estoque
+    let mut stmt_itens = tx.prepare("
+        SELECT vi.produto_id, SUM(vi.quantidade_escala3) as total_escala3
+        FROM venda_itens vi
+        INNER JOIN produtos_cache p ON vi.produto_id = p.id
+        WHERE vi.venda_id = ? AND vi.cancelado = 0 AND p.controla_estoque = 1
+        GROUP BY vi.produto_id
+    ").map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+    
+    let rows = stmt_itens.query_map([venda_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?
+        ))
+    }).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+
+    let mut itens_para_baixar = vec![];
+    for r in rows {
+        itens_para_baixar.push(r.map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?);
+    }
+    drop(stmt_itens);
+
+    // 3. Processar cada produto
+    for (produto_id, qtd_escala3) in itens_para_baixar {
+        let saldo_atual = obter_saldo_produto(tx, &produto_id)?;
+        let novo_saldo = saldo_atual - qtd_escala3;
+        
+        garantir_saldo_produto(tx, &produto_id, novo_saldo)?;
+        
+        registrar_movimentacao_estoque(
+            tx,
+            &produto_id,
+            -qtd_escala3,
+            novo_saldo,
+            "VENDA",
+            "VENDA",
+            venda_id,
+            Some("Baixa automatica na finalizacao da venda"),
+            usuario_id,
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Processa o estorno de estoque ao cancelar uma venda finalizada.
+pub fn processar_estorno_venda(
+    tx: &Transaction,
+    venda_id: &str,
+    usuario_id: &str,
+) -> Result<(), AureonError> {
+    // 1. Validar se houve baixa (não dá pra estornar o que não baixou)
+    {
+        let mut stmt_check_baixa = tx.prepare(
+            "SELECT id FROM estoque_movimentacoes WHERE origem_id = ? AND tipo_movimentacao = 'VENDA'"
+        ).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+        
+        let mut rows_check_baixa = stmt_check_baixa.query([venda_id]).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+        if rows_check_baixa.next().map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?.is_none() {
+            return Ok(()); // Sem baixa, logo sem estorno
+        }
+    }
+
+    // 2. Idempotência: verificar se já existe estorno
+    {
+        let mut stmt_check_estorno = tx.prepare(
+            "SELECT id FROM estoque_movimentacoes WHERE origem_id = ? AND tipo_movimentacao = 'ESTORNO_VENDA'"
+        ).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+        
+        let mut rows_check_estorno = stmt_check_estorno.query([venda_id]).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+        if rows_check_estorno.next().map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?.is_some() {
+            return Ok(()); // Já estornado, ignorar silenciosamente
+        }
+    }
+
+    // 3. Buscar itens que controlam estoque (soma igual à da baixa)
+    let mut stmt_itens = tx.prepare("
+        SELECT vi.produto_id, SUM(vi.quantidade_escala3) as total_escala3
+        FROM venda_itens vi
+        INNER JOIN produtos_cache p ON vi.produto_id = p.id
+        WHERE vi.venda_id = ? AND vi.cancelado = 0 AND p.controla_estoque = 1
+        GROUP BY vi.produto_id
+    ").map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+    
+    let rows = stmt_itens.query_map([venda_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?
+        ))
+    }).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+
+    let mut itens_para_estornar = vec![];
+    for r in rows {
+        itens_para_estornar.push(r.map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?);
+    }
+    drop(stmt_itens);
+
+    // 4. Processar cada produto (soma positiva)
+    for (produto_id, qtd_escala3) in itens_para_estornar {
+        let saldo_atual = obter_saldo_produto(tx, &produto_id)?;
+        let novo_saldo = saldo_atual + qtd_escala3;
+        
+        garantir_saldo_produto(tx, &produto_id, novo_saldo)?;
+        
+        registrar_movimentacao_estoque(
+            tx,
+            &produto_id,
+            qtd_escala3,
+            novo_saldo,
+            "ESTORNO_VENDA",
+            "VENDA",
+            venda_id,
+            Some("Estorno automatico por cancelamento de venda"),
+            usuario_id,
+        )?;
+    }
+
+    Ok(())
+}
+
 // ========================================================================
 // COMMANDS TAURI - ESTOQUE
 // ========================================================================

@@ -6,6 +6,7 @@ use serde_json::json;
 use aureon_core::{dtos::*, RespostaBase};
 use crate::estado::EstadoApp;
 use crate::commands_caixa::outbox_inserir;
+use crate::commands_estoque::processar_estorno_venda;
 
 // ================================================================
 // Command: iniciar_venda
@@ -333,15 +334,11 @@ pub async fn cancelar_venda(
 
     let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
 
-    let venda_ok: bool = conn.query_row(
-        "SELECT COUNT(*) > 0 FROM vendas WHERE id = ?1 AND status = 'EM_ANDAMENTO'",
+    let status_venda: String = conn.query_row(
+        "SELECT status FROM vendas WHERE id = ?1 AND status IN ('EM_ANDAMENTO', 'FINALIZADA')",
         rusqlite::params![&dto.venda_id],
         |row| row.get(0),
-    ).unwrap_or(false);
-
-    if !venda_ok {
-        return Err("Venda nao encontrada ou nao pode ser cancelada.".into());
-    }
+    ).map_err(|_| "Venda nao encontrada ou ja esta cancelada.".to_string())?;
 
     let agora = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
@@ -402,6 +399,11 @@ pub async fn cancelar_venda(
             "cancelado_em": &agora
         }),
     )?;
+
+    // FASE 11 - ESTOQUE: Estornar itens se a venda estava FINALIZADA
+    if status_venda == "FINALIZADA" {
+        processar_estorno_venda(&tx, &dto.venda_id, &dto.usuario_cancelamento_id).map_err(|e| e.to_string())?;
+    }
 
     tx.commit().map_err(|e| e.to_string())?;
 

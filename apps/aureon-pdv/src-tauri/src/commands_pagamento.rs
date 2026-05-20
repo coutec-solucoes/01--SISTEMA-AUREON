@@ -6,6 +6,7 @@ use serde_json::json;
 use aureon_core::{dtos::*, RespostaBase};
 use crate::estado::EstadoApp;
 use crate::commands_caixa::outbox_inserir;
+use crate::commands_estoque::processar_baixa_venda;
 
 // ================================================================
 // Command: registrar_pagamento
@@ -209,14 +210,14 @@ pub async fn finalizar_venda(
     let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
 
     // Verificar venda EM_ANDAMENTO e buscar total e contagem de itens
-    let (total_venda_minor, total_itens): (i64, i64) = conn.query_row(
-        "SELECT v.total_minor, COUNT(CASE WHEN vi.cancelado = 0 THEN 1 END)
+    let (total_venda_minor, total_itens, usuario_id): (i64, i64, String) = conn.query_row(
+        "SELECT v.total_minor, COUNT(CASE WHEN vi.cancelado = 0 THEN 1 END), v.usuario_id
          FROM vendas v
          LEFT JOIN venda_itens vi ON vi.venda_id = v.id
          WHERE v.id = ?1 AND v.status = 'EM_ANDAMENTO'
          GROUP BY v.id",
         rusqlite::params![&venda_id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     ).map_err(|_| "Venda nao encontrada ou nao esta em andamento.".to_string())?;
 
     if total_itens == 0 {
@@ -328,6 +329,8 @@ pub async fn finalizar_venda(
         )?;
     }
 
+    // FASE 11 - ESTOQUE: Baixar itens da venda (só ocorre na finalização)
+    processar_baixa_venda(&tx, &venda_id, &usuario_id).map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
 
