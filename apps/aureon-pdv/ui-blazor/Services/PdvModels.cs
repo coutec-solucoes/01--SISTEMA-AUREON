@@ -640,5 +640,88 @@ namespace AureonPdvUi.Services
         string? motivo,
         string usuario_id
     );
+
+    // --- FASE 12: COMPRAS E ENTRADA MANUAL ---
+
+    public record FornecedorResp(
+        string Id,
+        string Nome,
+        string? Documento,
+        bool Ativo,
+        string AtualizadoEm
+    );
+
+    public record CompraItemResp(
+        string Id,
+        string CompraId,
+        string ProdutoId,
+        string DescricaoProdutoSnapshot,
+        long QuantidadeEscala3,
+        long CustoUnitarioMinor,
+        long TotalItemMinor,
+        string? Lote,
+        string? Validade,
+        string? Serial,
+        string? Imei,
+        bool Cancelado,
+        string CriadoEm
+    );
+
+    public record CompraResp(
+        string Id,
+        string FornecedorId,
+        string FornecedorNomeSnapshot,
+        string? NumeroNota,
+        string? Serie,
+        string? ChaveAcessoXmlFiscal,
+        string? DataEmissao,
+        string Status,
+        string MoedaCodigo,
+        long TaxaCambioEscala6,
+        long SubtotalItensMinor,
+        long DescontoTotalMinor,
+        long FreteTotalMinor,
+        long OutrasDespesasMinor,
+        long ImpostosTotalMinor,
+        long TotalCompraMinor,
+        string? Observacao,
+        string CriadoEm,
+        string AtualizadoEm,
+        string? FinalizadaEm,
+        string? CanceladaEm,
+        string? MotivoCancelamento,
+        string UsuarioId,
+        List<CompraItemResp> Itens
+    );
+
+    public record IniciarCompraReq(
+        string fornecedor_id,
+        string? numero_nota,
+        string? serie,
+        string? chave_acesso_xml_fiscal,
+        string? data_emissao,
+        string moeda_codigo,
+        long taxa_cambio_escala6,
+        string? observacao,
+        string usuario_id
+    );
+
+    public record AdicionarItemCompraReq(
+        string compra_id,
+        string produto_id,
+        long quantidade_escala3,
+        long custo_unitario_minor,
+        string? lote,
+        string? validade,
+        string? serial,
+        string? imei
+    );
+
+    public record CancelarCompraEmAndamentoReq(
+        string compra_id,
+        string motivo,
+        string usuario_id
+    );
 }
+
 

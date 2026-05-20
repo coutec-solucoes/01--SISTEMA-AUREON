@@ -818,3 +818,92 @@ pub struct InventarioEstoqueReq {
     pub motivo: Option<String>,
     pub usuario_id: String,
 }
+
+// --- FASE 12: COMPRAS E ENTRADA MANUAL ---
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FornecedorResp {
+    pub id: String,
+    pub nome: String,
+    pub documento: Option<String>,
+    pub ativo: bool,
+    pub atualizado_em: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CompraItemResp {
+    pub id: String,
+    pub compra_id: String,
+    pub produto_id: String,
+    pub descricao_produto_snapshot: String,
+    pub quantidade_escala3: i64,
+    pub custo_unitario_minor: i64,
+    pub total_item_minor: i64,
+    pub lote: Option<String>,
+    pub validade: Option<String>,
+    pub serial: Option<String>,
+    pub imei: Option<String>,
+    pub cancelado: bool,
+    pub criado_em: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CompraResp {
+    pub id: String,
+    pub fornecedor_id: String,
+    pub fornecedor_nome_snapshot: String,
+    pub numero_nota: Option<String>,
+    pub serie: Option<String>,
+    pub chave_acesso_xml_fiscal: Option<String>,
+    pub data_emissao: Option<String>,
+    pub status: String,
+    pub moeda_codigo: String,
+    pub taxa_cambio_escala6: i64,
+    pub subtotal_itens_minor: i64,
+    pub desconto_total_minor: i64,
+    pub frete_total_minor: i64,
+    pub outras_despesas_minor: i64,
+    pub impostos_total_minor: i64,
+    pub total_compra_minor: i64,
+    pub observacao: Option<String>,
+    pub criado_em: String,
+    pub atualizado_em: String,
+    pub finalizada_em: Option<String>,
+    pub cancelada_em: Option<String>,
+    pub motivo_cancelamento: Option<String>,
+    pub usuario_id: String,
+    pub itens: Vec<CompraItemResp>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IniciarCompraReq {
+    pub fornecedor_id: String,
+    pub numero_nota: Option<String>,
+    pub serie: Option<String>,
+    pub chave_acesso_xml_fiscal: Option<String>,
+    pub data_emissao: Option<String>,
+    pub moeda_codigo: String,
+    pub taxa_cambio_escala6: i64,
+    pub observacao: Option<String>,
+    pub usuario_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AdicionarItemCompraReq {
+    pub compra_id: String,
+    pub produto_id: String,
+    pub quantidade_escala3: i64,
+    pub custo_unitario_minor: i64,
+    pub lote: Option<String>,
+    pub validade: Option<String>,
+    pub serial: Option<String>,
+    pub imei: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarCompraEmAndamentoReq {
+    pub compra_id: String,
+    pub motivo: String,
+    pub usuario_id: String,
+}
+
