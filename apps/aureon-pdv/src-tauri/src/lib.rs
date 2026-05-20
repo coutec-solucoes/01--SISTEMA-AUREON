@@ -132,6 +132,8 @@ pub fn run() {
             commands_compras::adicionar_item_compra,
             commands_compras::remover_item_compra,
             commands_compras::cancelar_compra_em_andamento,
+            commands_compras::finalizar_compra,
+            commands_compras::cancelar_compra_finalizada,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

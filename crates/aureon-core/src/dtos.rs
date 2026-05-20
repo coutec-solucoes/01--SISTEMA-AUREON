@@ -907,3 +907,11 @@ pub struct CancelarCompraEmAndamentoReq {
     pub usuario_id: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarCompraFinalizadaReq {
+    pub compra_id: String,
+    pub motivo: String,
+    pub usuario_id: String,
+}
+
+

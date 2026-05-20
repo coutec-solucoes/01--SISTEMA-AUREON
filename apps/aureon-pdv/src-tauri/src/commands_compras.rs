@@ -5,6 +5,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::commands_caixa::inserir_outbox;
+use crate::commands_estoque::{obter_saldo_produto, garantir_saldo_produto, registrar_movimentacao_estoque};
 use crate::estado::EstadoApp;
 
 // Helper para carregar a CompraResp completa por ID.
@@ -491,3 +492,248 @@ pub fn cancelar_compra_em_andamento(
     let compra = obter_compra_interna(&conn, &dto.compra_id)?;
     Ok(RespostaBase::ok("Compra cancelada com sucesso", compra))
 }
+
+#[command]
+pub fn finalizar_compra(
+    estado: State<'_, EstadoApp>,
+    compra_id: String,
+    usuario_id: String,
+) -> Result<RespostaBase<CompraResp>, String> {
+    let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    // 1. Verificar se a compra existe e se está EM_ANDAMENTO
+    let (status, moeda_codigo, taxa_cambio_escala6) = tx.query_row(
+        "SELECT status, moeda_codigo, taxa_cambio_escala6 FROM compras WHERE id = ?1",
+        [&compra_id],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?))
+    ).map_err(|_| "Compra não encontrada.".to_string())?;
+
+    if status != "EM_ANDAMENTO" {
+        return Err("Apenas compras em andamento podem ser finalizadas.".to_string());
+    }
+
+    // 2. Verificar se a compra possui itens ativos
+    let total_itens_ativos: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM compra_itens WHERE compra_id = ?1 AND cancelado = 0",
+        [&compra_id],
+        |row| row.get(0)
+    ).map_err(|e| e.to_string())?;
+
+    if total_itens_ativos == 0 {
+        return Err("Não é possível finalizar uma compra sem itens ativos.".to_string());
+    }
+
+    // 3. Verificar se já existe a entrada de estoque para evitar duplicações (Idempotência)
+    let entrada_existe: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM estoque_movimentacoes WHERE tipo_movimentacao = 'ENTRADA_COMPRA' AND origem_tipo = 'COMPRA' AND origem_id = ?1)",
+        [&compra_id],
+        |row| row.get(0)
+    ).map_err(|e| e.to_string())?;
+
+    if !entrada_existe {
+        // Buscar itens ativos
+        let mut stmt_itens = tx.prepare("
+            SELECT produto_id, quantidade_escala3, custo_unitario_minor
+            FROM compra_itens
+            WHERE compra_id = ?1 AND cancelado = 0
+        ").map_err(|e| e.to_string())?;
+        
+        let rows = stmt_itens.query_map([&compra_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        }).map_err(|e| e.to_string())?;
+        
+        let mut itens = vec![];
+        for r in rows {
+            itens.push(r.map_err(|e| e.to_string())?);
+        }
+        drop(stmt_itens);
+
+        let agora = Utc::now().to_rfc3339();
+
+        for (produto_id, quantidade_escala3, custo_unitario_minor) in itens {
+            // Obter se controla estoque
+            let controla: i32 = tx.query_row(
+                "SELECT controla_estoque FROM produtos_cache WHERE id = ?1",
+                [&produto_id],
+                |row| row.get(0)
+            ).unwrap_or(1);
+
+            if controla == 1 {
+                let saldo_atual = obter_saldo_produto(&tx, &produto_id).map_err(|e| e.to_string())?;
+                let novo_saldo = saldo_atual + quantidade_escala3;
+                garantir_saldo_produto(&tx, &produto_id, novo_saldo).map_err(|e| e.to_string())?;
+                registrar_movimentacao_estoque(
+                    &tx,
+                    &produto_id,
+                    quantidade_escala3,
+                    novo_saldo,
+                    "ENTRADA_COMPRA",
+                    "COMPRA",
+                    &compra_id,
+                    Some("Entrada de compra/manual"),
+                    &usuario_id,
+                ).map_err(|e| e.to_string())?;
+            }
+
+            // Atualização de último custo
+            let custo_convertido_minor = if moeda_codigo == "BRL" || taxa_cambio_escala6 == 1_000_000 {
+                custo_unitario_minor
+            } else {
+                (custo_unitario_minor * taxa_cambio_escala6) / 1_000_000
+            };
+
+            tx.execute(
+                "UPDATE produtos_cache
+                 SET ultimo_custo_minor = ?1,
+                     ultimo_custo_moeda_codigo = ?2,
+                     ultimo_custo_taxa_cambio_escala6 = ?3,
+                     ultimo_custo_atualizado_em = ?4
+                 WHERE id = ?5",
+                (custo_convertido_minor, &moeda_codigo, taxa_cambio_escala6, &agora, &produto_id),
+            ).map_err(|e| format!("Erro ao atualizar último custo do produto: {e}"))?;
+        }
+    }
+
+    let agora = Utc::now().to_rfc3339();
+
+    // 4. Mudar status da compra
+    tx.execute(
+        "UPDATE compras
+         SET status = 'FINALIZADA',
+             finalizada_em = ?1,
+             atualizado_em = ?2
+         WHERE id = ?3",
+        (&agora, &agora, &compra_id),
+    ).map_err(|e| format!("Erro ao atualizar status da compra: {e}"))?;
+
+    // 5. Inserir outbox COMPRA_FINALIZADA
+    inserir_outbox(&tx, "COMPRA_FINALIZADA", json!({
+        "compra_id": &compra_id,
+        "finalizada_em": &agora,
+        "usuario_id": &usuario_id
+    }))?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+
+    let compra = obter_compra_interna(&conn, &compra_id)?;
+    Ok(RespostaBase::ok("Compra finalizada com sucesso", compra))
+}
+
+#[command]
+pub fn cancelar_compra_finalizada(
+    estado: State<'_, EstadoApp>,
+    dto: CancelarCompraFinalizadaReq,
+) -> Result<RespostaBase<CompraResp>, String> {
+    let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    // 1. Verificar se a compra existe e se está FINALIZADA
+    let status = tx.query_row(
+        "SELECT status FROM compras WHERE id = ?1",
+        [&dto.compra_id],
+        |row| row.get::<_, String>(0)
+    ).map_err(|_| "Compra não encontrada.".to_string())?;
+
+    if status != "FINALIZADA" {
+        return Err("Apenas compras finalizadas podem ser canceladas.".to_string());
+    }
+
+    if dto.motivo.trim().is_empty() {
+        return Err("O motivo do cancelamento é obrigatório.".to_string());
+    }
+
+    // 2. Verificar se houve ENTRADA_COMPRA e se já houve ESTORNO_ENTRADA_COMPRA (Idempotência)
+    let entrada_existe: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM estoque_movimentacoes WHERE tipo_movimentacao = 'ENTRADA_COMPRA' AND origem_tipo = 'COMPRA' AND origem_id = ?1)",
+        [&dto.compra_id],
+        |row| row.get(0)
+    ).map_err(|e| e.to_string())?;
+
+    let estorno_existe: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM estoque_movimentacoes WHERE tipo_movimentacao = 'ESTORNO_ENTRADA_COMPRA' AND origem_tipo = 'COMPRA' AND origem_id = ?1)",
+        [&dto.compra_id],
+        |row| row.get(0)
+    ).map_err(|e| e.to_string())?;
+
+    if entrada_existe && !estorno_existe {
+        // Buscar itens ativos
+        let mut stmt_itens = tx.prepare("
+            SELECT produto_id, quantidade_escala3
+            FROM compra_itens
+            WHERE compra_id = ?1 AND cancelado = 0
+        ").map_err(|e| e.to_string())?;
+        
+        let rows = stmt_itens.query_map([&dto.compra_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+            ))
+        }).map_err(|e| e.to_string())?;
+        
+        let mut itens = vec![];
+        for r in rows {
+            itens.push(r.map_err(|e| e.to_string())?);
+        }
+        drop(stmt_itens);
+
+        let motivo_kardex = format!("Estorno entrada compra: {}", dto.motivo);
+
+        for (produto_id, quantidade_escala3) in itens {
+            // Obter se controla estoque
+            let controla: i32 = tx.query_row(
+                "SELECT controla_estoque FROM produtos_cache WHERE id = ?1",
+                [&produto_id],
+                |row| row.get(0)
+            ).unwrap_or(1);
+
+            if controla == 1 {
+                let saldo_atual = obter_saldo_produto(&tx, &produto_id).map_err(|e| e.to_string())?;
+                let novo_saldo = saldo_atual - quantidade_escala3;
+                garantir_saldo_produto(&tx, &produto_id, novo_saldo).map_err(|e| e.to_string())?;
+                registrar_movimentacao_estoque(
+                    &tx,
+                    &produto_id,
+                    -quantidade_escala3,
+                    novo_saldo,
+                    "ESTORNO_ENTRADA_COMPRA",
+                    "COMPRA",
+                    &dto.compra_id,
+                    Some(&motivo_kardex),
+                    &dto.usuario_id,
+                ).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+
+    let agora = Utc::now().to_rfc3339();
+
+    // 3. Mudar status da compra
+    tx.execute(
+        "UPDATE compras
+         SET status = 'CANCELADA',
+             cancelada_em = ?1,
+             motivo_cancelamento = ?2,
+             atualizado_em = ?3
+         WHERE id = ?4",
+        (&agora, &dto.motivo, &agora, &dto.compra_id),
+    ).map_err(|e| format!("Erro ao atualizar status da compra: {e}"))?;
+
+    // 4. Inserir outbox COMPRA_CANCELADA
+    inserir_outbox(&tx, "COMPRA_CANCELADA", json!({
+        "compra_id": &dto.compra_id,
+        "motivo": &dto.motivo,
+        "cancelada_em": &agora,
+        "usuario_id": &dto.usuario_id
+    }))?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+
+    let compra = obter_compra_interna(&conn, &dto.compra_id)?;
+    Ok(RespostaBase::ok("Compra cancelada com sucesso", compra))
+}
+

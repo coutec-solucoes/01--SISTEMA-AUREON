@@ -722,6 +722,12 @@ namespace AureonPdvUi.Services
         string motivo,
         string usuario_id
     );
+
+    public record CancelarCompraFinalizadaReq(
+        string compra_id,
+        string motivo,
+        string usuario_id
+    );
 }
 
 
