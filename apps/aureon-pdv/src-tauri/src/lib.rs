@@ -65,8 +65,15 @@ pub fn run() {
             commands_operacional::buscar_venda_por_numero,
             commands_operacional::gerar_comprovante_nao_fiscal,
             commands_operacional::registrar_reimpressao_comprovante,
+            commands_operacional::listar_pre_vendas_pdv,
+            commands_operacional::obter_pre_venda_pdv,
+            commands_operacional::converter_pre_venda_em_venda,
+            commands_operacional::listar_orcamentos_pdv,
+            commands_operacional::obter_orcamento_pdv,
+            commands_operacional::converter_orcamento_em_venda,
+            commands_operacional::buscar_clientes_pdv,
+            commands_operacional::associar_cliente_venda,
         ])
         .run(tauri::generate_context!())
-        .expect("Erro ao iniciar o Aureon PDV");
+        .expect("error while running tauri application");
 }
-

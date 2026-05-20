@@ -332,3 +332,81 @@ pub struct ReimpressaoReq {
     pub motivo: Option<String>,
     pub supervisor_id: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PreVendaItemResp {
+    pub id: String,
+    pub pre_venda_id: String,
+    pub produto_id: String,
+    pub descricao: String,
+    pub quantidade_escala3: i64,
+    pub preco_unitario_minor: i64,
+    pub desconto_minor: i64,
+    pub total_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PreVendaResp {
+    pub id: String,
+    pub numero: String,
+    pub cliente_id: Option<String>,
+    pub vendedor_id: Option<String>,
+    pub total_minor: i64,
+    pub status: String,
+    pub validade: Option<String>,
+    pub criado_em: String,
+    pub itens: Vec<PreVendaItemResp>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConverterPreVendaReq {
+    pub pre_venda_id: String,
+    pub sessao_caixa_id: String,
+    pub usuario_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OrcamentoItemResp {
+    pub id: String,
+    pub orcamento_id: String,
+    pub produto_id: String,
+    pub descricao: String,
+    pub quantidade_escala3: i64,
+    pub preco_unitario_minor: i64,
+    pub desconto_minor: i64,
+    pub total_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OrcamentoResp {
+    pub id: String,
+    pub numero: String,
+    pub cliente_id: Option<String>,
+    pub vendedor_id: Option<String>,
+    pub total_minor: i64,
+    pub status: String,
+    pub validade: Option<String>,
+    pub criado_em: String,
+    pub itens: Vec<OrcamentoItemResp>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConverterOrcamentoReq {
+    pub orcamento_id: String,
+    pub sessao_caixa_id: String,
+    pub usuario_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ClienteResp {
+    pub id: String,
+    pub nome: String,
+    pub documento: Option<String>,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AssociarClienteReq {
+    pub venda_id: String,
+    pub cliente_id: String,
+}

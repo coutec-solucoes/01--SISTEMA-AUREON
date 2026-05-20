@@ -441,3 +441,524 @@ pub async fn registrar_reimpressao_comprovante(
     tx.commit().map_err(|e| e.to_string())?;
     Ok(RespostaBase::ok("", true))
 }
+
+// --- Pre-Venda ---
+
+#[tauri::command]
+pub async fn listar_pre_vendas_pdv(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    limite: Option<i32>,
+) -> Result<RespostaBase<Vec<PreVendaResp>>, String> {
+    let conn = db.lock().unwrap();
+    let lim = limite.unwrap_or(50);
+
+    let mut stmt = conn.prepare(
+        "SELECT id, numero, cliente_id, vendedor_id, total_minor, status, validade, criado_em
+         FROM pre_vendas_cache ORDER BY criado_em DESC LIMIT ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map([lim], |row| {
+        Ok(PreVendaResp {
+            id: row.get(0)?,
+            numero: row.get(1)?,
+            cliente_id: row.get(2)?,
+            vendedor_id: row.get(3)?,
+            total_minor: row.get(4)?,
+            status: row.get(5)?,
+            validade: row.get(6)?,
+            criado_em: row.get(7)?,
+            itens: vec![],
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut lista = Vec::new();
+    for i in rows {
+        if let Ok(v) = i { lista.push(v); }
+    }
+    Ok(RespostaBase::ok("", lista))
+}
+
+#[tauri::command]
+pub async fn obter_pre_venda_pdv(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    id: String,
+) -> Result<RespostaBase<PreVendaResp>, String> {
+    let conn = db.lock().unwrap();
+
+    let mut pre_venda = conn.query_row(
+        "SELECT id, numero, cliente_id, vendedor_id, total_minor, status, validade, criado_em
+         FROM pre_vendas_cache WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok(PreVendaResp {
+                id: row.get(0)?,
+                numero: row.get(1)?,
+                cliente_id: row.get(2)?,
+                vendedor_id: row.get(3)?,
+                total_minor: row.get(4)?,
+                status: row.get(5)?,
+                validade: row.get(6)?,
+                criado_em: row.get(7)?,
+                itens: vec![],
+            })
+        }
+    ).map_err(|_| "Pré-venda não encontrada".to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, pre_venda_id, produto_id, descricao, quantidade_escala3, preco_unitario_minor, desconto_minor, total_minor
+         FROM pre_vendas_itens_cache WHERE pre_venda_id = ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map(params![id], |row| {
+        Ok(PreVendaItemResp {
+            id: row.get(0)?,
+            pre_venda_id: row.get(1)?,
+            produto_id: row.get(2)?,
+            descricao: row.get(3)?,
+            quantidade_escala3: row.get(4)?,
+            preco_unitario_minor: row.get(5)?,
+            desconto_minor: row.get(6)?,
+            total_minor: row.get(7)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    for i in rows {
+        if let Ok(item) = i {
+            pre_venda.itens.push(item);
+        }
+    }
+
+    Ok(RespostaBase::ok("", pre_venda))
+}
+
+#[tauri::command]
+pub async fn converter_pre_venda_em_venda(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    req: ConverterPreVendaReq,
+) -> Result<RespostaBase<VendaResumoResp>, String> {
+    let mut conn = db.lock().unwrap();
+
+    // 1. Verificar se caixa esta aberto
+    let caixa_aberto: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM sessoes_caixa WHERE id = ?1 AND status = 'ABERTO'",
+        params![req.sessao_caixa_id],
+        |row| row.get(0),
+    ).unwrap_or(false);
+
+    if !caixa_aberto {
+        return Ok(RespostaBase::falha_manual("Sessão de caixa não encontrada ou fechada", "ERR_OP", ""));
+    }
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    // 2. Carregar pré-venda
+    let (cliente_id, _vendedor_id, total_minor, status, validade) = tx.query_row(
+        "SELECT cliente_id, vendedor_id, total_minor, status, validade 
+         FROM pre_vendas_cache WHERE id = ?1",
+        params![req.pre_venda_id],
+        |row| Ok((
+            row.get::<_, Option<String>>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, Option<String>>(4)?,
+        ))
+    ).map_err(|_| "Pré-venda não encontrada".to_string())?;
+
+    if status == "CONVERTIDA" || status == "CANCELADA" || status == "EXPIRADA" {
+        return Ok(RespostaBase::falha_manual(format!("Não é possível converter pré-venda com status {}", status), "ERR_OP", ""));
+    }
+
+    if let Some(val) = validade {
+        if val < Utc::now().to_rfc3339() {
+            return Ok(RespostaBase::falha_manual("Pré-venda expirada (validade vencida)", "ERR_OP", ""));
+        }
+    }
+
+    // 3. Criar venda EM_ANDAMENTO
+    let venda_id = Uuid::new_v4().to_string();
+    let agora = Utc::now().to_rfc3339();
+
+    tx.execute(
+        "INSERT INTO vendas (
+            id, sessao_caixa_id, usuario_id, status, subtotal_minor, desconto_total_minor, 
+            acrescimo_total_minor, total_minor, criado_em, atualizado_em,
+            cliente_id, origem_tipo, origem_id
+        ) VALUES (?1, ?2, ?3, 'EM_ANDAMENTO', ?4, 0, 0, ?4, ?5, ?5, ?6, 'PRE_VENDA', ?7)",
+        params![venda_id, req.sessao_caixa_id, req.usuario_id, total_minor, agora, cliente_id, req.pre_venda_id],
+    ).map_err(|e| e.to_string())?;
+
+    let mut itens_para_inserir = Vec::new();
+    {
+        let mut stmt = tx.prepare(
+            "SELECT id, produto_id, descricao, quantidade_escala3, preco_unitario_minor, desconto_minor, total_minor 
+             FROM pre_vendas_itens_cache WHERE pre_venda_id = ?1"
+        ).map_err(|e| e.to_string())?;
+
+        let itens_iter = stmt.query_map(params![req.pre_venda_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?, // origem_item_id
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+                row.get::<_, i64>(6)?,
+            ))
+        }).map_err(|e| e.to_string())?;
+
+        for item_res in itens_iter {
+            if let Ok(item) = item_res {
+                itens_para_inserir.push(item);
+            }
+        }
+    }
+
+    let mut total_itens = 0;
+    for (origem_item_id, produto_id, descricao, qtd, preco, desc, total) in itens_para_inserir {
+        let item_id = Uuid::new_v4().to_string();
+        tx.execute(
+            "INSERT INTO venda_itens (
+                id, venda_id, produto_id, descricao_produto, quantidade_escala3, 
+                preco_unitario_minor, desconto_item_minor, acrescimo_item_minor, 
+                total_item_minor, origem_item_id, criado_em
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, ?8, ?9, ?10)",
+            params![item_id, venda_id, produto_id, descricao, qtd, preco, desc, total, origem_item_id, agora],
+        ).map_err(|e| e.to_string())?;
+        total_itens += 1;
+    }
+
+    // 5. Atualizar pre_venda_cache e gerar evento
+    tx.execute(
+        "UPDATE pre_vendas_cache SET status = 'CONVERTIDA' WHERE id = ?1",
+        params![req.pre_venda_id],
+    ).map_err(|e| e.to_string())?;
+
+    outbox_inserir(
+        &tx,
+        "PRE_VENDA_CONVERTIDA_EM_VENDA",
+        serde_json::json!({
+            "pre_venda_id": req.pre_venda_id,
+            "venda_id": venda_id,
+            "convertido_em": agora
+        }),
+    ).map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+
+    let resp = VendaResumoResp {
+        id: venda_id,
+        numero_venda: None,
+        status: "EM_ANDAMENTO".to_string(),
+        tipo_venda: "BALCAO".to_string(), // Default
+        subtotal_minor: total_minor,
+        desconto_total_minor: 0,
+        acrescimo_total_minor: 0,
+        total_minor,
+        total_itens,
+    };
+
+    Ok(RespostaBase::ok("", resp))
+}
+
+// --- Orcamento ---
+
+#[tauri::command]
+pub async fn listar_orcamentos_pdv(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    limite: Option<i32>,
+) -> Result<RespostaBase<Vec<OrcamentoResp>>, String> {
+    let conn = db.lock().unwrap();
+    let lim = limite.unwrap_or(50);
+
+    let mut stmt = conn.prepare(
+        "SELECT id, numero, cliente_id, vendedor_id, total_minor, status, validade, criado_em
+         FROM orcamentos_cache ORDER BY criado_em DESC LIMIT ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map([lim], |row| {
+        Ok(OrcamentoResp {
+            id: row.get(0)?,
+            numero: row.get(1)?,
+            cliente_id: row.get(2)?,
+            vendedor_id: row.get(3)?,
+            total_minor: row.get(4)?,
+            status: row.get(5)?,
+            validade: row.get(6)?,
+            criado_em: row.get(7)?,
+            itens: vec![],
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut lista = Vec::new();
+    for i in rows {
+        if let Ok(v) = i { lista.push(v); }
+    }
+    Ok(RespostaBase::ok("", lista))
+}
+
+#[tauri::command]
+pub async fn obter_orcamento_pdv(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    id: String,
+) -> Result<RespostaBase<OrcamentoResp>, String> {
+    let conn = db.lock().unwrap();
+
+    let mut orc = conn.query_row(
+        "SELECT id, numero, cliente_id, vendedor_id, total_minor, status, validade, criado_em
+         FROM orcamentos_cache WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok(OrcamentoResp {
+                id: row.get(0)?,
+                numero: row.get(1)?,
+                cliente_id: row.get(2)?,
+                vendedor_id: row.get(3)?,
+                total_minor: row.get(4)?,
+                status: row.get(5)?,
+                validade: row.get(6)?,
+                criado_em: row.get(7)?,
+                itens: vec![],
+            })
+        }
+    ).map_err(|_| "Orçamento não encontrado".to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, orcamento_id, produto_id, descricao, quantidade_escala3, preco_unitario_minor, desconto_minor, total_minor
+         FROM orcamentos_itens_cache WHERE orcamento_id = ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map(params![id], |row| {
+        Ok(OrcamentoItemResp {
+            id: row.get(0)?,
+            orcamento_id: row.get(1)?,
+            produto_id: row.get(2)?,
+            descricao: row.get(3)?,
+            quantidade_escala3: row.get(4)?,
+            preco_unitario_minor: row.get(5)?,
+            desconto_minor: row.get(6)?,
+            total_minor: row.get(7)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    for i in rows {
+        if let Ok(item) = i {
+            orc.itens.push(item);
+        }
+    }
+
+    Ok(RespostaBase::ok("", orc))
+}
+
+#[tauri::command]
+pub async fn converter_orcamento_em_venda(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    req: ConverterOrcamentoReq,
+) -> Result<RespostaBase<VendaResumoResp>, String> {
+    let mut conn = db.lock().unwrap();
+
+    // 1. Verificar se caixa esta aberto
+    let caixa_aberto: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM sessoes_caixa WHERE id = ?1 AND status = 'ABERTO'",
+        params![req.sessao_caixa_id],
+        |row| row.get(0),
+    ).unwrap_or(false);
+
+    if !caixa_aberto {
+        return Ok(RespostaBase::falha_manual("Sessão de caixa não encontrada ou fechada", "ERR_OP", ""));
+    }
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    // 2. Carregar orçamento
+    let (cliente_id, _vendedor_id, total_minor, status, validade) = tx.query_row(
+        "SELECT cliente_id, vendedor_id, total_minor, status, validade 
+         FROM orcamentos_cache WHERE id = ?1",
+        params![req.orcamento_id],
+        |row| Ok((
+            row.get::<_, Option<String>>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, Option<String>>(4)?,
+        ))
+    ).map_err(|_| "Orçamento não encontrado".to_string())?;
+
+    if status == "CONVERTIDO" || status == "CANCELADO" || status == "EXPIRADO" {
+        return Ok(RespostaBase::falha_manual(format!("Não é possível converter orçamento com status {}", status), "ERR_OP", ""));
+    }
+
+    if let Some(val) = validade {
+        if val < Utc::now().to_rfc3339() {
+            return Ok(RespostaBase::falha_manual("Orçamento expirado (validade vencida)", "ERR_OP", ""));
+        }
+    }
+
+    // 3. Criar venda EM_ANDAMENTO
+    let venda_id = Uuid::new_v4().to_string();
+    let agora = Utc::now().to_rfc3339();
+
+    tx.execute(
+        "INSERT INTO vendas (
+            id, sessao_caixa_id, usuario_id, status, subtotal_minor, desconto_total_minor, 
+            acrescimo_total_minor, total_minor, criado_em, atualizado_em,
+            cliente_id, origem_tipo, origem_id
+        ) VALUES (?1, ?2, ?3, 'EM_ANDAMENTO', ?4, 0, 0, ?4, ?5, ?5, ?6, 'ORCAMENTO', ?7)",
+        params![venda_id, req.sessao_caixa_id, req.usuario_id, total_minor, agora, cliente_id, req.orcamento_id],
+    ).map_err(|e| e.to_string())?;
+
+    let mut itens_para_inserir = Vec::new();
+    {
+        let mut stmt = tx.prepare(
+            "SELECT id, produto_id, descricao, quantidade_escala3, preco_unitario_minor, desconto_minor, total_minor 
+             FROM orcamentos_itens_cache WHERE orcamento_id = ?1"
+        ).map_err(|e| e.to_string())?;
+
+        let itens_iter = stmt.query_map(params![req.orcamento_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?, // origem_item_id
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+                row.get::<_, i64>(6)?,
+            ))
+        }).map_err(|e| e.to_string())?;
+
+        for item_res in itens_iter {
+            if let Ok(item) = item_res {
+                itens_para_inserir.push(item);
+            }
+        }
+    }
+
+    let mut total_itens = 0;
+    for (origem_item_id, produto_id, descricao, qtd, preco, desc, total) in itens_para_inserir {
+        let item_id = Uuid::new_v4().to_string();
+        tx.execute(
+            "INSERT INTO venda_itens (
+                id, venda_id, produto_id, descricao_produto, quantidade_escala3, 
+                preco_unitario_minor, desconto_item_minor, acrescimo_item_minor, 
+                total_item_minor, origem_item_id, criado_em
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, ?8, ?9, ?10)",
+            params![item_id, venda_id, produto_id, descricao, qtd, preco, desc, total, origem_item_id, agora],
+        ).map_err(|e| e.to_string())?;
+        total_itens += 1;
+    }
+
+    // 5. Atualizar orcamentos_cache e gerar evento
+    tx.execute(
+        "UPDATE orcamentos_cache SET status = 'CONVERTIDO' WHERE id = ?1",
+        params![req.orcamento_id],
+    ).map_err(|e| e.to_string())?;
+
+    outbox_inserir(
+        &tx,
+        "ORCAMENTO_CONVERTIDO_EM_VENDA",
+        serde_json::json!({
+            "orcamento_id": req.orcamento_id,
+            "venda_id": venda_id,
+            "convertido_em": agora
+        }),
+    ).map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+
+    let resp = VendaResumoResp {
+        id: venda_id,
+        numero_venda: None,
+        status: "EM_ANDAMENTO".to_string(),
+        tipo_venda: "BALCAO".to_string(), // Default
+        subtotal_minor: total_minor,
+        desconto_total_minor: 0,
+        acrescimo_total_minor: 0,
+        total_minor,
+        total_itens,
+    };
+
+    Ok(RespostaBase::ok("", resp))
+}
+
+// --- Clientes ---
+
+#[tauri::command]
+pub async fn buscar_clientes_pdv(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    termo: String,
+) -> Result<RespostaBase<Vec<ClienteResp>>, String> {
+    let conn = db.lock().unwrap();
+    
+    // Na Fase 8 usaremos apenas um mock / cache basico
+    let query = format!("%{}%", termo);
+    
+    // Tenta acessar clientes_cache, se não existir, retorna array vazio via erro ignorado.
+    let mut stmt = match conn.prepare(
+        "SELECT id, nome, documento, ativo FROM clientes_cache 
+         WHERE nome LIKE ?1 OR documento LIKE ?1 LIMIT 20"
+    ) {
+        Ok(s) => s,
+        Err(_) => {
+            // Falha silenciosa para quando a tabela de cache nao existir
+            return Ok(RespostaBase::ok("", vec![]));
+        }
+    };
+
+    let mut lista = Vec::new();
+    let res = stmt.query_map([query], |row| {
+        Ok(ClienteResp {
+            id: row.get(0)?,
+            nome: row.get(1)?,
+            documento: row.get(2)?,
+            ativo: row.get(3)?,
+        })
+    });
+
+    if let Ok(rows) = res {
+        for i in rows {
+            if let Ok(c) = i { lista.push(c); }
+        }
+    }
+    
+    Ok(RespostaBase::ok("", lista))
+}
+
+#[tauri::command]
+pub async fn associar_cliente_venda(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    req: AssociarClienteReq,
+) -> Result<RespostaBase<bool>, String> {
+    let mut conn = db.lock().unwrap();
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    // 1. Validar venda
+    let status_venda: String = tx.query_row(
+        "SELECT status FROM vendas WHERE id = ?1",
+        params![req.venda_id],
+        |row| row.get(0),
+    ).map_err(|_| "Venda não encontrada".to_string())?;
+
+    if status_venda != "EM_ANDAMENTO" {
+        return Ok(RespostaBase::falha_manual("Apenas vendas EM_ANDAMENTO podem ser associadas a clientes", "ERR_OP", ""));
+    }
+
+    // Atualizar
+    tx.execute(
+        "UPDATE vendas SET cliente_id = ?1, atualizado_em = ?2 WHERE id = ?3",
+        params![req.cliente_id, Utc::now().to_rfc3339(), req.venda_id],
+    ).map_err(|e| e.to_string())?;
+
+    // Outbox
+    outbox_inserir(
+        &tx,
+        "CLIENTE_ASSOCIADO_VENDA",
+        serde_json::json!({
+            "venda_id": req.venda_id,
+            "cliente_id": req.cliente_id
+        }),
+    ).map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+
+    Ok(RespostaBase::ok("", true))
+}
