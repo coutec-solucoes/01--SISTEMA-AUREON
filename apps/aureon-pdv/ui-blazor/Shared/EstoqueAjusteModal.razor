@@ -1,0 +1,127 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+@inject IJSRuntime JSRuntime
+
+<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Ajuste Manual: @Produto.Descricao
+                </h5>
+                <button type="button" class="btn-close" @onclick="() => OnClose.InvokeAsync(false)"></button>
+            </div>
+            <div class="modal-body">
+                @if (mensagemErro != null)
+                {
+                    <div class="alert alert-danger">@mensagemErro</div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Saldo Atual (Qtd)</label>
+                    <input type="text" class="form-control" value="@(Math.Round(Produto.QuantidadeEscala3 / 1000m, 3).ToString("N3"))" disabled />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Tipo de Ajuste</label>
+                    <select class="form-select" @bind="tipoAjuste">
+                        <option value="AJUSTE_ENTRADA">Ajuste de Entrada (+)</option>
+                        <option value="AJUSTE_SAIDA">Ajuste de Saída (-)</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Quantidade</label>
+                    <input type="number" class="form-control" step="0.001" min="0.001" @bind="quantidadeDecimal" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Motivo do Ajuste</label>
+                    <input type="text" class="form-control" @bind="motivo" placeholder="Ex: Quebra, Vencimento, Bonificação..." />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync(false)" disabled="@salvando">Cancelar</button>
+                <button class="btn btn-primary" @onclick="Confirmar" disabled="@salvando">
+                    @if (salvando)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span class="ms-2">Salvando...</span>
+                    }
+                    else
+                    {
+                        <span>Confirmar Ajuste</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EstoqueSaldoResp Produto { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<bool> OnClose { get; set; }
+
+    private string tipoAjuste = "AJUSTE_ENTRADA";
+    private decimal quantidadeDecimal = 0;
+    private string motivo = "";
+    private string? mensagemErro;
+    private bool salvando = false;
+
+    private async Task Confirmar()
+    {
+        mensagemErro = null;
+
+        if (quantidadeDecimal <= 0)
+        {
+            mensagemErro = "A quantidade deve ser maior que zero.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(motivo))
+        {
+            mensagemErro = "O motivo é obrigatório.";
+            return;
+        }
+
+        // Converter decimal para escala 3 em i64/long
+        long qtdEscala3 = (long)Math.Round(quantidadeDecimal * 1000m);
+
+        salvando = true;
+
+        try
+        {
+            // O usuário será um mock fixo por enquanto, fase futura terá login real
+            var req = new AjusteEstoqueReq(
+                idempotency_key: Guid.NewGuid().ToString(),
+                produto_id: Produto.ProdutoId,
+                tipo_ajuste: tipoAjuste,
+                quantidade_escala3: qtdEscala3,
+                motivo: motivo,
+                usuario_id: "SISTEMA" 
+            );
+
+            var resp = await Tauri.InvocarAsync<RespostaBase<bool>>("ajustar_estoque_manual", new { dto = req });
+
+            if (resp.Sucesso)
+            {
+                await OnClose.InvokeAsync(true);
+            }
+            else
+            {
+                mensagemErro = resp.Mensagem;
+            }
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Erro ao salvar ajuste: {ex.Message}";
+        }
+        finally
+        {
+            salvando = false;
+        }
+    }
+}

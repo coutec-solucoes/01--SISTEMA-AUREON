@@ -1,0 +1,181 @@
+@page "/estoque"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+@inject IJSRuntime JSRuntime
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Gestão de Estoque (PDV Local)</h3>
+    <div>
+        <button class="btn btn-primary" @onclick="AbrirInventarioGlobal">
+            <i class="bi bi-card-checklist me-2"></i>Registrar Inventário (Lote)
+        </button>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" class="form-control" placeholder="Buscar produto..." @bind="termoBusca" @bind:event="oninput" @onkeyup="AoDigitarBusca" />
+            <button class="btn btn-outline-secondary" @onclick="Buscar">Buscar</button>
+        </div>
+    </div>
+</div>
+
+@if (mensagemErro != null)
+{
+    <div class="alert alert-danger">@mensagemErro</div>
+}
+
+@if (carregando)
+{
+    <p><em>Carregando saldos de estoque...</em></p>
+}
+else if (saldos == null || !saldos.Any())
+{
+    <p>Nenhum produto com controle de estoque encontrado.</p>
+}
+else
+{
+    <table class="table table-striped table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Código</th>
+                <th>Descrição</th>
+                <th class="text-end">Saldo Atual</th>
+                <th class="text-center">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in saldos)
+            {
+                <tr>
+                    <td>@s.Codigo</td>
+                    <td>@s.Descricao</td>
+                    <td class="text-end fw-bold">
+                        @(Math.Round(s.QuantidadeEscala3 / 1000m, 3).ToString("N3"))
+                    </td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-info me-2" @onclick="() => AbrirKardex(s)">
+                            <i class="bi bi-clock-history"></i> Kardex
+                        </button>
+                        <button class="btn btn-sm btn-warning" @onclick="() => AbrirAjuste(s)">
+                            <i class="bi bi-pencil-square"></i> Ajuste
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (mostrarKardex)
+{
+    <EstoqueKardexModal Produto="produtoSelecionado" OnClose="FecharKardex" />
+}
+
+@if (mostrarAjuste)
+{
+    <EstoqueAjusteModal Produto="produtoSelecionado" OnClose="AoFecharAjuste" />
+}
+
+@if (mostrarInventario)
+{
+    <EstoqueInventarioModal Produtos="saldos" OnClose="AoFecharInventario" />
+}
+
+@code {
+    private List<EstoqueSaldoResp> saldos = new();
+    private string? termoBusca;
+    private bool carregando = true;
+    private string? mensagemErro;
+
+    private bool mostrarKardex = false;
+    private bool mostrarAjuste = false;
+    private bool mostrarInventario = false;
+
+    private EstoqueSaldoResp? produtoSelecionado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Buscar();
+    }
+
+    private async Task AoDigitarBusca(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Buscar();
+        }
+    }
+
+    private async Task Buscar()
+    {
+        carregando = true;
+        mensagemErro = null;
+        try
+        {
+            var req = new { busca = string.IsNullOrWhiteSpace(termoBusca) ? null : termoBusca };
+            var resp = await Tauri.InvocarAsync<RespostaBase<List<EstoqueSaldoResp>>>("consultar_saldos_estoque", req);
+
+            if (resp.Sucesso && resp.Dados != null)
+            {
+                saldos = resp.Dados;
+            }
+            else
+            {
+                mensagemErro = resp.Mensagem;
+            }
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Erro ao buscar estoque: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AbrirKardex(EstoqueSaldoResp prod)
+    {
+        produtoSelecionado = prod;
+        mostrarKardex = true;
+    }
+
+    private void FecharKardex()
+    {
+        mostrarKardex = false;
+        produtoSelecionado = null;
+    }
+
+    private void AbrirAjuste(EstoqueSaldoResp prod)
+    {
+        produtoSelecionado = prod;
+        mostrarAjuste = true;
+    }
+
+    private async Task AoFecharAjuste(bool atualizou)
+    {
+        mostrarAjuste = false;
+        produtoSelecionado = null;
+        if (atualizou)
+        {
+            await Buscar();
+        }
+    }
+
+    private void AbrirInventarioGlobal()
+    {
+        mostrarInventario = true;
+    }
+
+    private async Task AoFecharInventario(bool atualizou)
+    {
+        mostrarInventario = false;
+        if (atualizou)
+        {
+            await Buscar();
+        }
+    }
+}

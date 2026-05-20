@@ -1,0 +1,129 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Kardex: @Produto.Codigo - @Produto.Descricao
+                </h5>
+                <button type="button" class="btn-close" @onclick="OnClose"></button>
+            </div>
+            <div class="modal-body">
+                @if (mensagemErro != null)
+                {
+                    <div class="alert alert-danger">@mensagemErro</div>
+                }
+
+                @if (carregando)
+                {
+                    <p><em>Carregando movimentações...</em></p>
+                }
+                else if (movimentacoes == null || !movimentacoes.Any())
+                {
+                    <p>Nenhuma movimentação encontrada para este produto.</p>
+                }
+                else
+                {
+                    <table class="table table-sm table-striped table-hover align-middle" style="font-size: 0.9em;">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Data/Hora</th>
+                                <th>Tipo</th>
+                                <th>Origem</th>
+                                <th>ID Origem</th>
+                                <th>Motivo</th>
+                                <th class="text-end">Qtd (Escala3)</th>
+                                <th class="text-end">Saldo Após</th>
+                                <th>Usuário</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var m in movimentacoes)
+                            {
+                                <tr>
+                                    <td>@m.CriadoEm</td>
+                                    <td>
+                                        <span class="badge @ObterCorBadge(m.TipoMovimentacao)">
+                                            @m.TipoMovimentacao
+                                        </span>
+                                    </td>
+                                    <td>@m.OrigemTipo</td>
+                                    <td><span title="@m.OrigemId">@(m.OrigemId.Length > 8 ? m.OrigemId.Substring(0, 8) + "..." : m.OrigemId)</span></td>
+                                    <td>@m.Motivo</td>
+                                    <td class="text-end fw-bold">
+                                        @(Math.Round(m.QuantidadeEscala3 / 1000m, 3).ToString("N3"))
+                                    </td>
+                                    <td class="text-end">
+                                        @(Math.Round(m.SaldoAposEscala3 / 1000m, 3).ToString("N3"))
+                                    </td>
+                                    <td><span title="@m.UsuarioId">@(m.UsuarioId.Length > 8 ? m.UsuarioId.Substring(0, 8) + "..." : m.UsuarioId)</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="OnClose">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EstoqueSaldoResp Produto { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private List<EstoqueMovimentacaoResp> movimentacoes = new();
+    private bool carregando = true;
+    private string? mensagemErro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarKardex();
+    }
+
+    private async Task CarregarKardex()
+    {
+        try
+        {
+            var req = new { produto_id = Produto.ProdutoId };
+            var resp = await Tauri.InvocarAsync<RespostaBase<List<EstoqueMovimentacaoResp>>>("listar_kardex_produto", req);
+
+            if (resp.Sucesso && resp.Dados != null)
+            {
+                movimentacoes = resp.Dados;
+            }
+            else
+            {
+                mensagemErro = resp.Mensagem;
+            }
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Erro ao carregar kardex: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private string ObterCorBadge(string tipo)
+    {
+        return tipo switch
+        {
+            "VENDA" => "bg-danger",
+            "AJUSTE_SAIDA" => "bg-warning text-dark",
+            "ESTORNO_VENDA" => "bg-success",
+            "AJUSTE_ENTRADA" => "bg-primary",
+            "INVENTARIO" => "bg-info text-dark",
+            _ => "bg-secondary"
+        };
+    }
+}
