@@ -292,4 +292,149 @@ namespace AureonPdvUi.Services
         string venda_id,
         string cliente_id
     );
+
+    // === DTOs de PDV Gourmet (Fase 9 Bloco 2) ===
+
+    public record MesaOperacionalResp(
+        string? Id,
+        string MesaId,
+        int MesaNumero,
+        string NomeExibicao,
+        string? ClienteNomeInformal,
+        string? ClienteId,
+        string Status,
+        string? UsuarioAberturaId,
+        string? SessaoCaixaId,
+        string? Observacao,
+        string? AbertaEm,
+        long TotalConsumoMinor
+    );
+
+    public record AbrirMesaReq(
+        int mesa_numero,
+        string nome_exibicao,
+        string? cliente_nome_informal,
+        string? cliente_id,
+        string usuario_id,
+        string sessao_caixa_id,
+        string? observacao
+    );
+
+    public record ReservarMesaReq(
+        int mesa_numero,
+        string nome_exibicao,
+        string? cliente_nome_informal,
+        string? cliente_id,
+        string usuario_id,
+        string sessao_caixa_id,
+        string? observacao
+    );
+
+    public record BloquearMesaReq(
+        int mesa_numero,
+        string usuario_id,
+        string sessao_caixa_id
+    );
+
+    public record CancelarMesaReq(
+        int mesa_numero,
+        string usuario_cancelamento_id,
+        string motivo_cancelamento,
+        string? supervisor_id,
+        string? autorizacao_id
+    );
+
+    public record ComandaOperacionalResp(
+        string? Id,
+        string ComandaId,
+        int NumeroComanda,
+        string? CodigoBarrasQr,
+        string? ClienteNomeInformal,
+        string? ClienteId,
+        string Status,
+        string? UsuarioAberturaId,
+        string? SessaoCaixaId,
+        string? Observacao,
+        string? AbertaEm,
+        long TotalConsumoMinor
+    );
+
+    public record AbrirComandaReq(
+        int numero_comanda,
+        string? codigo_barras_qr,
+        string? cliente_nome_informal,
+        string? cliente_id,
+        string usuario_id,
+        string sessao_caixa_id,
+        string? observacao
+    );
+
+    public record BloquearComandaReq(
+        int numero_comanda,
+        string usuario_id,
+        string sessao_caixa_id
+    );
+
+    public record CancelarComandaReq(
+        int numero_comanda,
+        string usuario_cancelamento_id,
+        string motivo_cancelamento,
+        string? supervisor_id,
+        string? autorizacao_id
+    );
+
+    public record GourmetItemResp(
+        string Id,
+        string OrigemTipo,
+        string OrigemId,
+        string ProdutoId,
+        string DescricaoProduto,
+        string CodigoProduto,
+        long QuantidadeEscala3,
+        long PrecoUnitarioMinor,
+        long DescontoItemMinor,
+        long AcrescimoItemMinor,
+        long TotalItemMinor,
+        string? ObservacaoProducao,
+        string LocalProducaoId,
+        string Status,
+        bool EnviadoProducao,
+        string? EnviadoProducaoEm,
+        bool Cancelado,
+        string? CanceladoEm,
+        string? MotivoCancelamento,
+        string? SupervisorId,
+        string? AutorizacaoId,
+        string CriadoEm
+    );
+
+    public record AdicionarItemGourmetReq(
+        string origem_tipo,
+        string origem_id,
+        string produto_id,
+        long quantidade_escala3,
+        long preco_unitario_minor,
+        long desconto_item_minor,
+        long acrescimo_item_minor,
+        string? observacao_producao,
+        string local_producao_id
+    );
+
+    public record CancelarItemGourmetReq(
+        string item_id,
+        string usuario_cancelamento_id,
+        string motivo_cancelamento,
+        string? supervisor_id,
+        string? autorizacao_id
+    );
+
+    public record MesaDetalheResp(
+        MesaOperacionalResp Mesa,
+        List<GourmetItemResp> Itens
+    );
+
+    public record ComandaDetalheResp(
+        ComandaOperacionalResp Comanda,
+        List<GourmetItemResp> Itens
+    );
 }

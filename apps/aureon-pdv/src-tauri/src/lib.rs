@@ -4,6 +4,7 @@ pub mod commands_caixa;
 pub mod commands_venda;
 pub mod commands_pagamento;
 pub mod commands_operacional;
+pub mod commands_gourmet;
 pub mod estado;
 
 use aureon_shared::logging::inicializar_logs;
@@ -73,6 +74,22 @@ pub fn run() {
             commands_operacional::converter_orcamento_em_venda,
             commands_operacional::buscar_clientes_pdv,
             commands_operacional::associar_cliente_venda,
+            // Commands de PDV Gourmet (Fase 9 Bloco 2)
+            commands_gourmet::listar_mesas_pdv,
+            commands_gourmet::abrir_mesa,
+            commands_gourmet::reservar_mesa,
+            commands_gourmet::bloquear_mesa,
+            commands_gourmet::cancelar_mesa,
+            commands_gourmet::obter_mesa,
+            commands_gourmet::adicionar_item_mesa,
+            commands_gourmet::cancelar_item_mesa,
+            commands_gourmet::listar_comandas_pdv,
+            commands_gourmet::abrir_comanda,
+            commands_gourmet::bloquear_comanda,
+            commands_gourmet::cancelar_comanda,
+            commands_gourmet::obter_comanda,
+            commands_gourmet::adicionar_item_comanda,
+            commands_gourmet::cancelar_item_comanda,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

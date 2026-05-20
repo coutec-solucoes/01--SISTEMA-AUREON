@@ -410,3 +410,163 @@ pub struct AssociarClienteReq {
     pub venda_id: String,
     pub cliente_id: String,
 }
+
+// --- DTOs Fase 9: PDV Gourmet ---
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MesaOperacionalResp {
+    pub id: Option<String>,
+    pub mesa_id: String,
+    pub mesa_numero: i32,
+    pub nome_exibicao: String,
+    pub cliente_nome_informal: Option<String>,
+    pub cliente_id: Option<String>,
+    pub status: String, // 'LIVRE', 'ABERTA', 'RESERVADA', 'BLOQUEADA', 'FECHADA', 'CANCELADA'
+    pub usuario_abertura_id: Option<String>,
+    pub sessao_caixa_id: Option<String>,
+    pub observacao: Option<String>,
+    pub aberta_em: Option<String>,
+    pub total_consumo_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AbrirMesaReq {
+    pub mesa_numero: i32,
+    pub nome_exibicao: String,
+    pub cliente_nome_informal: Option<String>,
+    pub cliente_id: Option<String>,
+    pub usuario_id: String,
+    pub sessao_caixa_id: String,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReservarMesaReq {
+    pub mesa_numero: i32,
+    pub nome_exibicao: String,
+    pub cliente_nome_informal: Option<String>,
+    pub cliente_id: Option<String>,
+    pub usuario_id: String,
+    pub sessao_caixa_id: String,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BloquearMesaReq {
+    pub mesa_numero: i32,
+    pub usuario_id: String,
+    pub sessao_caixa_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarMesaReq {
+    pub mesa_numero: i32,
+    pub usuario_cancelamento_id: String,
+    pub motivo_cancelamento: String,
+    pub supervisor_id: Option<String>,
+    pub autorizacao_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ComandaOperacionalResp {
+    pub id: Option<String>,
+    pub comanda_id: String,
+    pub numero_comanda: i32,
+    pub codigo_barras_qr: Option<String>,
+    pub cliente_nome_informal: Option<String>,
+    pub cliente_id: Option<String>,
+    pub status: String, // 'LIVRE', 'ABERTA', 'BLOQUEADA', 'FECHADA', 'CANCELADA'
+    pub usuario_abertura_id: Option<String>,
+    pub sessao_caixa_id: Option<String>,
+    pub observacao: Option<String>,
+    pub aberta_em: Option<String>,
+    pub total_consumo_minor: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AbrirComandaReq {
+    pub numero_comanda: i32,
+    pub codigo_barras_qr: Option<String>,
+    pub cliente_nome_informal: Option<String>,
+    pub cliente_id: Option<String>,
+    pub usuario_id: String,
+    pub sessao_caixa_id: String,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BloquearComandaReq {
+    pub numero_comanda: i32,
+    pub usuario_id: String,
+    pub sessao_caixa_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarComandaReq {
+    pub numero_comanda: i32,
+    pub usuario_cancelamento_id: String,
+    pub motivo_cancelamento: String,
+    pub supervisor_id: Option<String>,
+    pub autorizacao_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GourmetItemResp {
+    pub id: String,
+    pub origem_tipo: String, // 'MESA' | 'COMANDA'
+    pub origem_id: String,
+    pub produto_id: String,
+    pub descricao_produto: String,
+    pub codigo_produto: String,
+    pub quantidade_escala3: i64,
+    pub preco_unitario_minor: i64,
+    pub desconto_item_minor: i64,
+    pub acrescimo_item_minor: i64,
+    pub total_item_minor: i64,
+    pub observacao_producao: Option<String>,
+    pub local_producao_id: String,
+    pub status: String, // 'PENDENTE', 'ENVIADO_PRODUCAO', 'CANCELADO', 'TRANSFERIDO', 'FECHADO'
+    pub enviado_producao: bool,
+    pub enviado_producao_em: Option<String>,
+    pub cancelado: bool,
+    pub cancelado_em: Option<String>,
+    pub motivo_cancelamento: Option<String>,
+    pub supervisor_id: Option<String>,
+    pub autorizacao_id: Option<String>,
+    pub criado_em: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AdicionarItemGourmetReq {
+    pub origem_tipo: String, // 'MESA' | 'COMANDA'
+    pub origem_id: String, // ID operacional
+    pub produto_id: String,
+    pub quantidade_escala3: i64,
+    pub preco_unitario_minor: i64,
+    pub desconto_item_minor: i64,
+    pub acrescimo_item_minor: i64,
+    pub observacao_producao: Option<String>,
+    pub local_producao_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelarItemGourmetReq {
+    pub item_id: String,
+    pub usuario_cancelamento_id: String,
+    pub motivo_cancelamento: String,
+    pub supervisor_id: Option<String>,
+    pub autorizacao_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MesaDetalheResp {
+    pub mesa: MesaOperacionalResp,
+    pub itens: Vec<GourmetItemResp>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ComandaDetalheResp {
+    pub comanda: ComandaOperacionalResp,
+    pub itens: Vec<GourmetItemResp>,
+}
+

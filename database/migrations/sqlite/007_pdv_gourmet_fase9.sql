@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS comandas_cache (
 -- Mesas Operacionais
 CREATE TABLE IF NOT EXISTS mesas_operacionais (
     id TEXT PRIMARY KEY,
-    mesa_numero INTEGER NOT NULL UNIQUE,
+    mesa_numero INTEGER NOT NULL,
     nome_exibicao TEXT NOT NULL,
     cliente_nome_informal TEXT,
     cliente_id TEXT,
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS mesas_operacionais (
 -- Comandas Operacionais
 CREATE TABLE IF NOT EXISTS comandas_operacionais (
     id TEXT PRIMARY KEY,
-    numero_comanda INTEGER NOT NULL UNIQUE,
+    numero_comanda INTEGER NOT NULL,
     codigo_barras_qr TEXT,
     cliente_nome_informal TEXT,
     cliente_id TEXT,
@@ -137,9 +137,11 @@ CREATE TABLE IF NOT EXISTS producao_envios_itens (
 -- Índices Recomendados
 CREATE INDEX IF NOT EXISTS idx_mesas_operacionais_status ON mesas_operacionais(status);
 CREATE INDEX IF NOT EXISTS idx_mesas_operacionais_numero ON mesas_operacionais(mesa_numero);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mesas_operacionais_ativa ON mesas_operacionais(mesa_numero) WHERE status IN ('ABERTA', 'RESERVADA', 'BLOQUEADA');
 
 CREATE INDEX IF NOT EXISTS idx_comandas_operacionais_status ON comandas_operacionais(status);
 CREATE INDEX IF NOT EXISTS idx_comandas_operacionais_numero ON comandas_operacionais(numero_comanda);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_comandas_operacionais_ativa ON comandas_operacionais(numero_comanda) WHERE status IN ('ABERTA', 'BLOQUEADA');
 
 CREATE INDEX IF NOT EXISTS idx_gourmet_itens_origem ON gourmet_itens(origem_tipo, origem_id);
 CREATE INDEX IF NOT EXISTS idx_gourmet_itens_status ON gourmet_itens(status);
