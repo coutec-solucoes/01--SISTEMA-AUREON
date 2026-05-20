@@ -35,6 +35,7 @@ Foram aplicadas duas migrations no SQLite local (`005_pdv_operacional_fase8.sql`
 
 - **Sem PIN em Texto Puro**: O PIN do supervisor inserido na UI é verificado em memória pelo comando Rust através do hash Bcrypt e nunca é exposto nos arquivos de banco, logs ou payloads de sync.
 - **Auditoria Rigorosa**: Toda tentativa de supervisor gera uma linha com UUID próprio em `supervisor_autorizacoes_local` e alimenta o `sync_outbox` com os eventos `SUPERVISOR_AUTORIZACAO_APROVADA` ou `SUPERVISOR_AUTORIZACAO_NEGADA` para auditoria centralizada.
+- **Separação de Dados de Teste (Seeds)**: A migration oficial `006_pdv_operacional_fase8_cache.sql` cria estritamente a estrutura (DDL) e índices para o cache. Dados e credenciais de teste para homologação (como o supervisor geral e o PIN padrão `"1234"`) residem exclusivamente no arquivo `database/seeds/dev/sqlite/seed_fase8_dev.sql`. É proibido executar este seed em produção, onde os dados devem ser sincronizados a partir da Retaguarda.
 
 ---
 

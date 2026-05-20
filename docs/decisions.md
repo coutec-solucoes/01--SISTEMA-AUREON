@@ -141,8 +141,9 @@ Decisões de arquitetura adotadas na Fase 8 — PDV Operacional.
 
 ---
 
-## 📦 ADR 18: Cache Local via Migration Incremental e Seeds de Teste
+## 📦 ADR 18: Cache Local via Migration Incremental e Separação de Seeds de Teste
 - **Contexto**: Para suportar a validação real de clientes e supervisores sem acoplar a rede síncrona, faz-se necessário expandir o modelo relacional local de dados temporários.
-- **Decisão**: Criada a migration `006_pdv_operacional_fase8_cache.sql` para estruturar as tabelas `clientes_cache` e `supervisores_cache`. O script inclui sementes seguras com os hashes gerados (ex: a senha padrão "1234" vira hash Bcrypt no banco) permitindo que o sistema inicialize pronto para testes no primeiro build sem intervenção manual de sync.
-- **Consequência**: Facilidade extrema de testes de integração na UI local e robustez no gerenciamento incremental de esquema relacional local.
+- **Decisão**: Criada a migration `006_pdv_operacional_fase8_cache.sql` para estruturar estritamente as tabelas `clientes_cache` e `supervisores_cache` e seus índices locais (apenas DDL). Todos os dados de semente para homologação e desenvolvimento (como o supervisor default e o PIN `"1234"`) foram isolados em um script SQL externo: `database/seeds/dev/sqlite/seed_fase8_dev.sql`.
+- **Consequência**: Garantia de que credenciais e dados de teste jamais serão embarcados automaticamente em ambientes de produção, enquanto a flexibilidade de testes locais é mantida através de comandos de seeding manuais ou manuais controlados.
+
 
