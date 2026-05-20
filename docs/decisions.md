@@ -220,4 +220,23 @@ Decisões de arquitetura adotadas na Fase 13 — Financeiro Base.
 - **Decisão (Multimoeda com Cotação Fixa)**: O valor principal em BRL é calculado no ato de lançamentos e baixas usando a taxa de câmbio da operação em escala 6, prevenindo distorções matemáticas com o uso estrito de inteiros (`i64/long`).
 - **Consequência**: Consistência absoluta do saldo físico de caixa no momento do fechamento, histórico imutável para auditorias fiscais e suporte offline robusto para recebimento de parcelas e pagamentos de despesas.
 
+---
+
+# Registro de Decisões de Projeto (ADR) — Fase 14
+
+Decisões de arquitetura adotadas na Fase 14 — Relatórios Operacionais, Dashboard Local e Exportação.
+
+---
+
+## 📊 ADR 24: Relatórios como Módulo Estritamente Somente Leitura
+
+- **Contexto**: A introdução de um módulo de relatórios e dashboard local exige que nenhuma query de consulta altere dados operacionais, especialmente em um ambiente offline-first com SQLite local.
+- **Decisão (Somente SELECT)**: Todos os commands Tauri de relatórios (`commands_relatorios.rs`) utilizam exclusivamente instruções `SELECT`. É proibido executar `INSERT`, `UPDATE` ou `DELETE` em qualquer tabela operacional a partir do módulo de relatórios.
+- **Decisão (Filtro Padrão de 30 dias)**: O período padrão de todos os relatórios e do dashboard é sempre os **últimos 30 dias**, calculado dinamicamente no cliente Blazor. Evita varredura completa das tabelas e protege a performance em dispositivos com hardware limitado.
+- **Decisão (Multimoeda Segregada)**: Totais de relatórios são sempre exibidos separados por moeda. Nunca são somadas moedas diferentes em um único valor. Conversões para BRL são exibidas como campos auxiliares de comparação, não como soma principal.
+- **Decisão (Exportação Local)**: O arquivo CSV é gerado inteiramente no processo Blazor/C# e entregue ao sistema operacional via a função JavaScript `aureon.downloadFile`, usando a API de Blob do navegador. Nenhum dado é enviado a servidores externos.
+- **Decisão (Impressão Nativa)**: A funcionalidade de impressão/PDF usa `window.print()` com CSS `@media print` para separar o layout interativo do layout de impressão limpo. Nenhuma biblioteca de PDF de terceiros foi adicionada.
+- **Consequência**: O módulo de relatórios é seguro para uso em produção sem risco de corrupção de dados operacionais, com performance protegida por filtros de período e total compatibilidade offline-first.
+
+
 
