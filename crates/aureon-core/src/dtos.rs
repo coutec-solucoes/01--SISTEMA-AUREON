@@ -570,3 +570,97 @@ pub struct ComandaDetalheResp {
     pub itens: Vec<GourmetItemResp>,
 }
 
+// --- DTOs Bloco 3 Fase 9: Transferências, Produção e Fechamento em Venda ---
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TransferirTotalReq {
+    pub origem_tipo: String,  // 'MESA' | 'COMANDA'
+    pub origem_id: String,    // UUID do ciclo operacional de origem
+    pub destino_tipo: String, // 'MESA' | 'COMANDA'
+    pub destino_id: String,   // UUID do ciclo operacional de destino
+    pub usuario_id: String,
+    pub motivo: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TransferenciaItemReq {
+    pub item_origem_id: String,
+    pub quantidade_escala3: i64, // quantidade a transferir (parcial ou total do item)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TransferirItensReq {
+    pub origem_tipo: String,
+    pub origem_id: String,
+    pub destino_tipo: String,
+    pub destino_id: String,
+    pub usuario_id: String,
+    pub motivo: String,
+    pub itens: Vec<TransferenciaItemReq>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TransferenciaResp {
+    pub transferencia_id: String,
+    pub origem_tipo: String,
+    pub origem_id: String,
+    pub destino_tipo: String,
+    pub destino_id: String,
+    pub total: bool,
+    pub itens_transferidos: i64,
+    pub criado_em: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EnviarProducaoReq {
+    pub origem_tipo: String,
+    pub origem_id: String,
+    pub usuario_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProducaoEnvioItemResp {
+    pub item_id: String,
+    pub produto_id: String,
+    pub descricao_produto: String,
+    pub quantidade_escala3: i64,
+    pub observacao_producao: Option<String>,
+    pub cancelamento: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProducaoEnvioResp {
+    pub id: String,
+    pub origem_tipo: String,
+    pub origem_id: String,
+    pub setor_producao_id: String,
+    pub usuario_id: String,
+    pub status: String,
+    pub texto_producao: String,
+    pub itens: Vec<ProducaoEnvioItemResp>,
+    pub criado_em: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReimpressaoProducaoReq {
+    pub envio_id: String,
+    pub usuario_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FecharEmVendaReq {
+    pub origem_tipo: String,   // 'MESA' | 'COMANDA'
+    pub origem_id: String,     // UUID do ciclo operacional
+    pub usuario_id: String,
+    pub sessao_caixa_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FechamentoEmVendaResp {
+    pub venda_id: String,
+    pub origem_tipo: String,
+    pub origem_id: String,
+    pub total_minor: i64,
+    pub total_itens: i64,
+    pub status_venda: String,
+}

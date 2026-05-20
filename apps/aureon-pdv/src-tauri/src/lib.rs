@@ -90,6 +90,19 @@ pub fn run() {
             commands_gourmet::obter_comanda,
             commands_gourmet::adicionar_item_comanda,
             commands_gourmet::cancelar_item_comanda,
+            // Commands de Transferência Gourmet (Fase 9 Bloco 3)
+            commands_gourmet::transferir_mesa_total,
+            commands_gourmet::transferir_itens_mesa,
+            commands_gourmet::transferir_comanda_total,
+            commands_gourmet::transferir_itens_comanda,
+            // Commands de Produção Gourmet (Fase 9 Bloco 3)
+            commands_gourmet::enviar_itens_producao,
+            commands_gourmet::gerar_texto_producao,
+            commands_gourmet::reimprimir_envio_producao,
+            commands_gourmet::listar_envios_producao,
+            // Commands de Fechamento em Venda (Fase 9 Bloco 3)
+            commands_gourmet::fechar_mesa_em_venda,
+            commands_gourmet::fechar_comanda_em_venda,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
