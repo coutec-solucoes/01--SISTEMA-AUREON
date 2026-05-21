@@ -1156,3 +1156,351 @@ pub async fn imprimir_resumo_gerencial_caixa(
         Err(e) => Err(e),
     }
 }
+
+
+// ================================================================
+// BLOCO 4 — Produção, Delivery e Gaveta
+// ================================================================
+
+#[tauri::command]
+pub async fn imprimir_ticket_producao(
+    req: ImprimirProducaoReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<RespostaBase<ImpressaoResultadoResp>, String> {
+    info!(
+        componente = "aureon-pdv::commands_impressao",
+        envio_id = %req.envio_id,
+        "Chamada: imprimir_ticket_producao"
+    );
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    let (origem_tipo, origem_id, setor_id, criado_em) = conn.query_row(
+        "SELECT origem_tipo, origem_id, setor_producao_id, criado_em
+         FROM producao_envios WHERE id = ?1",
+        rusqlite::params![req.envio_id],
+        |row| Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+        ))
+    ).map_err(|_| "Envio de produção não encontrado".to_string())?;
+
+    let setor_nome: String = conn.query_row(
+        "SELECT nome FROM setores_producao_cache WHERE id = ?1",
+        rusqlite::params![setor_id],
+        |row| row.get(0)
+    ).unwrap_or_else(|_| "N/A".to_string());
+
+    let mut numero_origem = "N/A".to_string();
+    if origem_tipo == "MESA" {
+        if let Ok(num) = conn.query_row("SELECT mesa_numero FROM mesas_operacionais WHERE id = ?1", rusqlite::params![origem_id], |row| row.get::<_, i64>(0)) {
+            numero_origem = num.to_string();
+        }
+    } else if origem_tipo == "COMANDA" {
+        if let Ok(num) = conn.query_row("SELECT numero_comanda FROM comandas_operacionais WHERE id = ?1", rusqlite::params![origem_id], |row| row.get::<_, i64>(0)) {
+            numero_origem = num.to_string();
+        }
+    }
+
+    let mut builder = EscPosBuilder::new(req.destino.largura_colunas);
+    builder.init();
+    builder.align(1);
+    builder.bold(true);
+    builder.size(true);
+    builder.text("TICKET DE PRODUCAO");
+    builder.size(false);
+    builder.bold(false);
+    builder.text("DOCUMENTO NAO FISCAL");
+    builder.separator('-');
+
+    builder.align(0);
+    builder.text(&format!("SETOR  : {}", setor_nome));
+    builder.text(&format!("ORIGEM : {} {}", origem_tipo, numero_origem));
+    builder.text(&format!("DATA   : {}", criado_em));
+    builder.separator('-');
+
+    let mut stmt = conn.prepare(
+        "SELECT descricao_produto, quantidade_escala3, observacao_producao
+         FROM producao_envios_itens WHERE envio_id = ?1 AND cancelamento = 0"
+    ).map_err(|e| e.to_string())?;
+
+    let itens = stmt.query_map(rusqlite::params![req.envio_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, Option<String>>(2)?
+        ))
+    }).map_err(|e| e.to_string())?;
+
+    for item in itens {
+        if let Ok((desc, qtd, obs)) = item {
+            builder.bold(true);
+            builder.text(&format!("{} x {}", formatar_quantidade(qtd), desc));
+            builder.bold(false);
+            if let Some(o) = obs {
+                if !o.is_empty() {
+                    builder.text(&format!("  -> {}", o));
+                }
+            }
+        }
+    }
+
+    builder.separator('-');
+    builder.align(1);
+    builder.text(" ");
+    builder.text(" ");
+    builder.text(" ");
+
+    if req.destino.cortar_papel {
+        builder.cut();
+    }
+    if req.destino.abrir_gaveta {
+        builder.open_drawer();
+    }
+
+    let payload = builder.buffer.clone();
+    match executar_impressao(&req.destino, &payload) {
+        Ok(res) => Ok(RespostaBase::ok("Ticket de producao impresso", res)),
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub async fn imprimir_ticket_cancelamento_producao(
+    req: ImprimirCancelamentoProducaoReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<RespostaBase<ImpressaoResultadoResp>, String> {
+    info!(
+        componente = "aureon-pdv::commands_impressao",
+        origem = %req.origem_id,
+        "Chamada: imprimir_ticket_cancelamento_producao"
+    );
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    let mut numero_origem = "N/A".to_string();
+    if req.origem_tipo == "MESA" {
+        if let Ok(num) = conn.query_row("SELECT mesa_numero FROM mesas_operacionais WHERE id = ?1", rusqlite::params![req.origem_id], |row| row.get::<_, i64>(0)) {
+            numero_origem = num.to_string();
+        }
+    } else if req.origem_tipo == "COMANDA" {
+        if let Ok(num) = conn.query_row("SELECT numero_comanda FROM comandas_operacionais WHERE id = ?1", rusqlite::params![req.origem_id], |row| row.get::<_, i64>(0)) {
+            numero_origem = num.to_string();
+        }
+    } else if req.origem_tipo == "DELIVERY" {
+        if let Ok(num) = conn.query_row("SELECT numero_pedido FROM delivery_operacional WHERE id = ?1", rusqlite::params![req.origem_id], |row| row.get::<_, i64>(0)) {
+            numero_origem = num.to_string();
+        }
+    }
+
+    let mut builder = EscPosBuilder::new(req.destino.largura_colunas);
+    builder.init();
+    builder.align(1);
+    builder.bold(true);
+    builder.size(true);
+    builder.text("CANCELAMENTO DE PRODUCAO");
+    builder.size(false);
+    builder.bold(false);
+    builder.text("DOCUMENTO NAO FISCAL");
+    builder.separator('-');
+
+    builder.align(0);
+    builder.text(&format!("ORIGEM : {} {}", req.origem_tipo, numero_origem));
+    let dh = Local::now().format("%d/%m/%Y %H:%M:%S").to_string();
+    builder.text(&format!("DATA   : {}", dh));
+    builder.text(&format!("MOTIVO : {}", req.motivo));
+    builder.separator('-');
+
+    if let Some(iid) = req.item_id {
+        // Buscar detalhes do item
+        if let Ok((desc, qtd)) = conn.query_row(
+            "SELECT descricao_produto, quantidade_escala3 FROM gourmet_itens WHERE id = ?1",
+            rusqlite::params![iid],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        ) {
+            builder.bold(true);
+            builder.text(&format!("{} x {}", formatar_quantidade(qtd), desc));
+            builder.bold(false);
+        } else {
+            builder.text("ITEM CANCELADO (Ver sistema)");
+        }
+    } else {
+        builder.text("CANCELAMENTO GERAL/MULTIPLOS ITENS");
+    }
+
+    builder.separator('-');
+    builder.align(1);
+    builder.text(" ");
+    builder.text(" ");
+    builder.text(" ");
+
+    if req.destino.cortar_papel {
+        builder.cut();
+    }
+    if req.destino.abrir_gaveta {
+        builder.open_drawer();
+    }
+
+    let payload = builder.buffer.clone();
+    match executar_impressao(&req.destino, &payload) {
+        Ok(res) => Ok(RespostaBase::ok("Ticket de cancelamento impresso", res)),
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub async fn imprimir_romaneio_delivery(
+    req: ImprimirRomaneioDeliveryReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<RespostaBase<ImpressaoResultadoResp>, String> {
+    info!(
+        componente = "aureon-pdv::commands_impressao",
+        delivery_id = %req.delivery_id,
+        "Chamada: imprimir_romaneio_delivery"
+    );
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    let (num_pedido, nome_cli, tel_cli, end_cli, tipo, taxa_entrega, tot_consumo, obs, entregador_id) = conn.query_row(
+        "SELECT numero_pedido, nome_cliente_informal, telefone, endereco_completo,
+                tipo_pedido, taxa_entrega_minor, total_consumo_minor, observacao, entregador_id
+         FROM delivery_operacional WHERE id = ?1",
+        rusqlite::params![req.delivery_id],
+        |row| Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, i64>(5)?,
+            row.get::<_, i64>(6)?,
+            row.get::<_, Option<String>>(7)?,
+            row.get::<_, Option<String>>(8)?,
+        ))
+    ).map_err(|_| "Pedido de delivery não encontrado".to_string())?;
+
+    let mut builder = EscPosBuilder::new(req.destino.largura_colunas);
+    builder.init();
+    builder.align(1);
+    builder.bold(true);
+    builder.size(true);
+    builder.text("ROMANEIO DELIVERY");
+    builder.size(false);
+    builder.text("DOCUMENTO NAO FISCAL");
+    builder.bold(false);
+    builder.text("NAO E VALIDO COMO DOCUMENTO FISCAL");
+    builder.separator('-');
+
+    builder.align(0);
+    builder.text(&format!("PEDIDO : #{}", num_pedido));
+    builder.text(&format!("TIPO   : {}", tipo));
+    builder.text(&format!("CLIENTE: {}", nome_cli));
+    builder.text(&format!("FONE   : {}", tel_cli));
+    if let Some(end) = end_cli {
+        builder.text(&format!("END    : {}", end));
+    }
+    
+    if let Some(eid) = entregador_id {
+        let nome_entregador: String = conn.query_row(
+            "SELECT nome FROM entregadores_cache WHERE id = ?1",
+            rusqlite::params![eid],
+            |row| row.get(0)
+        ).unwrap_or_else(|_| "Desconhecido".to_string());
+        builder.text(&format!("MOTO   : {}", nome_entregador));
+    }
+
+    if let Some(o) = obs {
+        if !o.is_empty() {
+            builder.text(&format!("OBS    : {}", o));
+        }
+    }
+
+    builder.separator('-');
+    builder.text("ITEM | DESC | QTD | UN | TOTAL");
+    builder.separator('-');
+
+    let mut stmt = conn.prepare(
+        "SELECT descricao_produto, quantidade_escala3, preco_unitario_minor, total_item_minor
+         FROM delivery_itens WHERE delivery_id = ?1 AND cancelado = 0"
+    ).map_err(|e| e.to_string())?;
+
+    let itens = stmt.query_map(rusqlite::params![req.delivery_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?
+        ))
+    }).map_err(|e| e.to_string())?;
+
+    let mut i = 1;
+    for item in itens {
+        if let Ok((desc, qtd, un, tot)) = item {
+            builder.text(&format!("{:03} {}", i, desc));
+            builder.text(&format!("    {} x {} = {}", formatar_quantidade(qtd), formatar_moeda(un), formatar_moeda(tot)));
+            i += 1;
+        }
+    }
+
+    builder.separator('-');
+    builder.align(2);
+    builder.text(&format!("CONSUMO: {}", formatar_moeda(tot_consumo)));
+    if taxa_entrega > 0 {
+        builder.text(&format!("TAXA ENTREGA: {}", formatar_moeda(taxa_entrega)));
+    }
+    builder.bold(true);
+    builder.size(true);
+    builder.text(&format!("TOTAL: {}", formatar_moeda(tot_consumo + taxa_entrega)));
+    builder.size(false);
+    builder.bold(false);
+
+    builder.separator('-');
+    builder.align(1);
+    builder.text(" ");
+    builder.text(" ");
+    builder.text(" ");
+    
+    if req.destino.cortar_papel {
+        builder.cut();
+    }
+    if req.destino.abrir_gaveta {
+        builder.open_drawer();
+    }
+
+    let payload = builder.buffer.clone();
+    match executar_impressao(&req.destino, &payload) {
+        Ok(res) => Ok(RespostaBase::ok("Romaneio impresso", res)),
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub async fn abrir_gaveta_dinheiro(
+    req: AbrirGavetaReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<RespostaBase<ImpressaoResultadoResp>, String> {
+    info!("Chamada: abrir_gaveta_dinheiro");
+    
+    let mut builder = EscPosBuilder::new(req.destino.largura_colunas);
+    builder.init();
+    builder.open_drawer();
+    
+    // Auditoria simplificada se existir
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+    let _ = conn.execute(
+        "INSERT INTO auditoria_pdv (id, acao, entidade, entidade_id, usuario_id, detalhes, criado_em)
+         VALUES (?1, 'ABRIR_GAVETA', 'GAVETA', ?2, ?3, ?4, ?5)",
+        rusqlite::params![
+            uuid::Uuid::new_v4().to_string(),
+            req.destino.nome,
+            req.usuario_id,
+            req.motivo.unwrap_or_else(|| "Abertura manual".to_string()),
+            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        ]
+    );
+
+    let payload = builder.buffer.clone();
+    match executar_impressao(&req.destino, &payload) {
+        Ok(res) => Ok(RespostaBase::ok("Comando de gaveta enviado", res)),
+        Err(e) => Err(e),
+    }
+}

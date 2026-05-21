@@ -1288,3 +1288,37 @@ pub struct ImprimirSessaoCaixaReq {
     pub numero_via: Option<i32>,
 }
 
+// --- DTOs Fase 15 Bloco 4: Produção, Delivery e Gaveta ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImprimirProducaoReq {
+    pub envio_id: String,
+    pub destino: ImpressoraDestinoReq,
+    pub usuario_id: Option<String>,
+    pub numero_via: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImprimirCancelamentoProducaoReq {
+    pub origem_tipo: String,
+    pub origem_id: String,
+    pub item_id: Option<String>,
+    pub destino: ImpressoraDestinoReq,
+    pub usuario_id: Option<String>,
+    pub motivo: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImprimirRomaneioDeliveryReq {
+    pub delivery_id: String,
+    pub destino: ImpressoraDestinoReq,
+    pub usuario_id: Option<String>,
+    pub numero_via: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AbrirGavetaReq {
+    pub destino: ImpressoraDestinoReq,
+    pub usuario_id: Option<String>,
+    pub motivo: Option<String>,
+}

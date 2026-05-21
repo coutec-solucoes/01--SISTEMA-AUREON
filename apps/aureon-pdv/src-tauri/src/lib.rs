@@ -167,7 +167,11 @@ pub fn run() {
             commands_impressao::imprimir_comprovante_abertura_caixa,
             commands_impressao::imprimir_comprovante_fechamento_caixa,
             commands_impressao::imprimir_resumo_gerencial_caixa,
-
+            // Commands de Impressao Produção/Delivery/Gaveta (Fase 15 Bloco 4)
+            commands_impressao::imprimir_ticket_producao,
+            commands_impressao::imprimir_ticket_cancelamento_producao,
+            commands_impressao::imprimir_romaneio_delivery,
+            commands_impressao::abrir_gaveta_dinheiro,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
