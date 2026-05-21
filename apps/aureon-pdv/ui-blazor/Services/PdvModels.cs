@@ -1001,37 +1001,37 @@ namespace AureonPdvUi.Services
         SIMULADOR
     }
 
-    public record ImpressoraDestinoReq
+    public class ImpressoraDestinoReq
     {
         [JsonPropertyName("impressora_id")]
-        public string? ImpressoraId { get; init; }
+        public string? ImpressoraId { get; set; }
 
         [JsonPropertyName("nome")]
-        public string Nome { get; init; } = string.Empty;
+        public string Nome { get; set; } = string.Empty;
 
         [JsonPropertyName("tipo_destino")]
-        public TipoDestinoImpressao TipoDestino { get; init; } = TipoDestinoImpressao.SIMULADOR;
+        public TipoDestinoImpressao TipoDestino { get; set; } = TipoDestinoImpressao.SIMULADOR;
 
         [JsonPropertyName("endereco_ip")]
-        public string? EnderecoIp { get; init; }
+        public string? EnderecoIp { get; set; }
 
         [JsonPropertyName("porta")]
-        public ushort? Porta { get; init; }
+        public ushort? Porta { get; set; }
 
         [JsonPropertyName("nome_spooler")]
-        public string? NomeSpooler { get; init; }
+        public string? NomeSpooler { get; set; }
 
         [JsonPropertyName("caminho_simulador")]
-        public string? CaminhoSimulador { get; init; }
+        public string? CaminhoSimulador { get; set; }
 
         [JsonPropertyName("largura_colunas")]
-        public byte LarguraColunas { get; init; } = 48;
+        public byte LarguraColunas { get; set; } = 48;
 
         [JsonPropertyName("cortar_papel")]
-        public bool CortarPapel { get; init; } = true;
+        public bool CortarPapel { get; set; } = true;
 
         [JsonPropertyName("abrir_gaveta")]
-        public bool AbrirGaveta { get; init; } = false;
+        public bool AbrirGaveta { get; set; } = false;
     }
 
     public record TesteImpressoraReq
@@ -1063,7 +1063,148 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("bytes_gerados")]
         public int BytesGerados { get; init; }
     }
+    public record ImprimirVendaReq
+    {
+        [JsonPropertyName("venda_id")]
+        public string VendaId { get; init; } = string.Empty;
+
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+
+        [JsonPropertyName("numero_via")]
+        public int? NumeroVia { get; init; }
+
+        [JsonPropertyName("imprimir_itens_cancelados")]
+        public bool ImprimirItensCancelados { get; init; }
+    }
+
+    public record ReimprimirVendaReq
+    {
+        [JsonPropertyName("venda_id")]
+        public string VendaId { get; init; } = string.Empty;
+
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+
+        [JsonPropertyName("motivo_reimpressao")]
+        public string MotivoReimpressao { get; init; } = string.Empty;
+    }
+
+    public record ImprimirBaixaFinanceiraReq
+    {
+        [JsonPropertyName("lancamento_id")]
+        public string LancamentoId { get; init; } = string.Empty;
+
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+
+        [JsonPropertyName("numero_via")]
+        public int? NumeroVia { get; init; }
+    }
+
+    // --- DTOs Fase 15 Bloco 3: Comprovantes de Caixa ---
+
+    public record ImprimirMovimentacaoCaixaReq
+    {
+        [JsonPropertyName("movimentacao_id")]
+        public string MovimentacaoId { get; init; } = string.Empty;
+
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+
+        [JsonPropertyName("numero_via")]
+        public int? NumeroVia { get; init; }
+    }
+
+    public record ImprimirSessaoCaixaReq
+    {
+        [JsonPropertyName("sessao_caixa_id")]
+        public string SessaoCaixaId { get; init; } = string.Empty;
+
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+
+        [JsonPropertyName("numero_via")]
+        public int? NumeroVia { get; init; }
+    }
+
+    // --- DTOs Fase 15 Bloco 4: Produção, Delivery e Gaveta ---
+
+    public record ImprimirProducaoReq
+    {
+        [JsonPropertyName("envio_id")]
+        public string EnvioId { get; init; } = string.Empty;
+
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+
+        [JsonPropertyName("numero_via")]
+        public int? NumeroVia { get; init; }
+    }
+
+    public record ImprimirCancelamentoProducaoReq
+    {
+        [JsonPropertyName("origem_tipo")]
+        public string OrigemTipo { get; init; } = string.Empty;
+
+        [JsonPropertyName("origem_id")]
+        public string OrigemId { get; init; } = string.Empty;
+
+        [JsonPropertyName("item_id")]
+        public string? ItemId { get; init; }
+
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+
+        [JsonPropertyName("motivo")]
+        public string Motivo { get; init; } = string.Empty;
+    }
+
+    public record ImprimirRomaneioDeliveryReq
+    {
+        [JsonPropertyName("delivery_id")]
+        public string DeliveryId { get; init; } = string.Empty;
+
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+
+        [JsonPropertyName("numero_via")]
+        public int? NumeroVia { get; init; }
+    }
+
+    public record AbrirGavetaReq
+    {
+        [JsonPropertyName("destino")]
+        public ImpressoraDestinoReq Destino { get; init; } = new();
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; init; }
+
+        [JsonPropertyName("motivo")]
+        public string? Motivo { get; init; }
+    }
 }
-
-
-

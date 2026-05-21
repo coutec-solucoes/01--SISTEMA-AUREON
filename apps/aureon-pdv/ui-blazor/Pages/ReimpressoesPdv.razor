@@ -1,0 +1,572 @@
+@page "/reimpressoes"
+@using AureonPdvUi.Services
+@using System.Text.Json
+@inject IJSRuntime JS
+
+<div class="reimpressoes-container">
+    <div class="header">
+        <h2>Central de Documentos e Impressão Não Fiscal</h2>
+        <p>Aviso: Todos os documentos gerados aqui são apenas documentais e de controle interno. Nenhuma operação altera vendas, saldos ou estoques (exceto pulso físico de gaveta e registro de auditoria).</p>
+        <button class="btn-config" @onclick="AbrirModalConfig">⚙️ Configurar Destino de Impressão</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Mensagem))
+    {
+        <div class="alert @(MensagemErro ? "alert-error" : "alert-success")">
+            @Mensagem
+            @if (!string.IsNullOrEmpty(ArquivoSimulador))
+            {
+                <br /><small style="font-family: monospace;">Salvo no Simulador: @ArquivoSimulador</small>
+            }
+        </div>
+    }
+
+    <div class="tabs">
+        <button class="@(AbaAtiva == "TESTE" ? "active" : "")" @onclick="@(() => AbaAtiva = "TESTE")">Teste</button>
+        <button class="@(AbaAtiva == "VENDAS" ? "active" : "")" @onclick="@(() => AbaAtiva = "VENDAS")">Vendas</button>
+        <button class="@(AbaAtiva == "FINANCEIRO" ? "active" : "")" @onclick="@(() => AbaAtiva = "FINANCEIRO")">Financeiro</button>
+        <button class="@(AbaAtiva == "CAIXA" ? "active" : "")" @onclick="@(() => AbaAtiva = "CAIXA")">Caixa</button>
+        <button class="@(AbaAtiva == "PRODUCAO" ? "active" : "")" @onclick="@(() => AbaAtiva = "PRODUCAO")">Produção/Delivery</button>
+        <button class="@(AbaAtiva == "GAVETA" ? "active" : "")" @onclick="@(() => AbaAtiva = "GAVETA")">Gaveta</button>
+    </div>
+
+    <div class="tab-content">
+        @if (AbaAtiva == "TESTE")
+        {
+            <div class="card">
+                <h3>Testar Conexão com a Impressora</h3>
+                <p>Envia um cupom de teste para a impressora configurada para validar o hardware ou gerar o arquivo do simulador.</p>
+                <div class="status-box">
+                    <strong>Destino Atual:</strong> @DestinoAtual.TipoDestino <br/>
+                    <strong>Nome:</strong> @DestinoAtual.Nome
+                </div>
+                <div class="actions">
+                    <button class="btn-primary" @onclick="TestarImpressora" disabled="@(Carregando)">Imprimir Teste</button>
+                </div>
+            </div>
+        }
+        else if (AbaAtiva == "VENDAS")
+        {
+            <div class="card">
+                <h3>Reimpressão de Vendas (Não Fiscal)</h3>
+                <div class="form-group">
+                    <label>ID da Venda:</label>
+                    <input type="text" @bind="VendaId" placeholder="ID UUID da Venda" />
+                </div>
+                <div class="form-group">
+                    <label>Motivo da Reimpressão (Obrigatório apenas para reimpressão):</label>
+                    <input type="text" @bind="Motivo" placeholder="Ex: Cliente perdeu a via original" />
+                </div>
+                <div class="actions">
+                    <button class="btn-primary" @onclick="ImprimirCupomVenda" disabled="@(Carregando || string.IsNullOrWhiteSpace(VendaId))">Imprimir Cupom Original</button>
+                    <button class="btn-secondary" @onclick="ReimprimirCupomVenda" disabled="@(Carregando || string.IsNullOrWhiteSpace(VendaId) || string.IsNullOrWhiteSpace(Motivo))">Reimprimir Cupom (Com Auditoria)</button>
+                </div>
+            </div>
+        }
+        else if (AbaAtiva == "FINANCEIRO")
+        {
+            <div class="card">
+                <h3>Comprovantes Financeiros</h3>
+                <div class="form-group">
+                    <label>ID do Lançamento Financeiro:</label>
+                    <input type="text" @bind="LancamentoId" placeholder="ID UUID do Lançamento Baixado" />
+                </div>
+                <div class="actions">
+                    <button class="btn-primary" @onclick="ImprimirBaixaFinanceira" disabled="@(Carregando || string.IsNullOrWhiteSpace(LancamentoId))">Imprimir Comprovante de Baixa</button>
+                </div>
+            </div>
+        }
+        else if (AbaAtiva == "CAIXA")
+        {
+            <div class="card">
+                <h3>Resumos e Extratos de Sessão de Caixa</h3>
+                <div class="form-group">
+                    <label>ID da Sessão de Caixa:</label>
+                    <input type="text" @bind="SessaoCaixaId" placeholder="ID UUID da Sessão" />
+                </div>
+                <div class="actions">
+                    <button class="btn-primary" @onclick="ImprimirAberturaCaixa" disabled="@(Carregando || string.IsNullOrWhiteSpace(SessaoCaixaId))">Extrato de Abertura</button>
+                    <button class="btn-secondary" @onclick="ImprimirFechamentoCaixa" disabled="@(Carregando || string.IsNullOrWhiteSpace(SessaoCaixaId))">Extrato de Fechamento</button>
+                    <button class="btn-config" @onclick="ImprimirResumoGerencial" disabled="@(Carregando || string.IsNullOrWhiteSpace(SessaoCaixaId))">Resumo Gerencial (Completo)</button>
+                </div>
+
+                <hr style="margin:20px 0; border-color:#444;" />
+
+                <h3>Comprovantes Avulsos de Movimentação</h3>
+                <div class="form-group">
+                    <label>ID da Movimentação (Sangria, Suprimento ou Vale):</label>
+                    <input type="text" @bind="MovimentacaoId" placeholder="ID UUID da Movimentação" />
+                </div>
+                <div class="actions">
+                    <button class="btn-primary" @onclick="ImprimirMovimentacaoCaixa" disabled="@(Carregando || string.IsNullOrWhiteSpace(MovimentacaoId))">Imprimir Comprovante Movimentação</button>
+                </div>
+            </div>
+        }
+        else if (AbaAtiva == "PRODUCAO")
+        {
+            <div class="card">
+                <h3>Tickets de Produção (Cozinha/Bar)</h3>
+                <div class="form-group">
+                    <label>ID do Envio de Produção:</label>
+                    <input type="text" @bind="EnvioId" placeholder="ID UUID do Envio (producao_envios)" />
+                </div>
+                <div class="actions">
+                    <button class="btn-primary" @onclick="ImprimirTicketProducao" disabled="@(Carregando || string.IsNullOrWhiteSpace(EnvioId))">Imprimir Ticket de Produção</button>
+                </div>
+
+                <hr style="margin:20px 0; border-color:#444;" />
+
+                <h3>Cancelamento de Produção</h3>
+                <div class="form-group">
+                    <label>Origem (MESA, COMANDA, DELIVERY):</label>
+                    <select @bind="OrigemTipo" style="width:100%; padding:10px; background:#2a2a3c; border:1px solid #444; color:white; border-radius:4px;">
+                        <option value="MESA">MESA</option>
+                        <option value="COMANDA">COMANDA</option>
+                        <option value="DELIVERY">DELIVERY</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>ID da Origem (ID da Mesa/Comanda/Delivery):</label>
+                    <input type="text" @bind="OrigemId" placeholder="UUID" />
+                </div>
+                <div class="form-group">
+                    <label>ID do Item Específico (Vazio para gerar ticket de cancelamento geral):</label>
+                    <input type="text" @bind="ItemIdCancelado" placeholder="UUID do Item (Opcional)" />
+                </div>
+                <div class="form-group">
+                    <label>Motivo do Cancelamento:</label>
+                    <input type="text" @bind="MotivoCancelamento" placeholder="Ex: Cliente desistiu após o preparo" />
+                </div>
+                <div class="actions">
+                    <button class="btn-secondary" @onclick="ImprimirCancelamentoProducao" disabled="@(Carregando || string.IsNullOrWhiteSpace(OrigemId) || string.IsNullOrWhiteSpace(MotivoCancelamento))">Imprimir Ticket de Cancelamento</button>
+                </div>
+
+                <hr style="margin:20px 0; border-color:#444;" />
+
+                <h3>Romaneio de Expedição Delivery</h3>
+                <div class="form-group">
+                    <label>ID do Pedido Delivery (delivery_operacional):</label>
+                    <input type="text" @bind="DeliveryId" placeholder="UUID do Pedido" />
+                </div>
+                <div class="actions">
+                    <button class="btn-primary" @onclick="ImprimirRomaneioDelivery" disabled="@(Carregando || string.IsNullOrWhiteSpace(DeliveryId))">Imprimir Romaneio Delivery</button>
+                </div>
+            </div>
+        }
+        else if (AbaAtiva == "GAVETA")
+        {
+            <div class="card">
+                <h3>Acionamento Direto de Gaveta Dinheiro</h3>
+                <p class="warning" style="color:#ffb74d; font-weight:600;">
+                    Aviso: Abertura manual de gaveta não movimenta o saldo do caixa. Apenas dispara o pulso físico. A tentativa será logada no sistema.
+                </p>
+                <div class="form-group">
+                    <label>Motivo da Abertura Manual (Obrigatório):</label>
+                    <input type="text" @bind="MotivoGaveta" placeholder="Ex: Troco avulso" />
+                </div>
+                <div class="actions">
+                    <button class="btn-danger" style="background:#ef5350; color:white; border:none; padding:10px 20px; border-radius:4px; font-weight:bold; cursor:pointer;" @onclick="AbrirGavetaDinheiro" disabled="@(Carregando || string.IsNullOrWhiteSpace(MotivoGaveta))">Pulsar Gaveta Agora</button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<ImpressoraDestinoModal Show="ModalConfigAberto" OnSave="SalvarDestino" OnCancel="FecharModalConfig" />
+
+<style>
+    .reimpressoes-container {
+        padding: 20px;
+        color: white;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    .header {
+        margin-bottom: 20px;
+        background: #1e1e2d;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    .header h2 {
+        color: #f48fb1;
+        margin-top: 0;
+    }
+    .header p {
+        color: #bbb;
+        font-size: 0.9em;
+        line-height: 1.4;
+    }
+    .status-box {
+        background: #2a2a3c;
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        border-left: 4px solid #f48fb1;
+    }
+    .btn-config {
+        background: #2a2a3c;
+        color: white;
+        border: 1px solid #555;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-top: 10px;
+        font-weight: 600;
+        transition: 0.2s;
+    }
+    .btn-config:hover { background: #3a3a5c; }
+    .tabs {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #444;
+        flex-wrap: wrap;
+    }
+    .tabs button {
+        background: transparent;
+        color: #888;
+        border: none;
+        padding: 10px 20px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 1em;
+        border-bottom: 3px solid transparent;
+        transition: 0.2s;
+    }
+    .tabs button.active {
+        color: #f48fb1;
+        border-bottom-color: #f48fb1;
+    }
+    .tabs button:hover:not(.active) { color: white; }
+    .card {
+        background: #1e1e2d;
+        padding: 25px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    .card h3 {
+        margin-top: 0;
+        color: #fff;
+        border-bottom: 1px solid #444;
+        padding-bottom: 10px;
+    }
+    .form-group {
+        margin-bottom: 15px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.9em;
+        color: #ccc;
+        font-weight: 500;
+    }
+    .form-group input {
+        width: 100%;
+        padding: 10px;
+        background: #2a2a3c;
+        border: 1px solid #555;
+        color: white;
+        border-radius: 4px;
+        outline: none;
+    }
+    .form-group input:focus {
+        border-color: #f48fb1;
+    }
+    .actions {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+    }
+    .btn-primary {
+        background: #f48fb1;
+        color: #121212;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .btn-primary:hover:not(:disabled) { background: #f06292; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+        background: #444;
+        color: white;
+        border: 1px solid #666;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .btn-secondary:hover:not(:disabled) { background: #555; }
+    .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .alert {
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        font-weight: bold;
+    }
+    .alert-success { background: #1b5e20; color: #fff; border-left: 5px solid #2e7d32; }
+    .alert-error { background: #b71c1c; color: #fff; border-left: 5px solid #c62828; }
+</style>
+
+@code {
+    private string AbaAtiva = "TESTE";
+    private bool ModalConfigAberto = false;
+    private bool Carregando = false;
+    
+    private string Mensagem = "";
+    private bool MensagemErro = false;
+    private string ArquivoSimulador = "";
+
+    // Configuração Global da Impressora Ativa
+    private ImpressoraDestinoReq DestinoAtual = new()
+    {
+        Nome = "Aureon Print Padrão",
+        TipoDestino = TipoDestinoImpressao.SIMULADOR,
+        LarguraColunas = 48,
+        CortarPapel = true,
+        AbrirGaveta = false
+    };
+
+    // Campos dos Forms
+    private string VendaId = "";
+    private string Motivo = "";
+    private string LancamentoId = "";
+    private string SessaoCaixaId = "";
+    private string MovimentacaoId = "";
+    private string EnvioId = "";
+    private string OrigemTipo = "MESA";
+    private string OrigemId = "";
+    private string ItemIdCancelado = "";
+    private string MotivoCancelamento = "";
+    private string DeliveryId = "";
+    private string MotivoGaveta = "";
+
+    private string CurrentUserId = "UI-USER"; // Mock para o usuário logado no front-end
+
+    private void AbrirModalConfig()
+    {
+        ModalConfigAberto = true;
+    }
+
+    private void FecharModalConfig()
+    {
+        ModalConfigAberto = false;
+    }
+
+    private void SalvarDestino(ImpressoraDestinoReq novoDestino)
+    {
+        DestinoAtual = novoDestino;
+        ModalConfigAberto = false;
+        ExibirSucesso("Destino de impressão atualizado para: " + DestinoAtual.TipoDestino + " (" + DestinoAtual.Nome + ")");
+    }
+
+    private void ExibirErro(string msg)
+    {
+        Mensagem = msg;
+        MensagemErro = true;
+        ArquivoSimulador = "";
+    }
+
+    private void ExibirSucesso(string msg, string? arquivo = null)
+    {
+        Mensagem = msg;
+        MensagemErro = false;
+        ArquivoSimulador = arquivo ?? "";
+    }
+
+    // Processamento centralizado das respostas do Tauri e DTOs request wrapper
+    private async Task InvocarCommand<TReq>(string commandName, TReq request)
+    {
+        Carregando = true;
+        StateHasChanged();
+        try
+        {
+            var reqObj = new { req = request };
+            var res = await JS.InvokeAsync<JsonElement>("window.__TAURI__.invoke", commandName, reqObj);
+            
+            bool sucesso = false;
+            if (res.TryGetProperty("sucesso", out var sucProp))
+            {
+                sucesso = sucProp.GetBoolean();
+            }
+
+            string msg = "Operação concluída";
+            if (res.TryGetProperty("mensagem", out var msgProp) && msgProp.ValueKind != JsonValueKind.Null)
+            {
+                msg = msgProp.GetString() ?? msg;
+            }
+            
+            if (sucesso)
+            {
+                string arquivo = "";
+                if (res.TryGetProperty("dados", out var dados) && dados.ValueKind == JsonValueKind.Object)
+                {
+                    if (dados.TryGetProperty("caminho_arquivo_simulado", out var propArq) && propArq.ValueKind != JsonValueKind.Null)
+                    {
+                        arquivo = propArq.GetString() ?? "";
+                    }
+                }
+                ExibirSucesso(msg, arquivo);
+            }
+            else
+            {
+                var detalhes = "";
+                if (res.TryGetProperty("detalhes_erro", out var detProp) && detProp.ValueKind != JsonValueKind.Null)
+                {
+                    detalhes = detProp.GetString();
+                }
+                ExibirErro(msg + (string.IsNullOrEmpty(detalhes) ? "" : $" - {detalhes}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            ExibirErro("Erro ao comunicar com o driver Tauri: " + ex.Message);
+        }
+        finally
+        {
+            Carregando = false;
+            StateHasChanged();
+        }
+    }
+
+    // --- COMANDOS ---
+
+    private async Task TestarImpressora()
+    {
+        // testar_impressora espera: { req: { destino: ImpressoraDestinoReq } } ou similar dependendo da var arg
+        // Na Fase 15 Bloco 1, testar_impressora(req: TesteImpressoraReq). 
+        // Mas a classe pode não estar perfeitamente mapeada aqui se não a criamos, vou enviar um object anônimo
+        await InvocarCommand("testar_impressora", new { destino = DestinoAtual, texto_customizado = "AUREON BLZ" });
+    }
+
+    private async Task ImprimirCupomVenda()
+    {
+        var req = new ImprimirVendaReq
+        {
+            VendaId = VendaId,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId,
+            ImprimirItensCancelados = false
+        };
+        await InvocarCommand("imprimir_cupom_venda_nao_fiscal", req);
+    }
+
+    private async Task ReimprimirCupomVenda()
+    {
+        var req = new ReimprimirVendaReq
+        {
+            VendaId = VendaId,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId,
+            MotivoReimpressao = Motivo
+        };
+        await InvocarCommand("reimprimir_cupom_venda_nao_fiscal", req);
+    }
+
+    private async Task ImprimirBaixaFinanceira()
+    {
+        var req = new ImprimirBaixaFinanceiraReq
+        {
+            LancamentoId = LancamentoId,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId
+        };
+        await InvocarCommand("imprimir_comprovante_baixa_financeira", req);
+    }
+
+    private async Task ImprimirAberturaCaixa()
+    {
+        var req = new ImprimirSessaoCaixaReq
+        {
+            SessaoCaixaId = SessaoCaixaId,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId
+        };
+        await InvocarCommand("imprimir_comprovante_abertura_caixa", req);
+    }
+
+    private async Task ImprimirFechamentoCaixa()
+    {
+        var req = new ImprimirSessaoCaixaReq
+        {
+            SessaoCaixaId = SessaoCaixaId,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId
+        };
+        await InvocarCommand("imprimir_comprovante_fechamento_caixa", req);
+    }
+
+    private async Task ImprimirResumoGerencial()
+    {
+        var req = new ImprimirSessaoCaixaReq
+        {
+            SessaoCaixaId = SessaoCaixaId,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId
+        };
+        await InvocarCommand("imprimir_resumo_gerencial_caixa", req);
+    }
+
+    private async Task ImprimirMovimentacaoCaixa()
+    {
+        var req = new ImprimirMovimentacaoCaixaReq
+        {
+            MovimentacaoId = MovimentacaoId,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId
+        };
+        await InvocarCommand("imprimir_comprovante_movimentacao_caixa", req);
+    }
+
+    private async Task ImprimirTicketProducao()
+    {
+        var req = new ImprimirProducaoReq
+        {
+            EnvioId = EnvioId,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId
+        };
+        await InvocarCommand("imprimir_ticket_producao", req);
+    }
+
+    private async Task ImprimirCancelamentoProducao()
+    {
+        var req = new ImprimirCancelamentoProducaoReq
+        {
+            OrigemTipo = OrigemTipo,
+            OrigemId = OrigemId,
+            ItemId = string.IsNullOrWhiteSpace(ItemIdCancelado) ? null : ItemIdCancelado,
+            Motivo = MotivoCancelamento,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId
+        };
+        await InvocarCommand("imprimir_ticket_cancelamento_producao", req);
+    }
+
+    private async Task ImprimirRomaneioDelivery()
+    {
+        var req = new ImprimirRomaneioDeliveryReq
+        {
+            DeliveryId = DeliveryId,
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId
+        };
+        await InvocarCommand("imprimir_romaneio_delivery", req);
+    }
+
+    private async Task AbrirGavetaDinheiro()
+    {
+        var req = new AbrirGavetaReq
+        {
+            Destino = DestinoAtual,
+            UsuarioId = CurrentUserId,
+            Motivo = MotivoGaveta
+        };
+        await InvocarCommand("abrir_gaveta_dinheiro", req);
+    }
+}
