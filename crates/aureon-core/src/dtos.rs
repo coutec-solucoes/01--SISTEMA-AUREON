@@ -1269,3 +1269,22 @@ pub struct ImprimirBaixaFinanceiraReq {
     pub usuario_id: Option<String>,
     pub numero_via: Option<i32>,
 }
+
+// --- DTOs Fase 15 Bloco 3: Comprovantes de Caixa ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImprimirMovimentacaoCaixaReq {
+    pub movimentacao_id: String,
+    pub destino: ImpressoraDestinoReq,
+    pub usuario_id: Option<String>,
+    pub numero_via: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImprimirSessaoCaixaReq {
+    pub sessao_caixa_id: String,
+    pub destino: ImpressoraDestinoReq,
+    pub usuario_id: Option<String>,
+    pub numero_via: Option<i32>,
+}
+

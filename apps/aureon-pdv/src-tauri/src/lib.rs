@@ -162,6 +162,12 @@ pub fn run() {
             commands_impressao::imprimir_cupom_venda_nao_fiscal,
             commands_impressao::reimprimir_cupom_venda_nao_fiscal,
             commands_impressao::imprimir_comprovante_baixa_financeira,
+            // Commands de Impressao Caixa (Fase 15 Bloco 3)
+            commands_impressao::imprimir_comprovante_movimentacao_caixa,
+            commands_impressao::imprimir_comprovante_abertura_caixa,
+            commands_impressao::imprimir_comprovante_fechamento_caixa,
+            commands_impressao::imprimir_resumo_gerencial_caixa,
+
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -608,3 +608,551 @@ pub async fn imprimir_comprovante_baixa_financeira(
     }
 }
 
+
+// ================================================================
+// BLOCO 3 — Comprovantes de Caixa
+// ================================================================
+
+// ================================================================
+// Command: imprimir_comprovante_movimentacao_caixa
+// ================================================================
+
+#[tauri::command]
+pub async fn imprimir_comprovante_movimentacao_caixa(
+    req: ImprimirMovimentacaoCaixaReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<RespostaBase<ImpressaoResultadoResp>, String> {
+    info!(
+        componente = "aureon-pdv::commands_impressao",
+        movimentacao_id = %req.movimentacao_id,
+        "Chamada: imprimir_comprovante_movimentacao_caixa"
+    );
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    let (tipo_mov, moeda, valor_minor, motivo, usuario_id, sessao_id, criado_em, cancelado) =
+        conn.query_row(
+            "SELECT tipo_movimentacao, moeda_codigo, valor_minor, motivo,
+                    usuario_id, sessao_caixa_id, criado_em, cancelado
+             FROM caixa_movimentacoes WHERE id = ?1",
+            rusqlite::params![req.movimentacao_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, i32>(7)?,
+                ))
+            },
+        )
+        .map_err(|_| "Movimentacao de caixa nao encontrada".to_string())?;
+
+    let titulo = match tipo_mov.as_str() {
+        "SANGRIA" => "COMPROVANTE DE SANGRIA",
+        "SUPRIMENTO" => "COMPROVANTE DE SUPRIMENTO",
+        "VALE_FUNCIONARIO" => "COMPROVANTE DE VALE FUNCIONARIO",
+        "AJUSTE_ENTRADA" => "COMPROVANTE DE AJUSTE ENTRADA",
+        "AJUSTE_SAIDA" => "COMPROVANTE DE AJUSTE SAIDA",
+        _ => "COMPROVANTE DE MOVIMENTACAO",
+    };
+
+    let mut builder = EscPosBuilder::new(req.destino.largura_colunas);
+    builder.init();
+    builder.align(1);
+    builder.bold(true);
+    builder.size(true);
+    builder.text("AUREON PDV");
+    builder.size(false);
+    builder.text(titulo);
+    builder.text("DOCUMENTO NAO FISCAL");
+    builder.bold(false);
+    builder.text("NAO E VALIDO COMO DOCUMENTO FISCAL");
+
+    if cancelado == 1 {
+        builder.bold(true);
+        builder.text("*** CANCELADO ***");
+        builder.bold(false);
+    }
+
+    builder.separator('-');
+    builder.align(0);
+    builder.text(&format!("DATA/HORA  : {}", criado_em));
+    builder.text(&format!("OPERADOR   : {}", usuario_id));
+    builder.text(&format!("SESSAO CX  : {}", &sessao_id[..8]));
+    builder.text(&format!("TIPO       : {}", tipo_mov));
+
+    if let Some(mot) = motivo {
+        if !mot.is_empty() {
+            builder.text(&format!("MOTIVO     : {}", mot));
+        }
+    }
+
+    builder.separator('-');
+    builder.bold(true);
+    builder.text(&format!("VALOR: {} {}", formatar_moeda(valor_minor), moeda));
+    builder.bold(false);
+
+    builder.separator('-');
+    builder.align(1);
+    builder.text(" ");
+    builder.text("_________________________________");
+    builder.text("ASSINATURA DO RESPONSAVEL");
+    builder.text(" ");
+    builder.text(" ");
+    builder.text(" ");
+
+    if req.destino.cortar_papel {
+        builder.cut();
+    }
+    if req.destino.abrir_gaveta {
+        builder.open_drawer();
+    }
+
+    let payload = builder.buffer.clone();
+    match executar_impressao(&req.destino, &payload) {
+        Ok(res) => Ok(RespostaBase::ok("Comprovante de movimentacao impresso", res)),
+        Err(e) => Err(e),
+    }
+}
+
+// ================================================================
+// Command: imprimir_comprovante_abertura_caixa
+// ================================================================
+
+#[tauri::command]
+pub async fn imprimir_comprovante_abertura_caixa(
+    req: ImprimirSessaoCaixaReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<RespostaBase<ImpressaoResultadoResp>, String> {
+    info!(
+        componente = "aureon-pdv::commands_impressao",
+        sessao_id = %req.sessao_caixa_id,
+        "Chamada: imprimir_comprovante_abertura_caixa"
+    );
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    let (registradora_id, operador_id, aberto_em, obs) = conn
+        .query_row(
+            "SELECT registradora_id, usuario_id, aberto_em, observacao
+             FROM sessoes_caixa WHERE id = ?1",
+            rusqlite::params![req.sessao_caixa_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                ))
+            },
+        )
+        .map_err(|_| "Sessao de caixa nao encontrada".to_string())?;
+
+    let mut builder = EscPosBuilder::new(req.destino.largura_colunas);
+    builder.init();
+    builder.align(1);
+    builder.bold(true);
+    builder.size(true);
+    builder.text("AUREON PDV");
+    builder.size(false);
+    builder.text("ABERTURA DE CAIXA");
+    builder.text("DOCUMENTO NAO FISCAL");
+    builder.bold(false);
+    builder.text("NAO E VALIDO COMO DOCUMENTO FISCAL");
+    builder.separator('-');
+
+    builder.align(0);
+    builder.text(&format!("ABERTURA EM: {}", aberto_em));
+    builder.text(&format!("OPERADOR   : {}", operador_id));
+    builder.text(&format!("TERMINAL   : {}", registradora_id));
+    builder.text(&format!("SESSAO     : {}", &req.sessao_caixa_id[..8]));
+
+    if let Some(o) = obs {
+        if !o.is_empty() {
+            builder.text(&format!("OBS        : {}", o));
+        }
+    }
+
+    // Saldos de abertura por moeda
+    let mut stmt_moedas = conn
+        .prepare(
+            "SELECT moeda_codigo, valor_abertura_minor
+             FROM sessoes_caixa_moedas WHERE sessao_id = ?1 ORDER BY moeda_codigo",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let moedas: Vec<(String, i64)> = stmt_moedas
+        .query_map(rusqlite::params![req.sessao_caixa_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !moedas.is_empty() {
+        builder.separator('-');
+        builder.text("SALDOS INICIAIS:");
+        for (moeda, saldo) in &moedas {
+            builder.text(&format!("  {:<6} {}", moeda, formatar_moeda(*saldo)));
+        }
+    }
+
+    builder.separator('-');
+    builder.align(1);
+    builder.text(" ");
+    builder.text("_________________________________");
+    builder.text("ASSINATURA DO OPERADOR");
+    builder.text(" ");
+    builder.text(" ");
+    builder.text(" ");
+
+    if req.destino.cortar_papel {
+        builder.cut();
+    }
+    if req.destino.abrir_gaveta {
+        builder.open_drawer();
+    }
+
+    let payload = builder.buffer.clone();
+    match executar_impressao(&req.destino, &payload) {
+        Ok(res) => Ok(RespostaBase::ok("Comprovante de abertura impresso", res)),
+        Err(e) => Err(e),
+    }
+}
+
+// ================================================================
+// Command: imprimir_comprovante_fechamento_caixa
+// ================================================================
+
+#[tauri::command]
+pub async fn imprimir_comprovante_fechamento_caixa(
+    req: ImprimirSessaoCaixaReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<RespostaBase<ImpressaoResultadoResp>, String> {
+    info!(
+        componente = "aureon-pdv::commands_impressao",
+        sessao_id = %req.sessao_caixa_id,
+        "Chamada: imprimir_comprovante_fechamento_caixa"
+    );
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    let (registradora_id, operador_id, aberto_em, fechado_em, status, obs) = conn
+        .query_row(
+            "SELECT registradora_id, usuario_id, aberto_em, fechado_em, status, observacao
+             FROM sessoes_caixa WHERE id = ?1",
+            rusqlite::params![req.sessao_caixa_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                ))
+            },
+        )
+        .map_err(|_| "Sessao de caixa nao encontrada".to_string())?;
+
+    let mut builder = EscPosBuilder::new(req.destino.largura_colunas);
+    builder.init();
+    builder.align(1);
+    builder.bold(true);
+    builder.size(true);
+    builder.text("AUREON PDV");
+    builder.size(false);
+    builder.text("FECHAMENTO DE CAIXA");
+    builder.text("DOCUMENTO NAO FISCAL");
+    builder.bold(false);
+    builder.text("NAO E VALIDO COMO DOCUMENTO FISCAL");
+    builder.separator('-');
+
+    builder.align(0);
+    builder.text(&format!("OPERADOR   : {}", operador_id));
+    builder.text(&format!("TERMINAL   : {}", registradora_id));
+    builder.text(&format!("SESSAO     : {}", &req.sessao_caixa_id[..8]));
+    builder.text(&format!("STATUS     : {}", status));
+    builder.text(&format!("ABERTURA   : {}", aberto_em));
+    builder.text(&format!(
+        "FECHAMENTO : {}",
+        fechado_em.as_deref().unwrap_or("---")
+    ));
+
+    if let Some(o) = obs {
+        if !o.is_empty() {
+            builder.text(&format!("OBS        : {}", o));
+        }
+    }
+
+    // Saldos por moeda (lê o que já foi gravado — não recalcula)
+    let mut stmt_moedas = conn
+        .prepare(
+            "SELECT moeda_codigo, valor_abertura_minor, valor_esperado_minor,
+                    valor_fechamento_informado_minor, diferenca_minor
+             FROM sessoes_caixa_moedas WHERE sessao_id = ?1 ORDER BY moeda_codigo",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let moedas: Vec<(String, i64, Option<i64>, Option<i64>, Option<i64>)> = stmt_moedas
+        .query_map(rusqlite::params![req.sessao_caixa_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, Option<i64>>(2)?,
+                row.get::<_, Option<i64>>(3)?,
+                row.get::<_, Option<i64>>(4)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    for (moeda, abertura, esperado, informado, diferenca) in &moedas {
+        builder.separator('-');
+        builder.bold(true);
+        builder.text(&format!("MOEDA: {}", moeda));
+        builder.bold(false);
+        builder.text(&format!("  ABERTURA  : {}", formatar_moeda(*abertura)));
+        if let Some(esp) = esperado {
+            builder.text(&format!("  ESPERADO  : {}", formatar_moeda(*esp)));
+        }
+        if let Some(inf) = informado {
+            builder.text(&format!("  INFORMADO : {}", formatar_moeda(*inf)));
+        }
+        if let Some(dif) = diferenca {
+            let sinal = if *dif >= 0 { "+" } else { "" };
+            builder.text(&format!("  DIFERENCA : {}{}", sinal, formatar_moeda(*dif)));
+        }
+    }
+
+    builder.separator('-');
+    builder.align(1);
+    builder.text(" ");
+    builder.text("_________________________________");
+    builder.text("ASSINATURA DO OPERADOR");
+    builder.text(" ");
+    builder.text(" ");
+    builder.text(" ");
+
+    if req.destino.cortar_papel {
+        builder.cut();
+    }
+    if req.destino.abrir_gaveta {
+        builder.open_drawer();
+    }
+
+    let payload = builder.buffer.clone();
+    match executar_impressao(&req.destino, &payload) {
+        Ok(res) => Ok(RespostaBase::ok("Comprovante de fechamento impresso", res)),
+        Err(e) => Err(e),
+    }
+}
+
+// ================================================================
+// Command: imprimir_resumo_gerencial_caixa
+// ================================================================
+
+#[tauri::command]
+pub async fn imprimir_resumo_gerencial_caixa(
+    req: ImprimirSessaoCaixaReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<RespostaBase<ImpressaoResultadoResp>, String> {
+    info!(
+        componente = "aureon-pdv::commands_impressao",
+        sessao_id = %req.sessao_caixa_id,
+        "Chamada: imprimir_resumo_gerencial_caixa"
+    );
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    let (registradora_id, operador_id, aberto_em, fechado_em, status) = conn
+        .query_row(
+            "SELECT registradora_id, usuario_id, aberto_em, fechado_em, status
+             FROM sessoes_caixa WHERE id = ?1",
+            rusqlite::params![req.sessao_caixa_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            },
+        )
+        .map_err(|_| "Sessao de caixa nao encontrada".to_string())?;
+
+    let mut builder = EscPosBuilder::new(req.destino.largura_colunas);
+    builder.init();
+    builder.align(1);
+    builder.bold(true);
+    builder.size(true);
+    builder.text("AUREON PDV");
+    builder.size(false);
+    builder.text("RESUMO GERENCIAL DE CAIXA");
+    builder.text("DOCUMENTO NAO FISCAL");
+    builder.bold(false);
+    builder.text("NAO E VALIDO COMO DOCUMENTO FISCAL");
+    builder.separator('=');
+
+    builder.align(0);
+    builder.text(&format!("OPERADOR   : {}", operador_id));
+    builder.text(&format!("TERMINAL   : {}", registradora_id));
+    builder.text(&format!("SESSAO     : {}", &req.sessao_caixa_id[..8]));
+    builder.text(&format!("STATUS     : {}", status));
+    builder.text(&format!("ABERTURA   : {}", aberto_em));
+    builder.text(&format!(
+        "FECHAMENTO : {}",
+        fechado_em.as_deref().unwrap_or("EM ABERTO")
+    ));
+
+    // Moedas da sessão
+    let mut stmt_moedas = conn
+        .prepare(
+            "SELECT moeda_codigo, valor_abertura_minor, valor_esperado_minor,
+                    valor_fechamento_informado_minor, diferenca_minor
+             FROM sessoes_caixa_moedas WHERE sessao_id = ?1 ORDER BY moeda_codigo",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let moedas: Vec<(String, i64, Option<i64>, Option<i64>, Option<i64>)> = stmt_moedas
+        .query_map(rusqlite::params![req.sessao_caixa_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, Option<i64>>(2)?,
+                row.get::<_, Option<i64>>(3)?,
+                row.get::<_, Option<i64>>(4)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    for (moeda, abertura, esperado, informado, diferenca) in &moedas {
+        builder.separator('-');
+        builder.bold(true);
+        builder.text(&format!("[ {} ]", moeda));
+        builder.bold(false);
+        builder.text(&format!("  Abertura    : {}", formatar_moeda(*abertura)));
+
+        // Vendas por moeda nesta sessão (apenas leitura dos pagamentos registrados)
+        let total_vendas: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(vp.valor_informado_minor), 0)
+                 FROM venda_pagamentos vp
+                 INNER JOIN vendas v ON v.id = vp.venda_id
+                 WHERE v.sessao_caixa_id = ?1
+                   AND vp.moeda_codigo = ?2
+                   AND v.status = 'FINALIZADA'",
+                rusqlite::params![req.sessao_caixa_id, moeda],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap_or(0);
+
+        // Suprimentos por moeda
+        let total_suprimentos: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(valor_minor), 0) FROM caixa_movimentacoes
+                 WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2
+                   AND tipo_movimentacao = 'SUPRIMENTO' AND cancelado = 0",
+                rusqlite::params![req.sessao_caixa_id, moeda],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap_or(0);
+
+        // Sangrias por moeda
+        let total_sangrias: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(valor_minor), 0) FROM caixa_movimentacoes
+                 WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2
+                   AND tipo_movimentacao = 'SANGRIA' AND cancelado = 0",
+                rusqlite::params![req.sessao_caixa_id, moeda],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap_or(0);
+
+        // Vales por moeda
+        let total_vales: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(valor_minor), 0) FROM caixa_movimentacoes
+                 WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2
+                   AND tipo_movimentacao = 'VALE_FUNCIONARIO' AND cancelado = 0",
+                rusqlite::params![req.sessao_caixa_id, moeda],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap_or(0);
+
+        // Recebimentos financeiros por moeda
+        let total_recebimentos: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(valor_informado_minor), 0) FROM financeiro_lancamentos
+                 WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2
+                   AND tipo_lancamento = 'RECEBIMENTO'",
+                rusqlite::params![req.sessao_caixa_id, moeda],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap_or(0);
+
+        // Pagamentos financeiros por moeda
+        let total_pagamentos: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(valor_informado_minor), 0) FROM financeiro_lancamentos
+                 WHERE sessao_caixa_id = ?1 AND moeda_codigo = ?2
+                   AND tipo_lancamento = 'PAGAMENTO'",
+                rusqlite::params![req.sessao_caixa_id, moeda],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap_or(0);
+
+        builder.text(&format!("  Vendas      : {}", formatar_moeda(total_vendas)));
+        if total_suprimentos > 0 {
+            builder.text(&format!("  Suprimentos : {}", formatar_moeda(total_suprimentos)));
+        }
+        if total_sangrias > 0 {
+            builder.text(&format!("  Sangrias    : -{}", formatar_moeda(total_sangrias)));
+        }
+        if total_vales > 0 {
+            builder.text(&format!("  Vales       : -{}", formatar_moeda(total_vales)));
+        }
+        if total_recebimentos > 0 {
+            builder.text(&format!("  Recebimentos: {}", formatar_moeda(total_recebimentos)));
+        }
+        if total_pagamentos > 0 {
+            builder.text(&format!("  Pagamentos  : -{}", formatar_moeda(total_pagamentos)));
+        }
+
+        if let Some(esp) = esperado {
+            builder.text(&format!("  Esperado    : {}", formatar_moeda(*esp)));
+        }
+        if let Some(inf) = informado {
+            builder.text(&format!("  Informado   : {}", formatar_moeda(*inf)));
+        }
+        if let Some(dif) = diferenca {
+            let sinal = if *dif >= 0 { "+" } else { "" };
+            builder.bold(true);
+            builder.text(&format!("  Diferenca   : {}{}", sinal, formatar_moeda(*dif)));
+            builder.bold(false);
+        }
+    }
+
+    builder.separator('=');
+    builder.align(1);
+    builder.text(" ");
+    builder.text(" ");
+    builder.text(" ");
+
+    if req.destino.cortar_papel {
+        builder.cut();
+    }
+    if req.destino.abrir_gaveta {
+        builder.open_drawer();
+    }
+
+    let payload = builder.buffer.clone();
+    match executar_impressao(&req.destino, &payload) {
+        Ok(res) => Ok(RespostaBase::ok("Resumo gerencial impresso", res)),
+        Err(e) => Err(e),
+    }
+}
