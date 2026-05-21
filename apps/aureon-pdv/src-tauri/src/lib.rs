@@ -159,6 +159,9 @@ pub fn run() {
             commands_relatorios::gerar_relatorio_gourmet_delivery,
             // Commands de Impressao (Fase 15)
             commands_impressao::testar_impressora,
+            commands_impressao::imprimir_cupom_venda_nao_fiscal,
+            commands_impressao::reimprimir_cupom_venda_nao_fiscal,
+            commands_impressao::imprimir_comprovante_baixa_financeira,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

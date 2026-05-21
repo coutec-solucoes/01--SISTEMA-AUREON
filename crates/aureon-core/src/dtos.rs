@@ -1245,3 +1245,27 @@ pub struct ImpressaoResultadoResp {
     pub caminho_arquivo_simulado: Option<String>,
     pub bytes_gerados: usize,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImprimirVendaReq {
+    pub venda_id: String,
+    pub destino: ImpressoraDestinoReq,
+    pub usuario_id: Option<String>,
+    pub numero_via: Option<i32>,
+    pub imprimir_itens_cancelados: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReimprimirVendaReq {
+    pub venda_id: String,
+    pub destino: ImpressoraDestinoReq,
+    pub usuario_id: Option<String>,
+    pub motivo_reimpressao: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImprimirBaixaFinanceiraReq {
+    pub lancamento_id: String,
+    pub destino: ImpressoraDestinoReq,
+    pub usuario_id: Option<String>,
+    pub numero_via: Option<i32>,
+}
