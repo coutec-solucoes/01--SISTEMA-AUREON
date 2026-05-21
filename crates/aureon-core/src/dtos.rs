@@ -1322,3 +1322,130 @@ pub struct AbrirGavetaReq {
     pub usuario_id: Option<String>,
     pub motivo: Option<String>,
 }
+
+// =========================================
+// FASE 16 - DTOs FISCAIS (ESTRUTURA E PREVIEW)
+// =========================================
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FiscalEmpresaConfigResp {
+    pub id: String,
+    pub pais_fiscal: String,
+    pub regime_fiscal: Option<String>,
+    pub ambiente: String,
+    pub forma_emissao: String,
+    pub certificado_alias: Option<String>,
+    pub certificado_caminho: Option<String>,
+    pub configuracao_json: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SalvarFiscalEmpresaConfigReq {
+    pub pais_fiscal: String,
+    pub regime_fiscal: Option<String>,
+    pub ambiente: String,
+    pub forma_emissao: String,
+    pub certificado_alias: Option<String>,
+    pub certificado_caminho: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FiscalNcmResp {
+    pub id: String,
+    pub codigo: String,
+    pub descricao: Option<String>,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FiscalCfopResp {
+    pub id: String,
+    pub codigo: String,
+    pub descricao: Option<String>,
+    pub tipo_operacao: Option<String>,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FiscalCstCsosnResp {
+    pub id: String,
+    pub codigo: String,
+    pub tipo: String,
+    pub descricao: Option<String>,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FiscalIvaResp {
+    pub id: String,
+    pub codigo: String,
+    pub descricao: Option<String>,
+    pub aliquota_escala6: i64,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SalvarFiscalIvaReq {
+    pub codigo: String,
+    pub descricao: Option<String>,
+    pub aliquota_escala6: i64,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FiscalRegraTributariaResp {
+    pub id: String,
+    pub pais_fiscal: String,
+    pub tipo_operacao: String,
+    pub uf_origem: Option<String>,
+    pub uf_destino: Option<String>,
+    pub ncm_id: Option<String>,
+    pub cfop_id: Option<String>,
+    pub cst_csosn_id: Option<String>,
+    pub iva_id: Option<String>,
+    pub aliquota_icms_escala6: i64,
+    pub aliquota_pis_escala6: i64,
+    pub aliquota_cofins_escala6: i64,
+    pub aliquota_iva_escala6: i64,
+    pub reducao_base_escala6: i64,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SalvarFiscalRegraTributariaReq {
+    pub pais_fiscal: String,
+    pub tipo_operacao: String,
+    pub uf_origem: Option<String>,
+    pub uf_destino: Option<String>,
+    pub ncm_id: Option<String>,
+    pub cfop_id: Option<String>,
+    pub cst_csosn_id: Option<String>,
+    pub iva_id: Option<String>,
+    pub aliquota_icms_escala6: i64,
+    pub aliquota_pis_escala6: i64,
+    pub aliquota_cofins_escala6: i64,
+    pub aliquota_iva_escala6: i64,
+    pub reducao_base_escala6: i64,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VincularFiscalProdutoReq {
+    pub produto_id: String,
+    pub ncm_id: Option<String>,
+    pub iva_id: Option<String>,
+    pub cst_csosn_id: Option<String>,
+    pub cfop_padrao_id: Option<String>,
+    pub origem_mercadoria: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FiscalEventoLogResp {
+    pub id: String,
+    pub venda_id: Option<String>,
+    pub tipo_evento: String,
+    pub origem: Option<String>,
+    pub payload_preview: Option<String>,
+    pub mensagem: Option<String>,
+    pub criado_em: String,
+}

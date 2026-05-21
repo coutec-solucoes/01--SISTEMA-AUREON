@@ -11,6 +11,7 @@ pub mod commands_compras;
 pub mod commands_financeiro;
 pub mod commands_relatorios;
 pub mod commands_impressao;
+pub mod commands_fiscal;
 pub mod estado;
 
 use aureon_shared::logging::inicializar_logs;
@@ -172,6 +173,18 @@ pub fn run() {
             commands_impressao::imprimir_ticket_cancelamento_producao,
             commands_impressao::imprimir_romaneio_delivery,
             commands_impressao::abrir_gaveta_dinheiro,
+            // Commands Fiscais (Fase 16 Bloco 2)
+            commands_fiscal::obter_configuracao_fiscal_empresa,
+            commands_fiscal::salvar_configuracao_fiscal_empresa,
+            commands_fiscal::listar_fiscal_ncm,
+            commands_fiscal::listar_fiscal_cfop,
+            commands_fiscal::listar_fiscal_cst_csosn,
+            commands_fiscal::listar_fiscal_iva,
+            commands_fiscal::listar_fiscal_regras_tributarias,
+            commands_fiscal::salvar_fiscal_iva,
+            commands_fiscal::salvar_regra_tributaria,
+            commands_fiscal::vincular_fiscal_produto,
+            commands_fiscal::listar_fiscal_eventos_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

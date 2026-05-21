@@ -1207,4 +1207,117 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("motivo")]
         public string? Motivo { get; init; }
     }
+    // === DTOs Fiscais (Fase 16 Bloco 2) ===
+
+    public class FiscalEmpresaConfigResp {
+        public string Id { get; set; } = string.Empty;
+        public string Pais_fiscal { get; set; } = string.Empty;
+        public string? Regime_fiscal { get; set; }
+        public string Ambiente { get; set; } = string.Empty;
+        public string Forma_emissao { get; set; } = string.Empty;
+        public string? Certificado_alias { get; set; }
+        public string? Certificado_caminho { get; set; }
+        public string? Configuracao_json { get; set; }
+    }
+
+    public class SalvarFiscalEmpresaConfigReq {
+        public string pais_fiscal { get; set; } = string.Empty;
+        public string? regime_fiscal { get; set; }
+        public string ambiente { get; set; } = string.Empty;
+        public string forma_emissao { get; set; } = string.Empty;
+        public string? certificado_alias { get; set; }
+        public string? certificado_caminho { get; set; }
+    }
+
+    public class FiscalNcmResp {
+        public string Id { get; set; } = string.Empty;
+        public string Codigo { get; set; } = string.Empty;
+        public string? Descricao { get; set; }
+        public bool Ativo { get; set; }
+    }
+
+    public class FiscalCfopResp {
+        public string Id { get; set; } = string.Empty;
+        public string Codigo { get; set; } = string.Empty;
+        public string? Descricao { get; set; }
+        public string? Tipo_operacao { get; set; }
+        public bool Ativo { get; set; }
+    }
+
+    public class FiscalCstCsosnResp {
+        public string Id { get; set; } = string.Empty;
+        public string Codigo { get; set; } = string.Empty;
+        public string Tipo { get; set; } = string.Empty;
+        public string? Descricao { get; set; }
+        public bool Ativo { get; set; }
+    }
+
+    public class FiscalIvaResp {
+        public string Id { get; set; } = string.Empty;
+        public string Codigo { get; set; } = string.Empty;
+        public string? Descricao { get; set; }
+        public long Aliquota_escala6 { get; set; }
+        public bool Ativo { get; set; }
+    }
+
+    public class SalvarFiscalIvaReq {
+        public string codigo { get; set; } = string.Empty;
+        public string? descricao { get; set; }
+        public long aliquota_escala6 { get; set; }
+        public bool ativo { get; set; }
+    }
+
+    public class FiscalRegraTributariaResp {
+        public string Id { get; set; } = string.Empty;
+        public string Pais_fiscal { get; set; } = string.Empty;
+        public string Tipo_operacao { get; set; } = string.Empty;
+        public string? Uf_origem { get; set; }
+        public string? Uf_destino { get; set; }
+        public string? Ncm_id { get; set; }
+        public string? Cfop_id { get; set; }
+        public string? Cst_csosn_id { get; set; }
+        public string? Iva_id { get; set; }
+        public long Aliquota_icms_escala6 { get; set; }
+        public long Aliquota_pis_escala6 { get; set; }
+        public long Aliquota_cofins_escala6 { get; set; }
+        public long Aliquota_iva_escala6 { get; set; }
+        public long Reducao_base_escala6 { get; set; }
+        public bool Ativo { get; set; }
+    }
+
+    public class SalvarFiscalRegraTributariaReq {
+        public string pais_fiscal { get; set; } = string.Empty;
+        public string tipo_operacao { get; set; } = string.Empty;
+        public string? uf_origem { get; set; }
+        public string? uf_destino { get; set; }
+        public string? ncm_id { get; set; }
+        public string? cfop_id { get; set; }
+        public string? cst_csosn_id { get; set; }
+        public string? iva_id { get; set; }
+        public long aliquota_icms_escala6 { get; set; }
+        public long aliquota_pis_escala6 { get; set; }
+        public long aliquota_cofins_escala6 { get; set; }
+        public long aliquota_iva_escala6 { get; set; }
+        public long reducao_base_escala6 { get; set; }
+        public bool ativo { get; set; }
+    }
+
+    public class VincularFiscalProdutoReq {
+        public string produto_id { get; set; } = string.Empty;
+        public string? ncm_id { get; set; }
+        public string? iva_id { get; set; }
+        public string? cst_csosn_id { get; set; }
+        public string? cfop_padrao_id { get; set; }
+        public string? origem_mercadoria { get; set; }
+    }
+
+    public class FiscalEventoLogResp {
+        public string Id { get; set; } = string.Empty;
+        public string? Venda_id { get; set; }
+        public string Tipo_evento { get; set; } = string.Empty;
+        public string? Origem { get; set; }
+        public string? Payload_preview { get; set; }
+        public string? Mensagem { get; set; }
+        public string Criado_em { get; set; } = string.Empty;
+    }
 }
