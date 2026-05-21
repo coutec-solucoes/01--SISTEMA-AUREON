@@ -238,5 +238,26 @@ Decisões de arquitetura adotadas na Fase 14 — Relatórios Operacionais, Dashb
 - **Decisão (Impressão Nativa)**: A funcionalidade de impressão/PDF usa `window.print()` com CSS `@media print` para separar o layout interativo do layout de impressão limpo. Nenhuma biblioteca de PDF de terceiros foi adicionada.
 - **Consequência**: O módulo de relatórios é seguro para uso em produção sem risco de corrupção de dados operacionais, com performance protegida por filtros de período e total compatibilidade offline-first.
 
+---
 
+# Registro de Decisões de Projeto (ADR) — Fase 15
 
+Decisões de arquitetura adotadas na Fase 15 — Impressão Operacional Não Fiscal.
+
+---
+
+## 🖨️ ADR 25: ESC/POS como Padrão Operacional — HTML/PDF apenas como Fallback Administrativo
+
+- **Contexto**: O PDV precisa imprimir cupons, comprovantes, tickets de produção e romaneios de delivery em impressoras térmicas não fiscais. Duas abordagens foram consideradas: (a) ESC/POS nativo via Rust, e (b) HTML/PDF gerado pelo Blazor.
+- **Decisão**: Adotado ESC/POS nativo como padrão operacional exclusivo para o PDV térmico. Um builder próprio (`EscPosBuilder`) foi implementado em Rust puro, sem dependências de terceiros. HTML/PDF via `window.print()` fica restrito ao uso administrativo da retaguarda web (ex: relatórios).
+- **Motivo**: Impressoras térmicas de PDV (Elgin, Daruma, Epson TM-T20, Bematech) não possuem drivers de impressão web. ESC/POS garante velocidade, corte de papel, pulso de gaveta e compatibilidade direta com todos os modelos comerciais via TCP/IP ou porta serial.
+- **Consequência**: O módulo de impressão do PDV é totalmente offline-first, sem dependência de browser, sistema operacional gráfico ou drivers externos. O builder cobre 100% dos documentos operacionais da Fase 15. Documentos fiscais (NFC-e, NF-e, SAT, SIFEN) ficam explicitamente fora do escopo como módulo separado.
+
+---
+
+## 🔒 ADR 26: Impressão como Saída Documental Pura — Separação de Concerns
+
+- **Contexto**: Em sistemas de PDV é comum que a impressão esteja acoplada à operação (ex: finalizar venda → imprimir automaticamente). Esse acoplamento cria riscos de falha silenciosa quando a impressora está offline.
+- **Decisão**: Impressão e operação são **módulos completamente separados**. Commands de impressão são independentes dos commands operacionais. A UI oferece botões de impressão avulsos em tela dedicada (`/reimpressoes`). O PDV pode fechar vendas, processar pagamentos e gerir caixa mesmo que a impressora esteja desligada.
+- **Exceção física permitida**: O pulso de abertura de gaveta (`abrir_gaveta_dinheiro`) é a única operação de hardware que não é puramente documental, mas também não altera dados financeiros — apenas dispara o sinal elétrico.
+- **Consequência**: Resiliência operacional garantida. Impressoras offline não travam o caixa. Reimpressões manuais são sempre possíveis via interface. Risco de inconsistência por falha de impressão é eliminado da camada transacional.
