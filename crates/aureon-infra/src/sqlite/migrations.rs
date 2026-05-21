@@ -69,6 +69,11 @@ fn migrations() -> Vec<Migration> {
             nome:   "fase13_financeiro",
             sql:    include_str!("../../../../database/migrations/sqlite/011_fase13_financeiro.sql"),
         },
+        Migration {
+            versao: 12,
+            nome:   "fase16_fiscal_base",
+            sql:    include_str!("../../../../database/migrations/sqlite/012_fase16_fiscal_base.sql"),
+        },
     ]
 }
 
