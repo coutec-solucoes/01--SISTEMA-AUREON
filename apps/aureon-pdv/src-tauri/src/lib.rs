@@ -12,6 +12,7 @@ pub mod commands_financeiro;
 pub mod commands_relatorios;
 pub mod commands_impressao;
 pub mod commands_fiscal;
+pub mod commands_sync_fiscal;
 pub mod estado;
 
 use aureon_shared::logging::inicializar_logs;
@@ -191,6 +192,11 @@ pub fn run() {
             commands_fiscal::calcular_espelho_fiscal_venda,
             commands_fiscal::obter_espelho_fiscal_venda,
             commands_fiscal::limpar_espelho_fiscal_venda,
+            // Commands Fiscais (Fase 17 Bloco 4 — Sync Fiscal)
+            commands_sync_fiscal::aplicar_pacote_fiscal,
+            commands_sync_fiscal::obter_status_versao_fiscal_local,
+            commands_sync_fiscal::listar_logs_sync_fiscal,
+            commands_sync_fiscal::validar_pacote_fiscal_local,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

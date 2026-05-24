@@ -1412,5 +1412,52 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("venda_id")]
         public string venda_id { get; set; } = string.Empty;
     }
+
+    // === DTOs de Sync Fiscal (Fase 17 Bloco 4) ===
+
+    public class AplicarPacoteFiscalReq {
+        [JsonPropertyName("pacote_id")]
+        public string? pacote_id { get; set; }
+        [JsonPropertyName("versao")]
+        public string versao { get; set; } = string.Empty;
+        [JsonPropertyName("payload_hash")]
+        public string payload_hash { get; set; } = string.Empty;
+        [JsonPropertyName("payload_json")]
+        public string payload_json { get; set; } = string.Empty;
+        [JsonPropertyName("idempotency_key")]
+        public string? idempotency_key { get; set; }
+    }
+
+    public class StatusVersaoFiscalResp {
+        [JsonPropertyName("versao_atual")]
+        public string? VersaoAtual { get; set; }
+        [JsonPropertyName("pacote_id")]
+        public string? PacoteId { get; set; }
+        [JsonPropertyName("payload_hash")]
+        public string? PayloadHash { get; set; }
+        [JsonPropertyName("status")]
+        public string? Status { get; set; }
+        [JsonPropertyName("total_registros")]
+        public long TotalRegistros { get; set; }
+        [JsonPropertyName("aplicado_em")]
+        public string? AplicadoEm { get; set; }
+        [JsonPropertyName("ultimo_erro")]
+        public string? UltimoErro { get; set; }
+    }
+
+    public class LogSyncFiscalResp {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("pacote_id")]
+        public string? PacoteId { get; set; }
+        [JsonPropertyName("versao")]
+        public string? Versao { get; set; }
+        [JsonPropertyName("tipo_evento")]
+        public string TipoEvento { get; set; } = string.Empty;
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+        [JsonPropertyName("criado_em")]
+        public string CriadoEm { get; set; } = string.Empty;
+    }
 }
 
