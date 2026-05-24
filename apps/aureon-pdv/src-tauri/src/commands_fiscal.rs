@@ -1,4 +1,3 @@
-﻿use tauri::State;
 use aureon_core::{dtos::*, RespostaBase};
 use crate::estado::EstadoApp;
 use uuid::Uuid;
@@ -249,6 +248,52 @@ pub async fn listar_fiscal_regras_tributarias(
     Ok(RespostaBase::ok("", lista))
 }
 
+// --- CONSULTA INDIVIDUAL ---
+
+#[tauri::command]
+pub async fn obter_regra_tributaria(
+    id: String,
+    estado: tauri::State<'_, EstadoApp>,
+) -> Result<RespostaBase<Option<FiscalRegraTributariaResp>>, String> {
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    let row = conn.query_row(
+        "SELECT id, pais_fiscal, tipo_operacao, uf_origem, uf_destino,
+                ncm_id, cfop_id, cst_csosn_id, iva_id,
+                aliquota_icms_escala6, aliquota_pis_escala6, aliquota_cofins_escala6,
+                aliquota_iva_escala6, reducao_base_escala6, ativo
+         FROM fiscal_regras_tributarias_cache WHERE id = ?1",
+        rusqlite::params![id],
+        |r| {
+            Ok(FiscalRegraTributariaResp {
+                id: r.get(0)?,
+                pais_fiscal: r.get(1)?,
+                tipo_operacao: r.get(2)?,
+                uf_origem: r.get(3)?,
+                uf_destino: r.get(4)?,
+                ncm_id: r.get(5)?,
+                cfop_id: r.get(6)?,
+                cst_csosn_id: r.get(7)?,
+                iva_id: r.get(8)?,
+                aliquota_icms_escala6: r.get(9)?,
+                aliquota_pis_escala6: r.get(10)?,
+                aliquota_cofins_escala6: r.get(11)?,
+                aliquota_iva_escala6: r.get(12)?,
+                reducao_base_escala6: r.get(13)?,
+                ativo: r.get::<_, i32>(14)? == 1,
+            })
+        },
+    );
+
+    match row {
+        Ok(regra) => Ok(RespostaBase::ok("Regra tributaria encontrada.", Some(regra))),
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            Ok(RespostaBase::ok("Regra tributaria nao encontrada.", None))
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 // --- MANUTENÃ‡ÃƒO ESTRUTURAL ---
 
 #[tauri::command]
@@ -332,7 +377,7 @@ pub async fn vincular_fiscal_produto(
     req: VincularFiscalProdutoReq,
     estado: tauri::State<'_, EstadoApp>,
 ) -> Result<RespostaBase<String>, String> {
-    let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
 
     let existe: bool = conn
         .query_row(

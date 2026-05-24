@@ -181,6 +181,7 @@ pub fn run() {
             commands_fiscal::listar_fiscal_cst_csosn,
             commands_fiscal::listar_fiscal_iva,
             commands_fiscal::listar_fiscal_regras_tributarias,
+            commands_fiscal::obter_regra_tributaria,
             commands_fiscal::salvar_fiscal_iva,
             commands_fiscal::salvar_regra_tributaria,
             commands_fiscal::vincular_fiscal_produto,
