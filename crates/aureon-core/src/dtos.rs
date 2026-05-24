@@ -1449,3 +1449,78 @@ pub struct FiscalEventoLogResp {
     pub mensagem: Option<String>,
     pub criado_em: String,
 }
+
+// =========================================
+// FASE 16 BLOCO 3 — DTOs ESPELHO FISCAL
+// Preview técnico sem emissão ou transmissão
+// =========================================
+
+/// Item individual de validação cadastral fiscal
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidacaoFiscalItemResp {
+    /// "empresa" | "produto:{id}" | "cliente:{id}"
+    pub entidade: String,
+    /// "OK" | "AVISO" | "ERRO"
+    pub nivel: String,
+    pub mensagem: String,
+}
+
+/// Resultado completo da validação cadastral fiscal
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidacaoFiscalResp {
+    pub valido: bool,
+    pub pais_fiscal: Option<String>,
+    pub ambiente: Option<String>,
+    pub total_erros: i32,
+    pub total_avisos: i32,
+    pub itens: Vec<ValidacaoFiscalItemResp>,
+}
+
+/// Espelho fiscal de um item da venda (preview técnico)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EspelhoFiscalItemResp {
+    pub venda_item_id: String,
+    pub produto_id: String,
+    pub descricao_produto: String,
+    pub ncm_id: Option<String>,
+    pub cfop_id: Option<String>,
+    pub cst_csosn_id: Option<String>,
+    pub iva_id: Option<String>,
+    /// Base de cálculo em minor unit (centavos/guaranis)
+    pub base_minor: i64,
+    /// Alíquota em escala 6 (ex: 10% = 100000)
+    pub aliquota_escala6: i64,
+    /// Imposto calculado = base * aliquota / 1_000_000
+    pub imposto_minor: i64,
+    pub origem_regra: String, // "REGRA_TRIBUTARIA" | "VINCULO_PRODUTO" | "SEM_DADOS"
+}
+
+/// Espelho fiscal da venda completa (preview técnico)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EspelhoFiscalVendaResp {
+    pub venda_id: String,
+    pub pais_fiscal: String,
+    pub ambiente: String,
+    pub modelo_preview: String, // "NFC-E_BR" | "SIFEN_PY" | "GENERICO"
+    pub status_preparacao: String, // "PREVIEW_OK" | "PREVIEW_COM_ALERTAS" | "PREVIEW_INCOMPLETO"
+    pub total_base_minor: i64,
+    pub total_imposto_minor: i64,
+    pub calculado_em: String,
+    pub itens: Vec<EspelhoFiscalItemResp>,
+    pub alertas: Vec<String>,
+}
+
+/// Requisição para calcular o espelho fiscal de uma venda
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CalcularEspelhoFiscalVendaReq {
+    pub venda_id: String,
+    /// Tipo de operação para busca de regras: ex. "VENDA_BALCAO", "VENDA_ENTREGA"
+    pub tipo_operacao: Option<String>,
+}
+
+/// Requisição para obter o espelho fiscal já calculado
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ObterEspelhoFiscalVendaReq {
+    pub venda_id: String,
+}
+

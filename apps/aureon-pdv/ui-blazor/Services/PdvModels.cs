@@ -1320,4 +1320,97 @@ namespace AureonPdvUi.Services
         public string? Mensagem { get; set; }
         public string Criado_em { get; set; } = string.Empty;
     }
+
+    // =========================================
+    // FASE 16 BLOCO 3 — DTOs ESPELHO FISCAL
+    // Preview técnico sem emissão ou transmissão
+    // =========================================
+
+    public class ValidacaoFiscalItemResp {
+        [JsonPropertyName("entidade")]
+        public string Entidade { get; set; } = string.Empty;
+        [JsonPropertyName("nivel")]
+        public string Nivel { get; set; } = string.Empty; // "OK" | "AVISO" | "ERRO"
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+    }
+
+    public class ValidacaoFiscalResp {
+        [JsonPropertyName("valido")]
+        public bool Valido { get; set; }
+        [JsonPropertyName("pais_fiscal")]
+        public string? PaisFiscal { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string? Ambiente { get; set; }
+        [JsonPropertyName("total_erros")]
+        public int TotalErros { get; set; }
+        [JsonPropertyName("total_avisos")]
+        public int TotalAvisos { get; set; }
+        [JsonPropertyName("itens")]
+        public List<ValidacaoFiscalItemResp> Itens { get; set; } = new();
+    }
+
+    public class EspelhoFiscalItemResp {
+        [JsonPropertyName("venda_item_id")]
+        public string VendaItemId { get; set; } = string.Empty;
+        [JsonPropertyName("produto_id")]
+        public string ProdutoId { get; set; } = string.Empty;
+        [JsonPropertyName("descricao_produto")]
+        public string DescricaoProduto { get; set; } = string.Empty;
+        [JsonPropertyName("ncm_id")]
+        public string? NcmId { get; set; }
+        [JsonPropertyName("cfop_id")]
+        public string? CfopId { get; set; }
+        [JsonPropertyName("cst_csosn_id")]
+        public string? CstCsosnId { get; set; }
+        [JsonPropertyName("iva_id")]
+        public string? IvaId { get; set; }
+        /// <summary>Base de cálculo em minor unit (centavos/guaranis)</summary>
+        [JsonPropertyName("base_minor")]
+        public long BaseMinor { get; set; }
+        /// <summary>Alíquota escala 6 (10% = 100000)</summary>
+        [JsonPropertyName("aliquota_escala6")]
+        public long AliquotaEscala6 { get; set; }
+        /// <summary>Imposto = base * aliquota / 1_000_000 (sem float)</summary>
+        [JsonPropertyName("imposto_minor")]
+        public long ImpostoMinor { get; set; }
+        [JsonPropertyName("origem_regra")]
+        public string OrigemRegra { get; set; } = string.Empty;
+    }
+
+    public class EspelhoFiscalVendaResp {
+        [JsonPropertyName("venda_id")]
+        public string VendaId { get; set; } = string.Empty;
+        [JsonPropertyName("pais_fiscal")]
+        public string PaisFiscal { get; set; } = string.Empty;
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = string.Empty;
+        [JsonPropertyName("modelo_preview")]
+        public string ModeloPreview { get; set; } = string.Empty;
+        [JsonPropertyName("status_preparacao")]
+        public string StatusPreparacao { get; set; } = string.Empty;
+        [JsonPropertyName("total_base_minor")]
+        public long TotalBaseMinor { get; set; }
+        [JsonPropertyName("total_imposto_minor")]
+        public long TotalImpostoMinor { get; set; }
+        [JsonPropertyName("calculado_em")]
+        public string CalculadoEm { get; set; } = string.Empty;
+        [JsonPropertyName("itens")]
+        public List<EspelhoFiscalItemResp> Itens { get; set; } = new();
+        [JsonPropertyName("alertas")]
+        public List<string> Alertas { get; set; } = new();
+    }
+
+    public class CalcularEspelhoFiscalVendaReq {
+        [JsonPropertyName("venda_id")]
+        public string venda_id { get; set; } = string.Empty;
+        [JsonPropertyName("tipo_operacao")]
+        public string? tipo_operacao { get; set; }
+    }
+
+    public class ObterEspelhoFiscalVendaReq {
+        [JsonPropertyName("venda_id")]
+        public string venda_id { get; set; } = string.Empty;
+    }
 }
+

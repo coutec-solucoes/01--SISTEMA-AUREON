@@ -186,6 +186,11 @@ pub fn run() {
             commands_fiscal::salvar_regra_tributaria,
             commands_fiscal::vincular_fiscal_produto,
             commands_fiscal::listar_fiscal_eventos_logs,
+            // Commands Fiscais (Fase 16 Bloco 3 — Espelho Preview)
+            commands_fiscal::validar_dados_cadastrais_fiscais,
+            commands_fiscal::calcular_espelho_fiscal_venda,
+            commands_fiscal::obter_espelho_fiscal_venda,
+            commands_fiscal::limpar_espelho_fiscal_venda,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
