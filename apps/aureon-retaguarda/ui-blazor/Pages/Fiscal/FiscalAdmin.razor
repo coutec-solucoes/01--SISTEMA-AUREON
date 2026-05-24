@@ -1,0 +1,63 @@
+@page "/fiscal"
+
+<PageTitle>Retaguarda Fiscal</PageTitle>
+
+<div class="container mt-4">
+    <div class="alert alert-warning text-center" role="alert">
+        <strong>Aviso Estrutural:</strong> Retaguarda Fiscal Mestre — publicação de regras, não emissão fiscal.
+    </div>
+
+    <h2 class="mb-4">Módulo Fiscal (Retaguarda Mestre)</h2>
+
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Configurações</h5>
+                    <p class="card-text text-muted">Configuração de ambiente, operação e diretrizes fiscais por país (BR/PY).</p>
+                    <a href="/fiscal/configuracoes" class="btn btn-primary">Acessar</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Dicionários Fiscais</h5>
+                    <p class="card-text text-muted">Gestão manual de NCM, CFOP, CST/CSOSN e IVA.</p>
+                    <a href="/fiscal/dicionarios" class="btn btn-primary">Acessar</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Regras Tributárias</h5>
+                    <p class="card-text text-muted">Matriz mestre de cálculo de impostos e alíquotas.</p>
+                    <a href="/fiscal/regras" class="btn btn-primary">Acessar</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Publicações e Versões</h5>
+                    <p class="card-text text-muted">Controle de pacotes versionados para sincronização com os PDVs.</p>
+                    <a href="/fiscal/publicacao" class="btn btn-primary">Acessar</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Auditoria Fiscal</h5>
+                    <p class="card-text text-muted">Rastreabilidade completa de alterações mestre e publicações.</p>
+                    <button class="btn btn-outline-secondary" disabled>Em breve (Aba de Auditoria)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

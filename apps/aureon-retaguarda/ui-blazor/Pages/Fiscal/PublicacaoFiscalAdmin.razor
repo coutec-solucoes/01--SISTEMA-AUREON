@@ -1,0 +1,175 @@
+@page "/fiscal/publicacao"
+@using AureonRetaguardaUi.Services
+@using System.Text.Json
+@inject FiscalApiClient ApiClient
+
+<PageTitle>Publicação Fiscal</PageTitle>
+
+<div class="container-fluid mt-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/fiscal">Fiscal</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Versões e Publicações</li>
+        </ol>
+    </nav>
+
+    <div class="alert alert-warning">
+        <strong>Atenção:</strong> Publicar versão fiscal apenas sincroniza dicionários/regras estruturais para PDVs locais. 
+        <strong>Não emite nota fiscal</strong> e não transmite dados para as secretarias da fazenda.
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex justify-content-between mb-3">
+                <h4>Versões de Pacotes Fiscais</h4>
+                <button class="btn btn-primary" @onclick="CriarRascunho">Criar Nova Versão (Rascunho)</button>
+            </div>
+
+            @if (carregando)
+            {
+                <div class="text-center">Carregando versões...</div>
+            }
+            else
+            {
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Versão</th>
+                            <th>País</th>
+                            <th>Status</th>
+                            <th>Total Registros</th>
+                            <th>Criado Em</th>
+                            <th>Publicado Em</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var v in versoes)
+                        {
+                            <tr>
+                                <td><strong>@v.Versao</strong></td>
+                                <td>@v.PaisFiscal</td>
+                                <td>
+                                    @if (v.Status == "RASCUNHO") { <span class="badge bg-secondary">Rascunho</span> }
+                                    else if (v.Status == "PUBLICADA") { <span class="badge bg-success">Publicada</span> }
+                                    else if (v.Status == "REPROCESSADA") { <span class="badge bg-primary">Reprocessada</span> }
+                                    else if (v.Status == "CANCELADA") { <span class="badge bg-danger">Cancelada</span> }
+                                    else { <span class="badge bg-dark">@v.Status</span> }
+                                </td>
+                                <td>@v.TotalRegistros</td>
+                                <td>@v.CriadoEm</td>
+                                <td>@v.PublicadoEm</td>
+                                <td class="text-end">
+                                    @if (v.Status == "RASCUNHO")
+                                    {
+                                        <button class="btn btn-sm btn-outline-success me-1" @onclick="@(() => PublicarVersao(v.Id))">Publicar Versão</button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="@(() => CancelarVersao(v.Id))">Cancelar</button>
+                                    }
+                                    @if (v.Status == "PUBLICADA" || v.Status == "REPROCESSADA")
+                                    {
+                                        <button class="btn btn-sm btn-outline-info me-1" @onclick="@(() => VisualizarPayload(v.Id))">Visualizar Payload</button>
+                                        <button class="btn btn-sm btn-outline-warning" @onclick="@(() => ReprocessarPacote(v.Id))">Reprocessar Pacote</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (!versoes.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">Nenhuma versão fiscal registrada.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@if (exibirPayloadModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.7);">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Payload JSON (Visualização)</h5>
+                    <button type="button" class="btn-close" @onclick="FecharModal"></button>
+                </div>
+                <div class="modal-body">
+                    <pre><code>@payloadVisualizado</code></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="FecharModal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool carregando = false;
+    private List<FiscalVersaoPublicacao> versoes = new();
+
+    private bool exibirPayloadModal = false;
+    private string payloadVisualizado = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true;
+        StateHasChanged();
+
+        var res = await ApiClient.ListarVersoesAsync();
+        if (res != null && res.Sucesso && res.Dados != null)
+        {
+            versoes = res.Dados;
+        }
+
+        carregando = false;
+        StateHasChanged();
+    }
+
+    private async Task CriarRascunho()
+    {
+        await ApiClient.CriarVersaoRascunhoAsync(new { pais_fiscal = "BR" });
+        await CarregarDados();
+    }
+
+    private async Task CancelarVersao(string id)
+    {
+        await ApiClient.CancelarVersaoAsync(id);
+        await CarregarDados();
+    }
+
+    private async Task PublicarVersao(string id)
+    {
+        await ApiClient.PublicarVersaoAsync(id);
+        await CarregarDados();
+    }
+
+    private async Task ReprocessarPacote(string id)
+    {
+        await ApiClient.ReprocessarVersaoAsync(id);
+        await CarregarDados();
+    }
+
+    private async Task VisualizarPayload(string id)
+    {
+        var res = await ApiClient.ObterPayloadVersaoAsync(id);
+        if (res != null && res.Sucesso && res.Dados != null)
+        {
+            payloadVisualizado = JsonSerializer.Serialize(res.Dados, new JsonSerializerOptions { WriteIndented = true });
+            exibirPayloadModal = true;
+        }
+    }
+
+    private void FecharModal()
+    {
+        exibirPayloadModal = false;
+        payloadVisualizado = "";
+    }
+}

@@ -1,0 +1,215 @@
+@page "/fiscal/regras"
+@using AureonRetaguardaUi.Services
+@inject FiscalApiClient ApiClient
+
+<PageTitle>Regras Tributárias</PageTitle>
+
+<div class="container-fluid mt-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/fiscal">Fiscal</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Regras Tributárias Mestre</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex justify-content-between mb-3">
+                <h4>Regras Tributárias Estruturais</h4>
+                <button class="btn btn-success" @onclick="AbrirModalNovaRegra">Nova Regra</button>
+            </div>
+
+            @if (carregando)
+            {
+                <div class="text-center">Carregando regras tributárias...</div>
+            }
+            else
+            {
+                <table class="table table-hover align-middle table-bordered text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th>País</th>
+                            <th>Operação</th>
+                            <th>UF (Origem &rarr; Destino)</th>
+                            <th>NCM / CFOP / CST / IVA</th>
+                            <th>ICMS %</th>
+                            <th>PIS %</th>
+                            <th>COFINS %</th>
+                            <th>IVA % (PY)</th>
+                            <th>Redução Base %</th>
+                            <th>Prioridade</th>
+                            <th>Ativo</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in regras)
+                        {
+                            <tr>
+                                <td>@r.PaisFiscal</td>
+                                <td>@r.TipoOperacao</td>
+                                <td>@(r.UfOrigem ?? "*") &rarr; @(r.UfDestino ?? "*")</td>
+                                <td>
+                                    <small>
+                                        NCM: @(r.NcmId ?? "*")<br/>
+                                        CFOP: @(r.CfopId ?? "*")<br/>
+                                        CST: @(r.CstCsosnId ?? "*")<br/>
+                                        IVA: @(r.IvaId ?? "*")
+                                    </small>
+                                </td>
+                                <td>@(r.AliquotaIcmsEscala6.HasValue ? (r.AliquotaIcmsEscala6.Value / 10000.0).ToString("0.00") : "-")</td>
+                                <td>@(r.AliquotaPisEscala6.HasValue ? (r.AliquotaPisEscala6.Value / 10000.0).ToString("0.00") : "-")</td>
+                                <td>@(r.AliquotaCofinsEscala6.HasValue ? (r.AliquotaCofinsEscala6.Value / 10000.0).ToString("0.00") : "-")</td>
+                                <td>@(r.AliquotaIvaEscala6.HasValue ? (r.AliquotaIvaEscala6.Value / 10000.0).ToString("0.00") : "-")</td>
+                                <td>@(r.ReducaoBaseEscala6.HasValue ? (r.ReducaoBaseEscala6.Value / 10000.0).ToString("0.00") : "-")</td>
+                                <td>@r.Prioridade</td>
+                                <td>
+                                    @if (r.Ativo) { <span class="badge bg-success">Ativo</span> } else { <span class="badge bg-danger">Inativo</span> }
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="@(() => Inativar(r.Id))" disabled="@(!r.Ativo)">Inativar</button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!regras.Any())
+                        {
+                            <tr>
+                                <td colspan="12" class="text-center text-muted">Nenhuma regra tributária cadastrada.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@* Modal Simples (Mockado para UI visual) *@
+@if (exibirModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nova Regra Tributária (Retaguarda Mestre)</h5>
+                    <button type="button" class="btn-close" @onclick="FecharModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label>País Fiscal</label>
+                            <select class="form-select" @bind="novaRegra.PaisFiscal">
+                                <option value="BR">BR - Brasil</option>
+                                <option value="PY">PY - Paraguai</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label>Tipo Operação *</label>
+                            <select class="form-select" @bind="novaRegra.TipoOperacao">
+                                <option value="ENTRADA">ENTRADA</option>
+                                <option value="SAIDA">SAÍDA</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label>Prioridade (>= 0)</label>
+                            <input type="number" class="form-control" @bind="novaRegra.Prioridade" min="0" />
+                        </div>
+                        <div class="col-md-3">
+                            <label>ICMS % (Decimal Visual)</label>
+                            <input type="number" step="0.01" class="form-control" @bind="inputIcms" placeholder="ex: 18.00" />
+                        </div>
+                        <div class="col-md-3">
+                            <label>PIS %</label>
+                            <input type="number" step="0.01" class="form-control" @bind="inputPis" placeholder="ex: 1.65" />
+                        </div>
+                        <div class="col-md-3">
+                            <label>COFINS %</label>
+                            <input type="number" step="0.01" class="form-control" @bind="inputCofins" placeholder="ex: 7.60" />
+                        </div>
+                        <div class="col-md-3">
+                            <label>IVA % (PY)</label>
+                            <input type="number" step="0.01" class="form-control" @bind="inputIva" placeholder="ex: 10.00" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="FecharModal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="SalvarRegra">Salvar Regra Mestre</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool carregando = false;
+    private List<FiscalRegraTributaria> regras = new();
+    
+    private bool exibirModal = false;
+    private FiscalRegraTributaria novaRegra = new FiscalRegraTributaria();
+    
+    // Decimais visuais
+    private decimal? inputIcms;
+    private decimal? inputPis;
+    private decimal? inputCofins;
+    private decimal? inputIva;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true;
+        StateHasChanged();
+
+        var res = await ApiClient.ListarRegrasAsync();
+        if (res != null && res.Sucesso && res.Dados != null)
+        {
+            regras = res.Dados;
+        }
+
+        carregando = false;
+        StateHasChanged();
+    }
+
+    private void AbrirModalNovaRegra()
+    {
+        novaRegra = new FiscalRegraTributaria();
+        inputIcms = null;
+        inputPis = null;
+        inputCofins = null;
+        inputIva = null;
+        exibirModal = true;
+    }
+
+    private void FecharModal()
+    {
+        exibirModal = false;
+    }
+
+    private async Task SalvarRegra()
+    {
+        // Validações
+        if (novaRegra.Prioridade < 0) return;
+        if (string.IsNullOrWhiteSpace(novaRegra.PaisFiscal)) return;
+        if (string.IsNullOrWhiteSpace(novaRegra.TipoOperacao)) return;
+
+        // Converter visual decimal para Escala 6 longo
+        if (inputIcms.HasValue) novaRegra.AliquotaIcmsEscala6 = (long)(inputIcms.Value * 10000m);
+        if (inputPis.HasValue) novaRegra.AliquotaPisEscala6 = (long)(inputPis.Value * 10000m);
+        if (inputCofins.HasValue) novaRegra.AliquotaCofinsEscala6 = (long)(inputCofins.Value * 10000m);
+        if (inputIva.HasValue) novaRegra.AliquotaIvaEscala6 = (long)(inputIva.Value * 10000m);
+
+        await ApiClient.CriarRegraAsync(novaRegra);
+        exibirModal = false;
+        await CarregarDados();
+    }
+
+    private async Task Inativar(string id)
+    {
+        await ApiClient.InativarRegraAsync(id);
+        await CarregarDados();
+    }
+}

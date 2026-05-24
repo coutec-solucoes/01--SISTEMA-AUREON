@@ -17,5 +17,6 @@ builder.Services.AddScoped(sp =>
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<AuthenticationStateProvider, AureonAuthStateProvider>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<FiscalApiClient>();
 
 await builder.Build().RunAsync();

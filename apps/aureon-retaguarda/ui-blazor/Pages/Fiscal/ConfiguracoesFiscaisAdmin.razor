@@ -1,0 +1,117 @@
+@page "/fiscal/configuracoes"
+@using AureonRetaguardaUi.Services
+@inject FiscalApiClient ApiClient
+
+<PageTitle>Configurações Fiscais</PageTitle>
+
+<div class="container-fluid mt-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/fiscal">Fiscal</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Configurações Mestre</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Configurações Fiscais Operacionais</h5>
+        </div>
+        <div class="card-body">
+            @if (carregando)
+            {
+                <div class="text-center">Carregando configurações...</div>
+            }
+            else
+            {
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <label class="form-label">País Fiscal Base</label>
+                        <select class="form-select" @bind="config.PaisFiscal">
+                            <option value="BR">Brasil (BR)</option>
+                            <option value="PY">Paraguai (PY)</option>
+                        </select>
+                        <div class="form-text">Define o padrão de operação (NF-e/NFC-e vs Sifen/KuDE).</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Ambiente de Operação</label>
+                        <select class="form-select" @bind="config.Ambiente">
+                            <option value="HOMOLOGACAO">Homologação (Testes)</option>
+                            <option value="PRODUCAO">Produção</option>
+                        </select>
+                        <div class="form-text">Ambiente que os PDVs sincronizados irão utilizar.</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Forma de Emissão Padrão</label>
+                        <select class="form-select" @bind="config.FormaEmissao">
+                            <option value="NORMAL">Normal</option>
+                            <option value="CONTINGENCIA_OFFLINE">Contingência Offline</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Regime Fiscal</label>
+                        <select class="form-select" @bind="config.RegimeFiscal">
+                            <option value="">(Não especificado)</option>
+                            <option value="SIMPLES_NACIONAL">Simples Nacional</option>
+                            <option value="LUCRO_PRESUMIDO">Lucro Presumido</option>
+                            <option value="LUCRO_REAL">Lucro Real</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label">Certificado Digital (Referência Futura)</label>
+                        <input type="text" class="form-control" @bind="config.CertificadoAlias" placeholder="Ex: C:/Certs/aureon.pfx ou ID Cofre" />
+                        <div class="form-text text-warning">
+                            O certificado não será carregado nem assinado nesta fase. 
+                            Campo apenas para configuração da referência na Retaguarda.
+                        </div>
+                    </div>
+
+                    <div class="col-md-12 text-end">
+                        <button class="btn btn-primary px-4" @onclick="SalvarConfiguracao">Salvar Configurações Mestre</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool carregando = false;
+    private FiscalEmpresaConfig config = new FiscalEmpresaConfig();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true;
+        StateHasChanged();
+
+        var res = await ApiClient.ObterConfiguracaoAsync();
+        if (res != null && res.Sucesso && res.Dados != null)
+        {
+            config = res.Dados;
+        }
+
+        carregando = false;
+        StateHasChanged();
+    }
+
+    private async Task SalvarConfiguracao()
+    {
+        if (string.IsNullOrEmpty(config.Id))
+        {
+            await ApiClient.SalvarConfiguracaoAsync(config);
+        }
+        else
+        {
+            await ApiClient.AtualizarConfiguracaoAsync(config.Id, config);
+        }
+        await CarregarDados();
+    }
+}

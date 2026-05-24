@@ -96,6 +96,35 @@
                             <span>📋</span> Auditoria & Logs
                         </a>
                     </li>
+
+                    <div class="sidebar-header" style="padding: 16px 24px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--cor-texto-disabled); font-weight: 600; margin-top: 16px;">
+                        Fiscal
+                    </div>
+                    <li class="sidebar-item @(IsActive("/fiscal") ? "ativo" : "")">
+                        <a href="/fiscal">
+                            <span>🧾</span> Fiscal Mestre
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/fiscal/dicionarios") ? "ativo" : "")">
+                        <a href="/fiscal/dicionarios">
+                            <span>📖</span> Dicionários Fiscais
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/fiscal/regras") ? "ativo" : "")">
+                        <a href="/fiscal/regras">
+                            <span>📐</span> Regras Tributárias
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/fiscal/configuracoes") ? "ativo" : "")">
+                        <a href="/fiscal/configuracoes">
+                            <span>⚙️</span> Config. Fiscal
+                        </a>
+                    </li>
+                    <li class="sidebar-item @(IsActive("/fiscal/publicacao") ? "ativo" : "")">
+                        <a href="/fiscal/publicacao">
+                            <span>📤</span> Publicação Fiscal
+                        </a>
+                    </li>
                 </ul>
 
                 <div class="sidebar-footer">

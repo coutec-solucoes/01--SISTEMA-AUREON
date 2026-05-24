@@ -1,0 +1,165 @@
+@page "/fiscal/dicionarios"
+@using AureonRetaguardaUi.Services
+@inject FiscalApiClient ApiClient
+
+<PageTitle>Dicionários Fiscais</PageTitle>
+
+<div class="container-fluid mt-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/fiscal">Fiscal</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Dicionários Fiscais</li>
+        </ol>
+    </nav>
+
+    <div class="alert alert-info">
+        <strong>Atenção:</strong> Dicionários oficiais devem ser importados por rotina controlada. Esta tela não substitui validação fiscal.
+    </div>
+
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link @(AbaAtiva == "NCM" ? "active" : "")" href="javascript:void(0)" @onclick="@(() => MudarAba("NCM"))">NCM</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(AbaAtiva == "CFOP" ? "active" : "")" href="javascript:void(0)" @onclick="@(() => MudarAba("CFOP"))">CFOP</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(AbaAtiva == "CST" ? "active" : "")" href="javascript:void(0)" @onclick="@(() => MudarAba("CST"))">CST/CSOSN</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(AbaAtiva == "IVA" ? "active" : "")" href="javascript:void(0)" @onclick="@(() => MudarAba("IVA"))">IVA (PY)</a>
+        </li>
+    </ul>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between mb-3">
+                <h4>Gerenciamento: @AbaAtiva</h4>
+                <button class="btn btn-success" @onclick="AbrirModalNovo">Novo @AbaAtiva</button>
+            </div>
+
+            @if (carregando)
+            {
+                <div class="text-center">Carregando dicionário...</div>
+            }
+            else
+            {
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            @if (AbaAtiva == "CFOP") { <th>Tipo Operação</th> }
+                            @if (AbaAtiva == "CST") { <th>Tipo (CST/CSOSN)</th> }
+                            @if (AbaAtiva == "IVA") { <th>Alíquota</th> }
+                            <th>Ativo</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in ObterListaAtual())
+                        {
+                            <tr>
+                                <td>@item.Codigo</td>
+                                <td>@item.Descricao</td>
+                                @if (AbaAtiva == "CFOP") { <td>@((item as FiscalCfop)?.TipoOperacao)</td> }
+                                @if (AbaAtiva == "CST") { <td>@((item as FiscalCstCsosn)?.Tipo)</td> }
+                                @if (AbaAtiva == "IVA") { <td>@(((item as FiscalIva)?.AliquotaEscala6 / 1000000.0)?.ToString("0.00"))%</td> }
+                                <td>
+                                    @if (item.Ativo) { <span class="badge bg-success">Sim</span> } else { <span class="badge bg-danger">Não</span> }
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="@(() => InativarItem(item.Id))" disabled="@(!item.Ativo)">Inativar</button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!ObterListaAtual().Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">Nenhum registro encontrado.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private string AbaAtiva = "NCM";
+    private bool carregando = false;
+
+    private List<FiscalNcm> listNcm = new();
+    private List<FiscalCfop> listCfop = new();
+    private List<FiscalCstCsosn> listCst = new();
+    private List<FiscalIva> listIva = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task MudarAba(string aba)
+    {
+        AbaAtiva = aba;
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true;
+        StateHasChanged();
+
+        if (AbaAtiva == "NCM")
+        {
+            var res = await ApiClient.ListarNcmAsync();
+            if (res != null && res.Sucesso && res.Dados != null) listNcm = res.Dados;
+        }
+        else if (AbaAtiva == "CFOP")
+        {
+            var res = await ApiClient.ListarCfopAsync();
+            if (res != null && res.Sucesso && res.Dados != null) listCfop = res.Dados;
+        }
+        else if (AbaAtiva == "CST")
+        {
+            var res = await ApiClient.ListarCstCsosnAsync();
+            if (res != null && res.Sucesso && res.Dados != null) listCst = res.Dados;
+        }
+        else if (AbaAtiva == "IVA")
+        {
+            var res = await ApiClient.ListarIvaAsync();
+            if (res != null && res.Sucesso && res.Dados != null) listIva = res.Dados;
+        }
+
+        carregando = false;
+        StateHasChanged();
+    }
+
+    private IEnumerable<FiscalDicionarioBase> ObterListaAtual()
+    {
+        return AbaAtiva switch
+        {
+            "NCM" => listNcm,
+            "CFOP" => listCfop,
+            "CST" => listCst,
+            "IVA" => listIva,
+            _ => Array.Empty<FiscalDicionarioBase>()
+        };
+    }
+
+    private async Task InativarItem(string id)
+    {
+        if (AbaAtiva == "NCM") await ApiClient.InativarNcmAsync(id);
+        else if (AbaAtiva == "CFOP") await ApiClient.InativarCfopAsync(id);
+        else if (AbaAtiva == "CST") await ApiClient.InativarCstCsosnAsync(id);
+        else if (AbaAtiva == "IVA") await ApiClient.InativarIvaAsync(id);
+
+        await CarregarDados();
+    }
+
+    private void AbrirModalNovo()
+    {
+        // Placeholder for modal to create a new item
+    }
+}
