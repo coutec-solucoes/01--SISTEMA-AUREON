@@ -1,0 +1,176 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+@if (Visivel)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="width: 600px;">
+            <div class="modal-header">
+                <h2>Vincular Dados Fiscais ao Produto</h2>
+                <button class="btn-close" @onclick="Fechar">X</button>
+            </div>
+            <div class="modal-body">
+                <div class="alerta alerta-info" style="margin-bottom: 15px;">
+                    Configuração estrutural. Não altera preço, estoque ou comportamento de venda do PDV.
+                </div>
+
+                @if (_carregando)
+                {
+                    <p>Carregando dicionários...</p>
+                }
+                else
+                {
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Produto ID (Visualização Técnica)</label>
+                            <input type="text" class="form-control" value="@_produtoId" disabled />
+                        </div>
+
+                        <div class="form-group">
+                            <label>NCM</label>
+                            <select class="form-control" @bind="_vinculo.ncm_id">
+                                <option value="">Sem NCM...</option>
+                                @foreach(var ncm in _ncms)
+                                {
+                                    <option value="@ncm.Id">@ncm.Codigo - @ncm.Descricao</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>CFOP Padrão</label>
+                            <select class="form-control" @bind="_vinculo.cfop_padrao_id">
+                                <option value="">Sem CFOP...</option>
+                                @foreach(var cfop in _cfops)
+                                {
+                                    <option value="@cfop.Id">@cfop.Codigo - @cfop.Descricao</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>CST/CSOSN Padrão</label>
+                            <select class="form-control" @bind="_vinculo.cst_csosn_id">
+                                <option value="">Sem CST/CSOSN...</option>
+                                @foreach(var cst in _csts)
+                                {
+                                    <option value="@cst.Id">@cst.Codigo - @cst.Descricao</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>IVA (PY)</label>
+                            <select class="form-control" @bind="_vinculo.iva_id">
+                                <option value="">Sem IVA...</option>
+                                @foreach(var iva in _ivas)
+                                {
+                                    <option value="@iva.Id">@iva.Codigo - @(iva.Aliquota_escala6 / 10000.0)%</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Origem da Mercadoria (0 a 8)</label>
+                            <select class="form-control" @bind="_vinculo.origem_mercadoria">
+                                <option value="0">0 - Nacional</option>
+                                <option value="1">1 - Estrangeira - Importação direta</option>
+                                <option value="2">2 - Estrangeira - Adquirida no mercado interno</option>
+                                <option value="3">3 - Nacional, mercadoria ou bem com Conteúdo de Importação &gt; 40% e &lt;= 70%</option>
+                                <option value="4">4 - Nacional, cuja produção tenha sido feita em conformidade com o PPB</option>
+                                <option value="5">5 - Nacional, mercadoria ou bem com Conteúdo de Importação &lt;= 40%</option>
+                                <option value="6">6 - Estrangeira - Importação direta, sem similar nacional, constante em lista de Resolução CAMEX e gás natural</option>
+                                <option value="7">7 - Estrangeira - Adquirida no mercado interno, sem similar nacional, constante em lista de Resolução CAMEX e gás natural</option>
+                                <option value="8">8 - Nacional, mercadoria ou bem com Conteúdo de Importação &gt; 70%</option>
+                            </select>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="Fechar">Cancelar</button>
+                <button class="btn btn-primary" @onclick="SalvarVinculo" disabled="@_carregando">Salvar Vínculo</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visivel { get; set; }
+    [Parameter] public EventCallback<bool> VisivelChanged { get; set; }
+    [Parameter] public EventCallback OnVinculoSalvo { get; set; }
+
+    private string _produtoId = string.Empty;
+    private bool _carregando = true;
+
+    private class VincularReq
+    {
+        public string produto_id { get; set; } = string.Empty;
+        public string? ncm_id { get; set; }
+        public string? iva_id { get; set; }
+        public string? cst_csosn_id { get; set; }
+        public string? cfop_padrao_id { get; set; }
+        public string origem_mercadoria { get; set; } = "0";
+    }
+
+    private VincularReq _vinculo = new();
+
+    private List<FiscalNcmResp> _ncms = new();
+    private List<FiscalCfopResp> _cfops = new();
+    private List<FiscalCstCsosnResp> _csts = new();
+    private List<FiscalIvaResp> _ivas = new();
+
+    public async Task Abrir(string produtoId, string ncmId, string ivaId, string cstId, string cfopId, string origem)
+    {
+        _produtoId = produtoId;
+        _vinculo = new VincularReq
+        {
+            produto_id = produtoId,
+            ncm_id = ncmId,
+            iva_id = ivaId,
+            cst_csosn_id = cstId,
+            cfop_padrao_id = cfopId,
+            origem_mercadoria = string.IsNullOrEmpty(origem) ? "0" : origem
+        };
+        
+        Visivel = true;
+        await VisivelChanged.InvokeAsync(Visivel);
+        await CarregarDicionarios();
+        StateHasChanged();
+    }
+
+    private async Task Fechar()
+    {
+        Visivel = false;
+        await VisivelChanged.InvokeAsync(Visivel);
+    }
+
+    private async Task CarregarDicionarios()
+    {
+        _carregando = true;
+        var rNcm = await Tauri.InvocarAsync<RespostaBase<List<FiscalNcmResp>>>("listar_fiscal_ncm");
+        var rCfop = await Tauri.InvocarAsync<RespostaBase<List<FiscalCfopResp>>>("listar_fiscal_cfop");
+        var rCst = await Tauri.InvocarAsync<RespostaBase<List<FiscalCstCsosnResp>>>("listar_fiscal_cst_csosn");
+        var rIva = await Tauri.InvocarAsync<RespostaBase<List<FiscalIvaResp>>>("listar_fiscal_iva");
+
+        _ncms = rNcm?.Dados ?? new();
+        _cfops = rCfop?.Dados ?? new();
+        _csts = rCst?.Dados ?? new();
+        _ivas = rIva?.Dados ?? new();
+        _carregando = false;
+    }
+
+    private async Task SalvarVinculo()
+    {
+        var resp = await Tauri.InvocarAsync<RespostaBase<string>>("vincular_fiscal_produto", new { req = _vinculo });
+        if (resp != null && resp.Sucesso)
+        {
+            await OnVinculoSalvo.InvokeAsync();
+            await Fechar();
+        }
+        else if (resp != null)
+        {
+            await Tauri.InvocarAsync<object>("console.error", $"Erro ao vincular: {resp.Mensagem}");
+        }
+    }
+}

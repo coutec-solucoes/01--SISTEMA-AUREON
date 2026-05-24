@@ -1,0 +1,217 @@
+@page "/fiscal/dicionarios"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="pagina-container">
+    <div class="cabecalho-pagina">
+        <h1>Dicionários Fiscais</h1>
+        <p style="color: #666;">Dicionários completos devem vir da Retaguarda/sincronização futura.</p>
+    </div>
+
+    <!-- AVISO CRÍTICO OBRIGATÓRIO -->
+    <div class="alerta alerta-critico" style="margin-bottom: 20px; padding: 15px; background: #ffebee; border-left: 5px solid #d32f2f; color: #c62828;">
+        <strong>ATENÇÃO:</strong> Configuração estrutural. Não emite, não assina e não transmite documentos fiscais.
+    </div>
+
+    <div class="tabs" style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button class="btn @(_abaAtiva == "NCM" ? "btn-primary" : "btn-secondary")" @onclick="@(() => MudarAba("NCM"))">NCM</button>
+        <button class="btn @(_abaAtiva == "CFOP" ? "btn-primary" : "btn-secondary")" @onclick="@(() => MudarAba("CFOP"))">CFOP</button>
+        <button class="btn @(_abaAtiva == "CST" ? "btn-primary" : "btn-secondary")" @onclick="@(() => MudarAba("CST"))">CST/CSOSN</button>
+        <button class="btn @(_abaAtiva == "IVA" ? "btn-primary" : "btn-secondary")" @onclick="@(() => MudarAba("IVA"))">IVA (PY)</button>
+    </div>
+
+    <div class="card conteudo-aba">
+        @if (_carregando)
+        {
+            <p>Carregando dados...</p>
+        }
+        else
+        {
+            @if (_abaAtiva == "NCM")
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var ncm in _listaNcm)
+                        {
+                            <tr>
+                                <td>@ncm.Codigo</td>
+                                <td>@ncm.Descricao</td>
+                                <td>@(ncm.Ativo ? "Ativo" : "Inativo")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (_abaAtiva == "CFOP")
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            <th>Tipo Operação</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cfop in _listaCfop)
+                        {
+                            <tr>
+                                <td>@cfop.Codigo</td>
+                                <td>@cfop.Descricao</td>
+                                <td>@cfop.Tipo_operacao</td>
+                                <td>@(cfop.Ativo ? "Ativo" : "Inativo")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (_abaAtiva == "CST")
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cst in _listaCst)
+                        {
+                            <tr>
+                                <td>@cst.Tipo</td>
+                                <td>@cst.Codigo</td>
+                                <td>@cst.Descricao</td>
+                                <td>@(cst.Ativo ? "Ativo" : "Inativo")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (_abaAtiva == "IVA")
+            {
+                <div style="margin-bottom: 15px;">
+                    <h4>Manutenção Simples de IVA</h4>
+                    <div style="display: flex; gap: 10px; align-items: flex-end;">
+                        <div>
+                            <label>Código</label>
+                            <input type="text" class="form-control" @bind="_novoIva.codigo" placeholder="Ex: IVA_10" />
+                        </div>
+                        <div>
+                            <label>Descrição</label>
+                            <input type="text" class="form-control" @bind="_novoIva.descricao" placeholder="Ex: IVA 10%" />
+                        </div>
+                        <div>
+                            <label>Alíquota (%)</label>
+                            <input type="number" step="0.01" class="form-control" @bind="_ivaAliquotaPercentualVisual" />
+                        </div>
+                        <div>
+                            <button class="btn btn-primary" @onclick="SalvarIva">Salvar IVA</button>
+                        </div>
+                    </div>
+                </div>
+
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            <th>Alíquota (%)</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var iva in _listaIva)
+                        {
+                            <tr>
+                                <td>@iva.Codigo</td>
+                                <td>@iva.Descricao</td>
+                                <td>@(iva.Aliquota_escala6 / 10000.0)%</td>
+                                <td>@(iva.Ativo ? "Ativo" : "Inativo")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private string _abaAtiva = "NCM";
+    private bool _carregando = true;
+
+    private List<FiscalNcmResp> _listaNcm = new();
+    private List<FiscalCfopResp> _listaCfop = new();
+    private List<FiscalCstCsosnResp> _listaCst = new();
+    private List<FiscalIvaResp> _listaIva = new();
+
+    private SalvarFiscalIvaReq _novoIva = new() { ativo = true };
+    private double _ivaAliquotaPercentualVisual = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await MudarAba("NCM");
+    }
+
+    private async Task MudarAba(string aba)
+    {
+        _abaAtiva = aba;
+        _carregando = true;
+        StateHasChanged();
+
+        switch (aba)
+        {
+            case "NCM":
+                var rNcm = await Tauri.InvocarAsync<RespostaBase<List<FiscalNcmResp>>>("listar_fiscal_ncm");
+                _listaNcm = rNcm?.Dados ?? new();
+                break;
+            case "CFOP":
+                var rCfop = await Tauri.InvocarAsync<RespostaBase<List<FiscalCfopResp>>>("listar_fiscal_cfop");
+                _listaCfop = rCfop?.Dados ?? new();
+                break;
+            case "CST":
+                var rCst = await Tauri.InvocarAsync<RespostaBase<List<FiscalCstCsosnResp>>>("listar_fiscal_cst_csosn");
+                _listaCst = rCst?.Dados ?? new();
+                break;
+            case "IVA":
+                await CarregarIvas();
+                break;
+        }
+
+        _carregando = false;
+        StateHasChanged();
+    }
+
+    private async Task CarregarIvas()
+    {
+        var rIva = await Tauri.InvocarAsync<RespostaBase<List<FiscalIvaResp>>>("listar_fiscal_iva");
+        _listaIva = rIva?.Dados ?? new();
+    }
+
+    private async Task SalvarIva()
+    {
+        if (string.IsNullOrWhiteSpace(_novoIva.codigo)) return;
+        
+        // Conversão de Percentual Visual para Minor Unit/Escala 6
+        // Ex: 10% visual = 10 * 100000 / 100 = 100000
+        _novoIva.aliquota_escala6 = (long)(_ivaAliquotaPercentualVisual * 10000);
+
+        var resp = await Tauri.InvocarAsync<RespostaBase<string>>("salvar_fiscal_iva", new { req = _novoIva });
+        if (resp != null && resp.Sucesso)
+        {
+            _novoIva = new() { ativo = true };
+            _ivaAliquotaPercentualVisual = 0;
+            await CarregarIvas();
+        }
+    }
+}

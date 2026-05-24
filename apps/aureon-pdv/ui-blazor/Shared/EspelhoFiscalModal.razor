@@ -1,0 +1,197 @@
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+@if (Visivel)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2>Espelho Fiscal Técnico (Venda: @_vendaId.Split('-').FirstOrDefault())</h2>
+                <button class="btn-close" @onclick="Fechar">X</button>
+            </div>
+            <div class="modal-body">
+                
+                <!-- AVISOS CRÍTICOS -->
+                <div class="alerta alerta-critico" style="margin-bottom: 20px; padding: 15px; background: #ffebee; border-left: 5px solid #d32f2f; color: #c62828;">
+                    <h3 style="margin-top: 0;">ESPELHO TÉCNICO SEM VALIDADE FISCAL</h3>
+                    <p style="margin: 5px 0;">NÃO É NF-e, NFC-e, SAT, SIFEN, DANFE OU KuDE</p>
+                    <p style="margin: 0;">NÃO FOI TRANSMITIDO NEM AUTORIZADO</p>
+                </div>
+
+                <div class="acoes" style="margin-bottom: 20px; display: flex; gap: 10px;">
+                    <button class="btn btn-primary" @onclick="ValidarDadosFiscais" disabled="@_processando">Validar Dados</button>
+                    <button class="btn btn-success" @onclick="CalcularEspelho" disabled="@_processando">Calcular Espelho</button>
+                    <button class="btn btn-danger" @onclick="LimparEspelho" disabled="@_processando">Limpar Espelho</button>
+                </div>
+
+                @if (_validacaoResp != null)
+                {
+                    <div class="card" style="margin-bottom: 20px; border-color: @(_validacaoResp.Valido ? "#4caf50" : "#f44336");">
+                        <h4>Resultado da Validação: @(_validacaoResp.Valido ? "VÁLIDO" : "COM ERROS")</h4>
+                        <p>País: @_validacaoResp.PaisFiscal | Ambiente: @_validacaoResp.Ambiente | Erros: @_validacaoResp.TotalErros | Avisos: @_validacaoResp.TotalAvisos</p>
+                        <ul>
+                            @foreach (var item in _validacaoResp.Itens)
+                            {
+                                <li style="color: @(item.Nivel == "ERRO" ? "#d32f2f" : item.Nivel == "AVISO" ? "#f57c00" : "#388e3c")">
+                                    <strong>@item.Nivel</strong> (@item.Entidade): @item.Mensagem
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (_espelhoResp != null)
+                {
+                    <div class="card" style="margin-bottom: 20px;">
+                        <h4>Detalhes do Espelho (Calculado em: @_espelhoResp.CalculadoEm)</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; background: #f5f5f5; padding: 10px; border-radius: 4px;">
+                            <div><strong>País Fiscal:</strong> @_espelhoResp.PaisFiscal</div>
+                            <div><strong>Ambiente:</strong> @_espelhoResp.Ambiente</div>
+                            <div><strong>Modelo:</strong> @_espelhoResp.ModeloPreview</div>
+                            <div><strong>Status:</strong> <span style="font-weight: bold; color: @(_espelhoResp.StatusPreparacao == "PREVIEW_OK" ? "green" : "red")">@_espelhoResp.StatusPreparacao</span></div>
+                            <div><strong>Total Base:</strong> @FormatarMinorUnit(_espelhoResp.TotalBaseMinor)</div>
+                            <div><strong>Total Imposto:</strong> @FormatarMinorUnit(_espelhoResp.TotalImpostoMinor)</div>
+                        </div>
+
+                        @if (_espelhoResp.Alertas.Any())
+                        {
+                            <div style="color: #d32f2f; margin-bottom: 15px;">
+                                <strong>Alertas no Cálculo:</strong>
+                                <ul>
+                                    @foreach(var alerta in _espelhoResp.Alertas)
+                                    {
+                                        <li>@alerta</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Produto</th>
+                                    <th>IDs Fiscais</th>
+                                    <th>Base</th>
+                                    <th>Alíquota</th>
+                                    <th>Imposto</th>
+                                    <th>Origem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _espelhoResp.Itens)
+                                {
+                                    <tr>
+                                        <td>@item.DescricaoProduto</td>
+                                        <td>
+                                            <small>
+                                                NCM: @(item.NcmId ?? "-")<br/>
+                                                CFOP: @(item.CfopId ?? "-")<br/>
+                                                CST: @(item.CstCsosnId ?? "-")<br/>
+                                                IVA: @(item.IvaId ?? "-")
+                                            </small>
+                                        </td>
+                                        <td>@FormatarMinorUnit(item.BaseMinor)</td>
+                                        <td>@(item.AliquotaEscala6 / 10000.0)%</td>
+                                        <td>@FormatarMinorUnit(item.ImpostoMinor)</td>
+                                        <td><small>@item.OrigemRegra</small></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else if (_processando)
+                {
+                    <p>Processando operação técnica...</p>
+                }
+                else
+                {
+                    <p>Nenhum espelho fiscal calculado para esta venda.</p>
+                }
+
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="Fechar">Voltar</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visivel { get; set; }
+    [Parameter] public EventCallback<bool> VisivelChanged { get; set; }
+
+    private string _vendaId = string.Empty;
+    private bool _processando = false;
+
+    private ValidacaoFiscalResp? _validacaoResp;
+    private EspelhoFiscalVendaResp? _espelhoResp;
+
+    public async Task Abrir(string vendaId)
+    {
+        _vendaId = vendaId;
+        _validacaoResp = null;
+        Visivel = true;
+        await VisivelChanged.InvokeAsync(Visivel);
+        await CarregarEspelho();
+        StateHasChanged();
+    }
+
+    private async Task Fechar()
+    {
+        Visivel = false;
+        await VisivelChanged.InvokeAsync(Visivel);
+    }
+
+    private async Task CarregarEspelho()
+    {
+        _processando = true;
+        var resp = await Tauri.InvocarAsync<RespostaBase<EspelhoFiscalVendaResp>>("obter_espelho_fiscal_venda", new { req = new ObterEspelhoFiscalVendaReq { venda_id = _vendaId } });
+        _espelhoResp = resp?.Dados;
+        _processando = false;
+    }
+
+    private async Task ValidarDadosFiscais()
+    {
+        _processando = true;
+        var resp = await Tauri.InvocarAsync<RespostaBase<ValidacaoFiscalResp>>("validar_dados_cadastrais_fiscais", new { venda_id = _vendaId });
+        if (resp != null && resp.Sucesso)
+        {
+            _validacaoResp = resp.Dados;
+        }
+        _processando = false;
+    }
+
+    private async Task CalcularEspelho()
+    {
+        _processando = true;
+        var resp = await Tauri.InvocarAsync<RespostaBase<EspelhoFiscalVendaResp>>("calcular_espelho_fiscal_venda", new { req = new CalcularEspelhoFiscalVendaReq { venda_id = _vendaId, tipo_operacao = "VENDA_BALCAO" } });
+        if (resp != null && resp.Sucesso)
+        {
+            _espelhoResp = resp.Dados;
+            _validacaoResp = null; // Limpa a validação antiga para dar foco no espelho
+        }
+        else if (resp != null && !resp.Sucesso)
+        {
+            await Tauri.InvocarAsync<object>("console.error", $"Erro ao calcular espelho: {resp.Mensagem}");
+        }
+        _processando = false;
+    }
+
+    private async Task LimparEspelho()
+    {
+        _processando = true;
+        var resp = await Tauri.InvocarAsync<RespostaBase<string>>("limpar_espelho_fiscal_venda", new { venda_id = _vendaId });
+        if (resp != null && resp.Sucesso)
+        {
+            _espelhoResp = null;
+            _validacaoResp = null;
+        }
+        _processando = false;
+    }
+
+    private string FormatarMinorUnit(long minor)
+    {
+        return $"{(minor / 100.0):N2}";
+    }
+}

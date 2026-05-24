@@ -1,0 +1,248 @@
+@page "/fiscal/regras"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="pagina-container">
+    <div class="cabecalho-pagina">
+        <h1>Regras Tributárias Estruturais</h1>
+        <div class="acoes">
+            <button class="btn btn-primary" @onclick="NovaRegra">Nova Regra</button>
+        </div>
+    </div>
+
+    <!-- AVISO CRÍTICO OBRIGATÓRIO -->
+    <div class="alerta alerta-critico" style="margin-bottom: 20px; padding: 15px; background: #ffebee; border-left: 5px solid #d32f2f; color: #c62828;">
+        <strong>ATENÇÃO:</strong> Configuração estrutural. Não emite, não assina e não transmite documentos fiscais.
+    </div>
+
+    @if (_carregando)
+    {
+        <p>Carregando regras...</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>País</th>
+                    <th>Operação</th>
+                    <th>Origem -> Destino</th>
+                    <th>NCM / CFOP / CST / IVA</th>
+                    <th>Alíquotas (ICMS/PIS/COF/IVA)</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in _listaRegras)
+                {
+                    <tr>
+                        <td>@r.Pais_fiscal</td>
+                        <td>@r.Tipo_operacao</td>
+                        <td>@(r.Uf_origem ?? "*") -> @(r.Uf_destino ?? "*")</td>
+                        <td>
+                            <small>
+                                N: @(r.Ncm_id ?? "-") <br />
+                                C: @(r.Cfop_id ?? "-") <br />
+                                S: @(r.Cst_csosn_id ?? "-") <br />
+                                I: @(r.Iva_id ?? "-")
+                            </small>
+                        </td>
+                        <td>
+                            <small>
+                                ICMS: @(r.Aliquota_icms_escala6 / 10000.0)% <br/>
+                                PIS: @(r.Aliquota_pis_escala6 / 10000.0)% <br/>
+                                COF: @(r.Aliquota_cofins_escala6 / 10000.0)% <br/>
+                                IVA: @(r.Aliquota_iva_escala6 / 10000.0)%
+                            </small>
+                        </td>
+                        <td>@(r.Ativo ? "Ativa" : "Inativa")</td>
+                        <td>
+                            <button class="btn btn-secondary btn-sm" @onclick="@(() => EditarRegra(r.Id))">Editar</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_mostrandoModal)
+    {
+        <div class="modal-overlay">
+            <div class="modal-content" style="width: 800px;">
+                <div class="modal-header">
+                    <h2>@(_regraEditando.pais_fiscal == "" ? "Nova Regra" : "Editar Regra")</h2>
+                    <button class="btn-close" @onclick="FecharModal">X</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>País Fiscal *</label>
+                            <select class="form-control" @bind="_regraEditando.pais_fiscal">
+                                <option value="">Selecione...</option>
+                                <option value="BR">Brasil</option>
+                                <option value="PY">Paraguai</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Tipo Operação *</label>
+                            <input type="text" class="form-control" @bind="_regraEditando.tipo_operacao" placeholder="Ex: VENDA_BALCAO" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>UF Origem</label>
+                            <input type="text" class="form-control" @bind="_regraEditando.uf_origem" placeholder="Ex: SP" />
+                        </div>
+                        <div class="form-group">
+                            <label>UF Destino</label>
+                            <input type="text" class="form-control" @bind="_regraEditando.uf_destino" placeholder="Ex: SP" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>NCM ID</label>
+                            <input type="text" class="form-control" @bind="_regraEditando.ncm_id" />
+                        </div>
+                        <div class="form-group">
+                            <label>CFOP ID</label>
+                            <input type="text" class="form-control" @bind="_regraEditando.cfop_id" />
+                        </div>
+                        <div class="form-group">
+                            <label>CST/CSOSN ID</label>
+                            <input type="text" class="form-control" @bind="_regraEditando.cst_csosn_id" />
+                        </div>
+                        <div class="form-group">
+                            <label>IVA ID</label>
+                            <input type="text" class="form-control" @bind="_regraEditando.iva_id" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Alíquota ICMS (%)</label>
+                            <input type="number" step="0.01" min="0" class="form-control" @bind="_icmsVisual" />
+                        </div>
+                        <div class="form-group">
+                            <label>Alíquota PIS (%)</label>
+                            <input type="number" step="0.01" min="0" class="form-control" @bind="_pisVisual" />
+                        </div>
+                        <div class="form-group">
+                            <label>Alíquota COFINS (%)</label>
+                            <input type="number" step="0.01" min="0" class="form-control" @bind="_cofinsVisual" />
+                        </div>
+                        <div class="form-group">
+                            <label>Alíquota IVA (%)</label>
+                            <input type="number" step="0.01" min="0" class="form-control" @bind="_ivaVisual" />
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>
+                                <input type="checkbox" @bind="_regraEditando.ativo" />
+                                Regra Ativa
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="FecharModal">Cancelar</button>
+                    <button class="btn btn-primary" @onclick="SalvarRegra">Salvar</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _carregando = true;
+    private bool _mostrandoModal = false;
+    private List<FiscalRegraTributariaResp> _listaRegras = new();
+
+    private SalvarFiscalRegraTributariaReq _regraEditando = new();
+    
+    // Variáveis visuais para digitação em %
+    private double _icmsVisual;
+    private double _pisVisual;
+    private double _cofinsVisual;
+    private double _ivaVisual;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarRegras();
+    }
+
+    private async Task CarregarRegras()
+    {
+        _carregando = true;
+        var resp = await Tauri.InvocarAsync<RespostaBase<List<FiscalRegraTributariaResp>>>("listar_fiscal_regras_tributarias");
+        _listaRegras = resp?.Dados ?? new();
+        _carregando = false;
+    }
+
+    private void NovaRegra()
+    {
+        _regraEditando = new SalvarFiscalRegraTributariaReq { ativo = true };
+        _icmsVisual = 0;
+        _pisVisual = 0;
+        _cofinsVisual = 0;
+        _ivaVisual = 0;
+        _mostrandoModal = true;
+    }
+
+    private async Task EditarRegra(string id)
+    {
+        var resp = await Tauri.InvocarAsync<RespostaBase<FiscalRegraTributariaResp>>("obter_regra_tributaria", new { id });
+        if (resp != null && resp.Sucesso && resp.Dados != null)
+        {
+            var r = resp.Dados;
+            _regraEditando = new SalvarFiscalRegraTributariaReq
+            {
+                pais_fiscal = r.Pais_fiscal,
+                tipo_operacao = r.Tipo_operacao,
+                uf_origem = r.Uf_origem,
+                uf_destino = r.Uf_destino,
+                ncm_id = r.Ncm_id,
+                cfop_id = r.Cfop_id,
+                cst_csosn_id = r.Cst_csosn_id,
+                iva_id = r.Iva_id,
+                ativo = r.Ativo
+            };
+            
+            // Converte escala6 de volta para percentual visual
+            _icmsVisual = r.Aliquota_icms_escala6 / 10000.0;
+            _pisVisual = r.Aliquota_pis_escala6 / 10000.0;
+            _cofinsVisual = r.Aliquota_cofins_escala6 / 10000.0;
+            _ivaVisual = r.Aliquota_iva_escala6 / 10000.0;
+
+            _mostrandoModal = true;
+        }
+    }
+
+    private void FecharModal()
+    {
+        _mostrandoModal = false;
+    }
+
+    private async Task SalvarRegra()
+    {
+        if (string.IsNullOrWhiteSpace(_regraEditando.pais_fiscal) || string.IsNullOrWhiteSpace(_regraEditando.tipo_operacao))
+        {
+            await Tauri.InvocarAsync<object>("console.error", "País Fiscal e Tipo Operação são obrigatórios.");
+            return;
+        }
+
+        if (_icmsVisual < 0 || _pisVisual < 0 || _cofinsVisual < 0 || _ivaVisual < 0)
+        {
+            await Tauri.InvocarAsync<object>("console.error", "Alíquotas não podem ser negativas.");
+            return;
+        }
+
+        // Conversão Visual (%) -> Escala 6 (x 1_000_000, mas a conta a partir do % é x 10000)
+        _regraEditando.aliquota_icms_escala6 = (long)(_icmsVisual * 10000);
+        _regraEditando.aliquota_pis_escala6 = (long)(_pisVisual * 10000);
+        _regraEditando.aliquota_cofins_escala6 = (long)(_cofinsVisual * 10000);
+        _regraEditando.aliquota_iva_escala6 = (long)(_ivaVisual * 10000);
+
+        var resp = await Tauri.InvocarAsync<RespostaBase<string>>("salvar_regra_tributaria", new { req = _regraEditando });
+        if (resp != null && resp.Sucesso)
+        {
+            _mostrandoModal = false;
+            await CarregarRegras();
+        }
+    }
+}

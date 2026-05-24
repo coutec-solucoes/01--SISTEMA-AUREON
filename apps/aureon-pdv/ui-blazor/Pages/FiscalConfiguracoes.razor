@@ -1,0 +1,120 @@
+@page "/fiscal/configuracoes"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="pagina-container">
+    <div class="cabecalho-pagina">
+        <h1>Configuração Estrutural Fiscal da Empresa</h1>
+        <div class="acoes">
+            <button class="btn btn-primary" @onclick="Salvar">Salvar Configurações</button>
+        </div>
+    </div>
+
+    <!-- AVISO CRÍTICO OBRIGATÓRIO -->
+    <div class="alerta alerta-critico" style="margin-bottom: 20px; padding: 15px; background: #ffebee; border-left: 5px solid #d32f2f; color: #c62828;">
+        <strong>ATENÇÃO:</strong> Configuração estrutural. Não emite, não assina e não transmite documentos fiscais.
+    </div>
+
+    @if (_carregando)
+    {
+        <p>Carregando configurações...</p>
+    }
+    else
+    {
+        <div class="card form-container">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>País Fiscal *</label>
+                    <select class="form-control" @bind="_config.pais_fiscal">
+                        <option value="">Selecione...</option>
+                        <option value="BR">Brasil (BR)</option>
+                        <option value="PY">Paraguai (PY)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Ambiente *</label>
+                    <select class="form-control" @bind="_config.ambiente">
+                        <option value="">Selecione...</option>
+                        <option value="HOMOLOGACAO">Homologação</option>
+                        <option value="PRODUCAO">Produção</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Forma de Emissão *</label>
+                    <select class="form-control" @bind="_config.forma_emissao">
+                        <option value="NORMAL">Normal</option>
+                        <option value="CONTINGENCIA_OFFLINE">Contingência Offline</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Regime Fiscal</label>
+                    <select class="form-control" @bind="_config.regime_fiscal">
+                        <option value="">Selecione...</option>
+                        <option value="SIMPLES_NACIONAL">Simples Nacional</option>
+                        <option value="LUCRO_PRESUMIDO">Lucro Presumido</option>
+                        <option value="LUCRO_REAL">Lucro Real</option>
+                        <option value="REGIME_GERAL">Regime Geral (PY)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Certificado (Alias/Referência)</label>
+                    <input type="text" class="form-control" @bind="_config.certificado_alias" placeholder="Ex: MeuCertificado" />
+                </div>
+
+                <div class="form-group">
+                    <label>Caminho Certificado (Opcional)</label>
+                    <input type="text" class="form-control" @bind="_config.certificado_caminho" placeholder="C:\Caminho\cert.pfx" />
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _carregando = true;
+    private SalvarFiscalEmpresaConfigReq _config = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        _carregando = true;
+        var resp = await Tauri.InvocarAsync<RespostaBase<FiscalEmpresaConfigResp>>("obter_configuracao_fiscal_empresa");
+        if (resp != null && resp.Sucesso && resp.Dados != null)
+        {
+            _config = new SalvarFiscalEmpresaConfigReq
+            {
+                pais_fiscal = resp.Dados.Pais_fiscal ?? "",
+                regime_fiscal = resp.Dados.Regime_fiscal,
+                ambiente = resp.Dados.Ambiente ?? "",
+                forma_emissao = resp.Dados.Forma_emissao ?? "NORMAL",
+                certificado_alias = resp.Dados.Certificado_alias,
+                certificado_caminho = resp.Dados.Certificado_caminho
+            };
+        }
+        _carregando = false;
+    }
+
+    private async Task Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_config.pais_fiscal) || string.IsNullOrWhiteSpace(_config.ambiente))
+        {
+            // Substituir por alert/toast se existir framework, no caso simplificado usando interop nativo
+            await Tauri.InvocarAsync<object>("console.error", "Preencha País Fiscal e Ambiente.");
+            return;
+        }
+
+        var resp = await Tauri.InvocarAsync<RespostaBase<string>>("salvar_configuracao_fiscal_empresa", new { req = _config });
+        if (resp != null && resp.Sucesso)
+        {
+            await CarregarDados();
+        }
+    }
+}
