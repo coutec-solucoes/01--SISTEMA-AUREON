@@ -283,3 +283,24 @@ Decisões de arquitetura adotadas na Fase 16 — Fiscal Base e Espelho Técnico 
 - **Contexto**: Alíquotas percentuais fiscais exigem extrema precisão matemática para evitar perdas ou distorções de centavos (ex: 10,5% de R$ 5,00). 
 - **Decisão**: Foi explicitamente rejeitado o uso de `double` ou `float` para persistência e cálculos. Adotou-se o armazenamento de alíquotas em `i64` multiplicando o percentual visual por 10.000 (Escala 6). Ex: `10.5%` torna-se o inteiro `105000`. O cálculo final é efetuado por `(base_minor * aliquota_escala_6) / 1_000_000`. 
 - **Consequência**: Garantia financeira determinística sem arredondamentos inesperados no hardware local. As máscaras de float/decimal (`step="0.01"`) foram permitidas exclusivamente na camada de interface Blazor.
+
+---
+
+## 🧾 ADR 29: Retaguarda Fiscal como Fonte Mestre e PDV como Consumidor de Pacotes Fiscais Versionados (Fase 17)
+
+- **Contexto**: A Fase 16 criou as tabelas `fiscal_*_cache` no SQLite do PDV com dados fiscais estáticos inseridos manualmente. Era necessário um mecanismo controlado, versionado e auditável para atualizar esses dados a partir de uma fonte centralizada.
+- **Decisão**: Adotou-se o modelo **Publisher/Subscriber Fiscal**:
+  1. A **Retaguarda/PostgreSQL** é a única fonte de verdade de dicionários e regras fiscais.
+  2. O administrador publica uma **versão fiscal** com payload JSON consolidado.
+  3. O payload é armazenado em `pacotes_sincronizacao` com `tipo_pacote = 'SYNC_FISCAL'`.
+  4. Os **PDVs** recebem e aplicam o pacote de forma idempotente nas tabelas `fiscal_*_cache`.
+  5. Nenhum PDV edita, cria ou transmite dados fiscais para autoridades.
+- **Motivação**:
+  - Garantir que todos os PDVs operam com a mesma versão de regras fiscais.
+  - Permitir rollout controlado de atualizações fiscais (ex: mudança de alíquota ICMS).
+  - Manter rastreabilidade completa via `fiscal_auditoria_mestre` e `fiscal_versoes_publicacao`.
+  - Isolar a responsabilidade: Retaguarda = governança fiscal; PDV = execução local.
+- **Limitações aceitas**:
+  - O payload atual é enviado como JSON único (sem chunking). Para bases fiscais massivas (>10.000 NCM/CFOP), será necessária paginação em fase futura.
+  - A aplicação manual de pacotes via UI é apenas para diagnóstico/homologação técnica.
+- **Consequência**: Arquitetura clara, auditável e preparada para futuras fases de emissão fiscal real (NF-e, NFC-e, SIFEN), sem comprometer a estabilidade operacional atual do PDV.
