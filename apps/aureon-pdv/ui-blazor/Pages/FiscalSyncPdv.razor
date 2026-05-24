@@ -1,0 +1,348 @@
+@page "/fiscal/sync"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<PageTitle>Sync Fiscal Local — PDV</PageTitle>
+
+<div class="container-fluid mt-3">
+
+    <div class="alert alert-warning border-2 text-center mb-4" role="alert">
+        <strong>📋 Diagnóstico de Sincronização Fiscal Local</strong><br />
+        O PDV apenas <strong>consome</strong> regras fiscais publicadas pela Retaguarda.<br />
+        <span class="text-danger fw-bold">Esta tela não emite, não autoriza e não transmite documentos fiscais.</span>
+    </div>
+
+    <!-- ===== STATUS ATUAL ===== -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <h5>📦 Versão Fiscal Atual no PDV</h5>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Versão Atual</div>
+                    <div class="fs-4 fw-bold text-primary">@(status?.VersaoAtual ?? "—")</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Status</div>
+                    <div class="fs-5 fw-bold @BadgeStatus(status?.Status)">@(status?.Status ?? "—")</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Total Registros</div>
+                    <div class="fs-4 fw-bold text-info">@(status?.TotalRegistros ?? 0)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Aplicado Em</div>
+                    <div class="fs-6 fw-semibold">@(status?.AplicadoEm ?? "—")</div>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(status?.UltimoErro))
+        {
+            <div class="col-12">
+                <div class="alert alert-danger">
+                    <strong>Último Erro:</strong> @status.UltimoErro
+                </div>
+            </div>
+        }
+
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body py-2">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">Pacote ID:</small><br />
+                            <code class="small">@(status?.PacoteId ?? "—")</code>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">Payload Hash:</small><br />
+                            <code class="small">@(status?.PayloadHash ?? "—")</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 text-end">
+            <button class="btn btn-outline-secondary" @onclick="RecarregarStatus">🔄 Atualizar Status</button>
+        </div>
+    </div>
+
+    <!-- ===== LOGS DE SYNC ===== -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">📋 Logs de Sincronização Fiscal</h5>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="RecarregarLogs">Atualizar</button>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Evento</th>
+                        <th>Versão</th>
+                        <th>Pacote ID</th>
+                        <th>Mensagem</th>
+                        <th>Data/Hora</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var log in logs)
+                    {
+                        <tr>
+                            <td>
+                                @if (log.TipoEvento == "FISCAL_PACOTE_APLICADO")
+                                {
+                                    <span class="badge bg-success">@log.TipoEvento</span>
+                                }
+                                else if (log.TipoEvento == "FISCAL_PACOTE_ERRO")
+                                {
+                                    <span class="badge bg-danger">@log.TipoEvento</span>
+                                }
+                                else if (log.TipoEvento == "FISCAL_PACOTE_IGNORADO_IDEMPOTENTE")
+                                {
+                                    <span class="badge bg-warning text-dark">IGNORADO (IDEMPOTENTE)</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">@log.TipoEvento</span>
+                                }
+                            </td>
+                            <td><code class="small">@log.Versao</code></td>
+                            <td><code class="small">@(log.PacoteId?.Length > 12 ? log.PacoteId[..12] + "..." : log.PacoteId)</code></td>
+                            <td class="small">@log.Mensagem</td>
+                            <td class="small text-nowrap">@log.CriadoEm</td>
+                        </tr>
+                    }
+                    @if (!logs.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">Nenhum log de sync fiscal registrado.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ===== VALIDAÇÃO MANUAL ===== -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">🔍 Validar Payload Fiscal (Diagnóstico)</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info small">
+                Cole um payload JSON para validar sua estrutura localmente. <strong>Esta ação apenas valida, não aplica.</strong>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Pacote ID (opcional)</label>
+                    <input type="text" class="form-control form-control-sm" @bind="formPacoteId" placeholder="uuid-do-pacote" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Versão</label>
+                    <input type="text" class="form-control form-control-sm" @bind="formVersao" placeholder="ex: 2026.001" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Payload Hash</label>
+                    <input type="text" class="form-control form-control-sm" @bind="formHash" placeholder="hash do payload" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Idempotency Key</label>
+                    <input type="text" class="form-control form-control-sm" @bind="formIdempotencyKey" placeholder="chave única" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Payload JSON</label>
+                    <textarea class="form-control font-monospace small" rows="8" @bind="formPayloadJson" placeholder='{ "blocos": { "fiscal_empresa_config": [...], ... } }'></textarea>
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-outline-primary" @onclick="ValidarPayload">🔍 Validar Pacote Fiscal</button>
+                    <button class="btn btn-outline-danger" @onclick="AbrirConfirmacaoAplicar" disabled="@string.IsNullOrWhiteSpace(formPayloadJson)">
+                        ⚠️ Aplicar Pacote Fiscal (Diagnóstico)
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrEmpty(resultadoValidacao))
+                {
+                    <div class="col-12">
+                        <div class="alert @(validacaoOk ? "alert-success" : "alert-danger")">
+                            @resultadoValidacao
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação para Aplicar -->
+@if (exibirModalConfirmacao)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.7);">
+        <div class="modal-dialog">
+            <div class="modal-content border-warning">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">⚠️ Confirmar Aplicação de Pacote Fiscal</h5>
+                    <button type="button" class="btn-close" @onclick="() => exibirModalConfirmacao = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-semibold">Aplicar pacote fiscal substitui os caches fiscais locais do PDV.</p>
+                    <ul class="small">
+                        <li>Tabelas fiscal_*_cache serão atualizadas via UPSERT/DELETE_LOGICO.</li>
+                        <li>Esta ação <strong>não emite documento fiscal</strong>.</li>
+                        <li>Não altera venda, caixa, estoque, financeiro, compras, delivery ou gourmet.</li>
+                        <li>Não transmite dados para Sefaz, DNIT ou Sifen.</li>
+                    </ul>
+                    <p class="text-danger fw-bold">Deseja prosseguir?</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => exibirModalConfirmacao = false">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="AplicarPacote">Confirmar Aplicação</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private StatusVersaoFiscalResp? status;
+    private List<LogSyncFiscalResp> logs = new();
+
+    private string formPacoteId = "";
+    private string formVersao = "";
+    private string formHash = "";
+    private string formIdempotencyKey = "";
+    private string formPayloadJson = "";
+
+    private string resultadoValidacao = "";
+    private bool validacaoOk = false;
+    private bool exibirModalConfirmacao = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RecarregarStatus();
+        await RecarregarLogs();
+    }
+
+    private async Task RecarregarStatus()
+    {
+        try
+        {
+            var res = await Tauri.InvocarAsync<StatusVersaoFiscalResp>("obter_status_versao_fiscal_local");
+            if (res != null) status = res;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao obter status fiscal: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+
+    private async Task RecarregarLogs()
+    {
+        try
+        {
+            var res = await Tauri.InvocarAsync<List<LogSyncFiscalResp>>("listar_logs_sync_fiscal");
+            if (res != null) logs = res;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao listar logs: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+
+    private async Task ValidarPayload()
+    {
+        resultadoValidacao = "";
+        validacaoOk = false;
+
+        if (string.IsNullOrWhiteSpace(formPayloadJson))
+        {
+            resultadoValidacao = "Informe o payload JSON para validar.";
+            return;
+        }
+
+        try
+        {
+            var req = new AplicarPacoteFiscalReq
+            {
+                pacote_id = string.IsNullOrEmpty(formPacoteId) ? null : formPacoteId,
+                versao = formVersao,
+                payload_hash = formHash,
+                payload_json = formPayloadJson,
+                idempotency_key = string.IsNullOrEmpty(formIdempotencyKey) ? null : formIdempotencyKey
+            };
+
+            var ok = await Tauri.InvocarAsync<bool>("validar_pacote_fiscal_local", new { req });
+            validacaoOk = ok;
+            resultadoValidacao = ok
+                ? "✅ Payload válido. Estrutura e blocos confirmados. Não aplicado."
+                : "❌ Payload inválido. Verifique a estrutura dos blocos.";
+        }
+        catch (Exception ex)
+        {
+            validacaoOk = false;
+            resultadoValidacao = $"❌ Erro: {ex.Message}";
+        }
+    }
+
+    private void AbrirConfirmacaoAplicar()
+    {
+        exibirModalConfirmacao = true;
+    }
+
+    private async Task AplicarPacote()
+    {
+        exibirModalConfirmacao = false;
+        resultadoValidacao = "";
+
+        try
+        {
+            var req = new AplicarPacoteFiscalReq
+            {
+                pacote_id = string.IsNullOrEmpty(formPacoteId) ? null : formPacoteId,
+                versao = formVersao,
+                payload_hash = formHash,
+                payload_json = formPayloadJson,
+                idempotency_key = string.IsNullOrEmpty(formIdempotencyKey) ? null : formIdempotencyKey
+            };
+
+            var res = await Tauri.InvocarAsync<string>("aplicar_pacote_fiscal", new { req });
+            validacaoOk = true;
+            resultadoValidacao = $"✅ {res}";
+        }
+        catch (Exception ex)
+        {
+            validacaoOk = false;
+            resultadoValidacao = $"❌ Erro ao aplicar: {ex.Message}";
+        }
+
+        await RecarregarStatus();
+        await RecarregarLogs();
+    }
+
+    private string BadgeStatus(string? s) => s switch
+    {
+        "APLICADO" => "text-success",
+        "ERRO" => "text-danger",
+        "PENDENTE" => "text-warning",
+        _ => "text-secondary"
+    };
+}
