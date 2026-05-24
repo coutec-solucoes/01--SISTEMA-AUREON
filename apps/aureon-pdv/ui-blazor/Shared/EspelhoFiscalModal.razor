@@ -22,6 +22,10 @@
                     <button class="btn btn-primary" @onclick="ValidarDadosFiscais" disabled="@_processando">Validar Dados</button>
                     <button class="btn btn-success" @onclick="CalcularEspelho" disabled="@_processando">Calcular Espelho</button>
                     <button class="btn btn-danger" @onclick="LimparEspelho" disabled="@_processando">Limpar Espelho</button>
+                    @if (_espelhoResp != null)
+                    {
+                        <button class="btn btn-secondary" @onclick="ExportarPreview" disabled="@_processando">Exportar Preview Técnico</button>
+                    }
                 </div>
 
                 @if (_validacaoResp != null)
@@ -188,6 +192,21 @@
             _validacaoResp = null;
         }
         _processando = false;
+    }
+
+    private async Task ExportarPreview()
+    {
+        if (_espelhoResp != null)
+        {
+            var previewExport = $"DOCUMENTO TÉCNICO SEM VALIDADE FISCAL\n" +
+                                $"Venda ID: {_espelhoResp.VendaId}\n" +
+                                $"País: {_espelhoResp.PaisFiscal} | Ambiente: {_espelhoResp.Ambiente} | Modelo: {_espelhoResp.ModeloPreview}\n" +
+                                $"Total Base: {FormatarMinorUnit(_espelhoResp.TotalBaseMinor)}\n" +
+                                $"Total Imposto: {FormatarMinorUnit(_espelhoResp.TotalImpostoMinor)}\n";
+            
+            await Tauri.InvocarAsync<object>("console.log", previewExport);
+            await Tauri.InvocarAsync<object>("alert", "Exportado para o console técnico.\nDOCUMENTO TÉCNICO SEM VALIDADE FISCAL");
+        }
     }
 
     private string FormatarMinorUnit(long minor)
