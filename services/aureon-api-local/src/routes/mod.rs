@@ -6,3 +6,4 @@ pub mod seguranca;
 pub mod cadastros;
 pub mod configuracoes;
 pub mod sync;
+pub mod fiscal;

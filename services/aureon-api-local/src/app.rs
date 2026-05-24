@@ -4,7 +4,13 @@ use axum::{
 };
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
-use crate::routes::{health, diagnostico, empresa, auth, cadastros::{pessoas, grupos, produtos}, configuracoes::operacionais, sync::{terminais, pacotes, publicacao, diagnostico as sync_diag}};
+use crate::routes::{
+    health, diagnostico, empresa, auth,
+    cadastros::{pessoas, grupos, produtos},
+    configuracoes::operacionais,
+    sync::{terminais, pacotes, publicacao, diagnostico as sync_diag},
+    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver}
+};
 use crate::middleware::auth_middleware;
 
 
@@ -128,6 +134,40 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         .route("/sync/publicacoes/:id/reprocessar", post(publicacao::reprocessar_publicacao))
         .route("/sync/diagnostico", get(sync_diag::diagnostico_geral))
         .route("/sync/logs", get(sync_diag::listar_logs))
+        
+        // Módulo Retaguarda Fiscal Mestre (Fase 17 - Bloco 2)
+        // Configurações Fiscais
+        .route("/fiscal/configuracoes", get(fiscal_config::obter_configuracoes).post(fiscal_config::criar_configuracao))
+        .route("/fiscal/configuracoes/:id", put(fiscal_config::atualizar_configuracao))
+        
+        // Dicionários
+        .route("/fiscal/dicionarios/ncm", get(fiscal_dic::obter_ncms).post(fiscal_dic::criar_ncm))
+        .route("/fiscal/dicionarios/ncm/:id", put(fiscal_dic::atualizar_ncm))
+        .route("/fiscal/dicionarios/ncm/:id/inativar", put(fiscal_dic::inativar_ncm))
+        
+        .route("/fiscal/dicionarios/cfop", get(fiscal_dic::obter_cfops).post(fiscal_dic::criar_cfop))
+        .route("/fiscal/dicionarios/cfop/:id", put(fiscal_dic::atualizar_cfop))
+        .route("/fiscal/dicionarios/cfop/:id/inativar", put(fiscal_dic::inativar_cfop))
+        
+        .route("/fiscal/dicionarios/cst-csosn", get(fiscal_dic::obter_cst_csosns).post(fiscal_dic::criar_cst_csosn))
+        .route("/fiscal/dicionarios/cst-csosn/:id", put(fiscal_dic::atualizar_cst_csosn))
+        .route("/fiscal/dicionarios/cst-csosn/:id/inativar", put(fiscal_dic::inativar_cst_csosn))
+        
+        .route("/fiscal/dicionarios/iva", get(fiscal_dic::obter_ivas).post(fiscal_dic::criar_iva))
+        .route("/fiscal/dicionarios/iva/:id", put(fiscal_dic::atualizar_iva))
+        .route("/fiscal/dicionarios/iva/:id/inativar", put(fiscal_dic::inativar_iva))
+        
+        // Regras Tributárias
+        .route("/fiscal/regras", get(fiscal_reg::obter_regras).post(fiscal_reg::criar_regra))
+        .route("/fiscal/regras/:id", put(fiscal_reg::atualizar_regra))
+        .route("/fiscal/regras/:id/inativar", put(fiscal_reg::inativar_regra))
+        
+        // Versionamento e Auditoria
+        .route("/fiscal/versoes", get(fiscal_ver::obter_versoes))
+        .route("/fiscal/versoes/rascunho", post(fiscal_ver::criar_versao_rascunho))
+        .route("/fiscal/versoes/:id/cancelar", put(fiscal_ver::cancelar_versao))
+        .route("/fiscal/versoes/:id/itens", get(fiscal_ver::listar_itens_versao))
+        .route("/fiscal/auditoria", get(fiscal_ver::obter_auditoria))
         
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 

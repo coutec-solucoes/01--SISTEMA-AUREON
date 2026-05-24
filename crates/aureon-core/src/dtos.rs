@@ -1524,3 +1524,179 @@ pub struct ObterEspelhoFiscalVendaReq {
     pub venda_id: String,
 }
 
+// =========================================
+// FASE 17 BLOCO 2 — DTOs MESTRE FISCAL (RETAGUARDA)
+// =========================================
+
+// --- Configurações ---
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FiscalEmpresaConfigMestreReq {
+    pub empresa_id: Option<String>,
+    pub filial_id: Option<String>,
+    pub pais_fiscal: String,
+    pub regime_fiscal: Option<String>,
+    pub ambiente: String,
+    pub forma_emissao: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FiscalEmpresaConfigMestreResp {
+    pub id: String,
+    pub empresa_id: Option<String>,
+    pub filial_id: Option<String>,
+    pub pais_fiscal: String,
+    pub regime_fiscal: Option<String>,
+    pub ambiente: String,
+    pub forma_emissao: String,
+    pub ativo: bool,
+}
+
+// --- Dicionários ---
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DicionarioNcmReq {
+    pub codigo: String,
+    pub descricao: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DicionarioNcmResp {
+    pub id: String,
+    pub codigo: String,
+    pub descricao: Option<String>,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DicionarioCfopReq {
+    pub codigo: String,
+    pub descricao: Option<String>,
+    pub tipo_operacao: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DicionarioCfopResp {
+    pub id: String,
+    pub codigo: String,
+    pub descricao: Option<String>,
+    pub tipo_operacao: Option<String>,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DicionarioCstCsosnReq {
+    pub codigo: String,
+    pub tipo: String, // "CST" | "CSOSN" | "PIS" | "COFINS"
+    pub descricao: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DicionarioCstCsosnResp {
+    pub id: String,
+    pub codigo: String,
+    pub tipo: String,
+    pub descricao: Option<String>,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DicionarioIvaReq {
+    pub codigo: String,
+    pub descricao: Option<String>,
+    pub pais_fiscal: String,
+    pub aliquota_escala6: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DicionarioIvaResp {
+    pub id: String,
+    pub codigo: String,
+    pub descricao: Option<String>,
+    pub pais_fiscal: String,
+    pub aliquota_escala6: i64,
+    pub ativo: bool,
+}
+
+// --- Regras Tributárias ---
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RegraTributariaMestreReq {
+    pub empresa_id: Option<String>,
+    pub filial_id: Option<String>,
+    pub pais_fiscal: String,
+    pub tipo_operacao: String,
+    pub uf_origem: Option<String>,
+    pub uf_destino: Option<String>,
+    pub ncm_id: Option<String>,
+    pub cfop_id: Option<String>,
+    pub cst_csosn_id: Option<String>,
+    pub iva_id: Option<String>,
+    pub aliquota_icms_escala6: i64,
+    pub aliquota_pis_escala6: i64,
+    pub aliquota_cofins_escala6: i64,
+    pub aliquota_iva_escala6: i64,
+    pub reducao_base_escala6: i64,
+    pub prioridade: i32,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RegraTributariaMestreResp {
+    pub id: String,
+    pub empresa_id: Option<String>,
+    pub filial_id: Option<String>,
+    pub pais_fiscal: String,
+    pub tipo_operacao: String,
+    pub uf_origem: Option<String>,
+    pub uf_destino: Option<String>,
+    pub ncm_id: Option<String>,
+    pub cfop_id: Option<String>,
+    pub cst_csosn_id: Option<String>,
+    pub iva_id: Option<String>,
+    pub aliquota_icms_escala6: i64,
+    pub aliquota_pis_escala6: i64,
+    pub aliquota_cofins_escala6: i64,
+    pub aliquota_iva_escala6: i64,
+    pub reducao_base_escala6: i64,
+    pub prioridade: i32,
+    pub ativo: bool,
+}
+
+// --- Versionamento ---
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VersaoFiscalReq {
+    pub versao: String,
+    pub pais_fiscal: Option<String>,
+    pub empresa_id: Option<String>,
+    pub filial_id: Option<String>,
+    pub observacao: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VersaoFiscalResp {
+    pub id: String,
+    pub versao: String,
+    pub pais_fiscal: Option<String>,
+    pub empresa_id: Option<String>,
+    pub filial_id: Option<String>,
+    pub status: String,
+    pub total_registros: i32,
+    pub publicado_em: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VersaoFiscalItemResp {
+    pub id: String,
+    pub versao_id: String,
+    pub tipo_dado: String,
+    pub registro_id: Option<String>,
+    pub operacao: String,
+}
+
+// --- Auditoria ---
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AuditoriaMestreResp {
+    pub id: String,
+    pub entidade: String,
+    pub entidade_id: Option<String>,
+    pub acao: String,
+    pub usuario_id: Option<String>,
+    pub criado_em: String,
+}
