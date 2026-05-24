@@ -9,7 +9,7 @@ use crate::routes::{
     cadastros::{pessoas, grupos, produtos},
     configuracoes::operacionais,
     sync::{terminais, pacotes, publicacao, diagnostico as sync_diag},
-    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver}
+    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub}
 };
 use crate::middleware::auth_middleware;
 
@@ -168,6 +168,13 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         .route("/fiscal/versoes/:id/cancelar", put(fiscal_ver::cancelar_versao))
         .route("/fiscal/versoes/:id/itens", get(fiscal_ver::listar_itens_versao))
         .route("/fiscal/auditoria", get(fiscal_ver::obter_auditoria))
+        
+        // Publicação Fiscal Versionada (Bloco 3)
+        .route("/fiscal/versoes/:id/publicar", post(fiscal_pub::publicar_versao))
+        .route("/fiscal/versoes/:id/reprocessar", post(fiscal_pub::reprocessar_versao))
+        .route("/fiscal/versoes/:id/payload", get(fiscal_pub::obter_payload_versao))
+        .route("/fiscal/publicacoes", get(fiscal_pub::listar_publicacoes_fiscais))
+        .route("/fiscal/publicacoes/:id", get(fiscal_pub::obter_publicacao_fiscal))
         
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
