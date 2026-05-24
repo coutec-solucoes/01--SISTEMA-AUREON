@@ -261,3 +261,25 @@ Decisões de arquitetura adotadas na Fase 15 — Impressão Operacional Não Fis
 - **Decisão**: Impressão e operação são **módulos completamente separados**. Commands de impressão são independentes dos commands operacionais. A UI oferece botões de impressão avulsos em tela dedicada (`/reimpressoes`). O PDV pode fechar vendas, processar pagamentos e gerir caixa mesmo que a impressora esteja desligada.
 - **Exceção física permitida**: O pulso de abertura de gaveta (`abrir_gaveta_dinheiro`) é a única operação de hardware que não é puramente documental, mas também não altera dados financeiros — apenas dispara o sinal elétrico.
 - **Consequência**: Resiliência operacional garantida. Impressoras offline não travam o caixa. Reimpressões manuais são sempre possíveis via interface. Risco de inconsistência por falha de impressão é eliminado da camada transacional.
+
+---
+
+# Registro de Decisões de Projeto (ADR) — Fase 16
+
+Decisões de arquitetura adotadas na Fase 16 — Fiscal Base e Espelho Técnico Sem Emissão.
+
+---
+
+## 🏛️ ADR 27: Espelho Técnico Isolado sem Alteração Transacional
+
+- **Contexto**: O PDV precisava de estrutura fiscal (NCM, CFOP, CST, IVA) para cálculo de impostos como preparação estrutural, mas o software não pode emitir ou transmitir documentos (NF-e/SIFEN) em sua versão de prateleira offline.
+- **Decisão**: A matemática fiscal atua como um "Espelho Técnico/Preview". A função calcula o imposto e salva os valores em colunas `fiscal_*_preview` apenas para documentação/validação visual na interface, sem alterar o valor original da venda, o estoque, os lançamentos financeiros de contas a receber ou as movimentações de caixa.
+- **Consequência**: Preparação estrutural massiva e completa, mas preservação estrita da não-emissão fiscal. Nenhum contador ou órgão governamental recebe essas informações a partir deste terminal.
+
+---
+
+## 🔢 ADR 28: Padronização de Alíquotas em Minor Unit Escala 6
+
+- **Contexto**: Alíquotas percentuais fiscais exigem extrema precisão matemática para evitar perdas ou distorções de centavos (ex: 10,5% de R$ 5,00). 
+- **Decisão**: Foi explicitamente rejeitado o uso de `double` ou `float` para persistência e cálculos. Adotou-se o armazenamento de alíquotas em `i64` multiplicando o percentual visual por 10.000 (Escala 6). Ex: `10.5%` torna-se o inteiro `105000`. O cálculo final é efetuado por `(base_minor * aliquota_escala_6) / 1_000_000`. 
+- **Consequência**: Garantia financeira determinística sem arredondamentos inesperados no hardware local. As máscaras de float/decimal (`step="0.01"`) foram permitidas exclusivamente na camada de interface Blazor.
