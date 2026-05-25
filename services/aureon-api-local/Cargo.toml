@@ -29,3 +29,10 @@ sha2         = { workspace = true }
 # Variáveis de ambiente
 dotenvy = "0.15"
 base64.workspace = true
+
+# Dependências Fiscais Opcionais
+openssl = { version = "0.10", optional = true, features = ["vendored"] }
+
+[features]
+default = []
+fiscal_real = ["openssl"]
