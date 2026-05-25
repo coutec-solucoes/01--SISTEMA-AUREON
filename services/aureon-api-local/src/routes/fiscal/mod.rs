@@ -10,3 +10,4 @@ pub mod sifen_preview;
 pub mod validacao_preview;
 pub mod qrcode_preview;
 pub mod assinatura_xmldsig;
+pub mod homologacao;
