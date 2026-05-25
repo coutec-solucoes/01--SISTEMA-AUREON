@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use crate::app::AppState;
 use crate::routes::fiscal::assinatura::AmbienteFiscal;
+use crate::routes::fiscal::historico_homologacao::{registrar_evento_homologacao, RegistrarEventoHomologacaoParams};
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub enum TipoDocumentoSifen {
@@ -50,6 +51,26 @@ pub async fn montar_preview(
     ];
 
     if payload.ambiente == AmbienteFiscal::PRODUCAO {
+        // Auditoria: tentativa de PRODUCAO bloqueada
+        if let Some(pool) = &state.pool {
+            let pool = pool.clone();
+            let vid = payload.venda_id.clone();
+            tokio::spawn(async move {
+                let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                    tipo_evento: "PRODUCAO_BLOQUEADA",
+                    pais: Some("PY".into()),
+                    modelo: Some("SIFEN".into()),
+                    venda_id: uuid::Uuid::parse_str(&vid).ok(),
+                    chave_preview: None,
+                    cdc_preview: None,
+                    sucesso: false,
+                    mensagem: "Tentativa de gerar preview SIFEN em PRODUCAO bloqueada.".into(),
+                    payload_hash: None,
+                    erro_codigo: Some("AMBIENTE_PRODUCAO_REJEITADO".into()),
+                    payload_preview: None,
+                }).await;
+            });
+        }
         return Ok(Json(SifenPreviewResp {
             sucesso: false,
             venda_id: payload.venda_id.clone(),
@@ -136,6 +157,31 @@ pub async fn montar_preview(
         iva_5_minor,
         iva_exento_minor,
     );
+
+    // Auditoria técnica — não bloqueia resposta
+    if let Some(pool) = &state.pool {
+        let pool = pool.clone();
+        let vid = payload.venda_id.clone();
+        let cdc_clone = cdc.clone();
+        let doc_tipo = format!("{:?}", payload.tipo_documento_preview);
+        tokio::spawn(async move {
+            let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                tipo_evento: "SIFEN_PREVIEW_GERADO",
+                pais: Some("PY".into()),
+                modelo: Some(doc_tipo),
+                venda_id: uuid::Uuid::parse_str(&vid).ok(),
+                chave_preview: None,
+                cdc_preview: Some(cdc_clone),
+                sucesso: true,
+                mensagem: "Preview JSON SIFEN/DTE gerado com sucesso. Não representa autorização fiscal.".into(),
+                payload_hash: None,
+                erro_codigo: None,
+                payload_preview: Some(serde_json::json!({
+                    "aviso": "Preview técnico SIFEN, sem validade fiscal"
+                })),
+            }).await;
+        });
+    }
 
     Ok(Json(SifenPreviewResp {
         sucesso: true,

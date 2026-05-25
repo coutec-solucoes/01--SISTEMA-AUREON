@@ -4,6 +4,7 @@ use std::fs;
 use sqlx::Row;
 use crate::app::AppState;
 use crate::routes::fiscal::assinatura::{assinar_preview, AssinarXmlPreviewReq, AlgoritmoAssinatura, AmbienteFiscal};
+use crate::routes::fiscal::historico_homologacao::{registrar_evento_homologacao, RegistrarEventoHomologacaoParams};
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub enum ModeloDocumento {
@@ -54,6 +55,26 @@ pub async fn montar_preview(
     ];
 
     if payload.ambiente == AmbienteFiscal::PRODUCAO {
+        // Auditoria: tentativa de PRODUCAO bloqueada
+        if let Some(pool) = &state.pool {
+            let pool = pool.clone();
+            let vid = payload.venda_id.clone();
+            tokio::spawn(async move {
+                let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                    tipo_evento: "PRODUCAO_BLOQUEADA",
+                    pais: Some("BR".into()),
+                    modelo: Some("NFCE".into()),
+                    venda_id: uuid::Uuid::parse_str(&vid).ok(),
+                    chave_preview: None,
+                    cdc_preview: None,
+                    sucesso: false,
+                    mensagem: "Tentativa de gerar preview em PRODUCAO bloqueada.".into(),
+                    payload_hash: None,
+                    erro_codigo: Some("AMBIENTE_PRODUCAO_REJEITADO".into()),
+                    payload_preview: None,
+                }).await;
+            });
+        }
         return Ok(Json(NfcePreviewResp {
             sucesso: false,
             venda_id: payload.venda_id.clone(),
@@ -171,6 +192,31 @@ pub async fn montar_preview(
         } else {
             warnings.push("Senha do certificado não informada para assinatura.".to_string());
         }
+    }
+
+    // Auditoria técnica — não bloqueia resposta
+    if let Some(pool) = &state.pool {
+        let pool = pool.clone();
+        let vid = payload.venda_id.clone();
+        let chave_clone = chave.clone();
+        let modelo_str = format!("{:?}", payload.modelo);
+        tokio::spawn(async move {
+            let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                tipo_evento: "NFCE_PREVIEW_GERADO",
+                pais: Some("BR".into()),
+                modelo: Some(modelo_str),
+                venda_id: uuid::Uuid::parse_str(&vid).ok(),
+                chave_preview: Some(chave_clone),
+                cdc_preview: None,
+                sucesso: true,
+                mensagem: "Preview XML NF-e/NFC-e gerado com sucesso. Não representa autorização fiscal.".into(),
+                payload_hash: None,
+                erro_codigo: None,
+                payload_preview: Some(serde_json::json!({
+                    "aviso": "Preview técnico, sem validade fiscal"
+                })),
+            }).await;
+        });
     }
 
     Ok(Json(NfcePreviewResp {

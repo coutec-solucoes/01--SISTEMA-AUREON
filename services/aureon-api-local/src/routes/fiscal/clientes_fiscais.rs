@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use crate::app::AppState;
 use crate::routes::fiscal::homologacao::registry_endpoints_homologacao;
+use crate::routes::fiscal::historico_homologacao::{registrar_evento_homologacao, RegistrarEventoHomologacaoParams};
 
 // ─────────────────────────────────────────────
 // CONSTANTES DE SEGURANÇA
@@ -72,7 +73,7 @@ pub struct TestarConectividadeFiscalResp {
 /// NÃO envia XML de nota, NÃO envia DTE, NÃO realiza autorização.
 /// Qualquer resposta HTTP (200/403/405/500) é diagnóstico de rede, não status fiscal.
 pub async fn testar_conectividade(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(payload): Json<TestarConectividadeFiscalReq>,
 ) -> Result<Json<TestarConectividadeFiscalResp>, (axum::http::StatusCode, String)> {
     let mut warnings: Vec<String> = Vec::new();
@@ -83,6 +84,25 @@ pub async fn testar_conectividade(
 
     // ── Bloqueio 1: Ambiente PRODUCAO ────────────────────────────────────
     if payload.ambiente.to_uppercase() == "PRODUCAO" {
+        // Auditoria PRODUCAO_BLOQUEADA
+        if let Some(pool) = &state.pool {
+            let pool = pool.clone();
+            tokio::spawn(async move {
+                let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                    tipo_evento: "PRODUCAO_BLOQUEADA",
+                    pais: None,
+                    modelo: None,
+                    venda_id: None,
+                    chave_preview: None,
+                    cdc_preview: None,
+                    sucesso: false,
+                    mensagem: "Tentativa de testar conectividade em PRODUCAO bloqueada.".into(),
+                    payload_hash: None,
+                    erro_codigo: Some("AMBIENTE_PRODUCAO_REJEITADO".into()),
+                    payload_preview: None,
+                }).await;
+            });
+        }
         return Ok(Json(TestarConectividadeFiscalResp {
             sucesso: false,
             ambiente: payload.ambiente,
@@ -193,6 +213,36 @@ pub async fn testar_conectividade(
         Duration::from_millis(timeout_ms),
         &mut warnings,
     ).await;
+
+    // Auditoria técnica — não bloqueia resposta
+    if let Some(pool) = &state.pool {
+        let pool = pool.clone();
+        let sucesso = resultado.sucesso;
+        let url_clone = resultado.url.clone();
+        let msg_clone = resultado.mensagem.clone();
+        let pais_clone = payload.pais.clone();
+        let modelo_clone = payload.modelo.clone();
+        let status_code = resultado.http_status;
+        tokio::spawn(async move {
+            let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                tipo_evento: "CONECTIVIDADE_HOMOLOGACAO_TESTADA",
+                pais: Some(pais_clone),
+                modelo: Some(modelo_clone),
+                venda_id: None,
+                chave_preview: None,
+                cdc_preview: None,
+                sucesso,
+                mensagem: msg_clone,
+                payload_hash: None,
+                erro_codigo: None,
+                payload_preview: Some(serde_json::json!({
+                    "url": url_clone,
+                    "http_status": status_code,
+                    "aviso": "Diagnóstico de conectividade. Não representa envio de documento fiscal."
+                })),
+            }).await;
+        });
+    }
 
     Ok(Json(resultado))
 }

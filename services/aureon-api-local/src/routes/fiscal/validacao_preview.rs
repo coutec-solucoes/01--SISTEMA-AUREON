@@ -2,6 +2,7 @@ use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use crate::app::AppState;
 use crate::routes::fiscal::assinatura::AmbienteFiscal;
+use crate::routes::fiscal::historico_homologacao::{registrar_evento_homologacao, RegistrarEventoHomologacaoParams};
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub enum TipoPreviewValidacao {
@@ -43,7 +44,7 @@ pub struct ValidacaoPreviewFiscalResp {
 }
 
 pub async fn validar_preview(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(payload): Json<ValidarPreviewFiscalReq>,
 ) -> Result<Json<ValidacaoPreviewFiscalResp>, (axum::http::StatusCode, String)> {
     
@@ -62,6 +63,25 @@ pub async fn validar_preview(
     }
 
     if payload.ambiente == AmbienteFiscal::PRODUCAO {
+        // Auditoria PRODUCAO_BLOQUEADA
+        if let Some(pool) = &state.pool {
+            let pool = pool.clone();
+            tokio::spawn(async move {
+                let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                    tipo_evento: "PRODUCAO_BLOQUEADA",
+                    pais: None,
+                    modelo: None,
+                    venda_id: None,
+                    chave_preview: None,
+                    cdc_preview: None,
+                    sucesso: false,
+                    mensagem: "Tentativa de validar preview em PRODUCAO bloqueada.".into(),
+                    payload_hash: None,
+                    erro_codigo: Some("AMBIENTE_PRODUCAO_REJEITADO".into()),
+                    payload_preview: None,
+                }).await;
+            });
+        }
         erros.push(ValidacaoPreviewErroResp {
             codigo: "VAL_002".to_string(),
             campo: Some("ambiente".to_string()),
@@ -130,6 +150,29 @@ pub async fn validar_preview(
     } else {
         "Erros de validação encontrados na estrutura do preview."
     };
+
+    // Auditoria técnica — não bloqueia resposta
+    if let Some(pool) = &state.pool {
+        let pool = pool.clone();
+        let sucesso = valido;
+        let msg_clone = msg.to_string();
+        let tipo_str = format!("{:?}", payload.tipo);
+        tokio::spawn(async move {
+            let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                tipo_evento: "PREVIEW_VALIDADO_LOCALMENTE",
+                pais: None,
+                modelo: Some(tipo_str),
+                venda_id: None,
+                chave_preview: None,
+                cdc_preview: None,
+                sucesso,
+                mensagem: msg_clone,
+                payload_hash: None,
+                erro_codigo: None,
+                payload_preview: None,
+            }).await;
+        });
+    }
 
     Ok(Json(build_resp(payload, valido, erros, warnings, msg)))
 }

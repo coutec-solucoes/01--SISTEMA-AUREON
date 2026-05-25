@@ -4,6 +4,7 @@ use qrcode::QrCode;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use crate::app::AppState;
 use crate::routes::fiscal::assinatura::AmbienteFiscal;
+use crate::routes::fiscal::historico_homologacao::{registrar_evento_homologacao, RegistrarEventoHomologacaoParams};
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub enum TipoQrCodePreview {
@@ -34,7 +35,7 @@ pub struct QrCodePreviewResp {
 }
 
 pub async fn gerar_qrcode(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(payload): Json<GerarQrCodePreviewReq>,
 ) -> Result<Json<QrCodePreviewResp>, (axum::http::StatusCode, String)> {
     
@@ -44,6 +45,25 @@ pub async fn gerar_qrcode(
     ];
 
     if payload.ambiente == AmbienteFiscal::PRODUCAO {
+        // Auditoria PRODUCAO_BLOQUEADA
+        if let Some(pool) = &state.pool {
+            let pool = pool.clone();
+            tokio::spawn(async move {
+                let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                    tipo_evento: "PRODUCAO_BLOQUEADA",
+                    pais: None,
+                    modelo: None,
+                    venda_id: None,
+                    chave_preview: None,
+                    cdc_preview: None,
+                    sucesso: false,
+                    mensagem: "Tentativa de gerar QR Code em PRODUCAO bloqueada.".into(),
+                    payload_hash: None,
+                    erro_codigo: Some("AMBIENTE_PRODUCAO_REJEITADO".into()),
+                    payload_preview: None,
+                }).await;
+            });
+        }
         return Ok(Json(QrCodePreviewResp {
             sucesso: false,
             tipo: format!("{:?}", payload.tipo),
@@ -92,12 +112,38 @@ pub async fn gerar_qrcode(
 
     warnings.push("QR Code gerado internamente sem cHashQR oficial e sem consulta na SEFAZ/DNIT.".to_string());
 
+    // Auditoria técnica — não bloqueia resposta
+    let pais_qr = match payload.tipo {
+        TipoQrCodePreview::SIFEN => "PY",
+        _ => "BR",
+    };
+    if let Some(pool) = &state.pool {
+        let pool = pool.clone();
+        let conteudo_clone = conteudo_qr_string.clone();
+        let pais_str = pais_qr.to_string();
+        tokio::spawn(async move {
+            let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                tipo_evento: "QRCODE_PREVIEW_GERADO",
+                pais: Some(pais_str),
+                modelo: None,
+                venda_id: None,
+                chave_preview: None,
+                cdc_preview: None,
+                sucesso: true,
+                mensagem: "QR Code preview gerado. Não representa QR fiscal oficial.".into(),
+                payload_hash: None,
+                erro_codigo: None,
+                payload_preview: Some(serde_json::json!({"tamanho_conteudo": conteudo_clone.len()})),
+            }).await;
+        });
+    }
+
     Ok(Json(QrCodePreviewResp {
         sucesso: true,
         tipo: format!("{:?}", payload.tipo),
         ambiente: format!("{:?}", payload.ambiente),
         conteudo_qr: Some(conteudo_qr_string),
-        png_base64: Some(b64), // Pode ser usado como base64 no img src
+        png_base64: Some(b64),
         mensagem: "QR Code preview gerado com sucesso (formato base64 SVG).".to_string(),
         warnings,
     }))

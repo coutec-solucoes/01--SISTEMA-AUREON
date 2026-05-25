@@ -2,6 +2,7 @@ use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use crate::app::AppState;
+use crate::routes::fiscal::historico_homologacao::{registrar_evento_homologacao, RegistrarEventoHomologacaoParams};
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[allow(non_camel_case_types)]
@@ -304,24 +305,41 @@ pub async fn testar_assinatura(
 }
 
 pub async fn verificar_preview(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(payload): Json<VerificarXmlPreviewReq>,
 ) -> Result<Json<VerificarXmlPreviewResp>, (axum::http::StatusCode, String)> {
     let warnings = vec![
         "Verificação técnica simplificada. Validação criptográfica de Signature não implementada sem XMLDSig real.".to_string()
     ];
 
-    if payload.xml_assinado.contains("<SignatureValue>") && payload.xml_assinado.contains("</SignatureValue>") {
-        Ok(Json(VerificarXmlPreviewResp {
-            valido: true,
-            mensagem: "XML contém tag de assinatura. Assumindo como válido para fins de preview técnico.".to_string(),
-            warnings,
-        }))
+    let valido = payload.xml_assinado.contains("<SignatureValue>") && payload.xml_assinado.contains("</SignatureValue>");
+    let mensagem = if valido {
+        "XML contém tag de assinatura. Assumindo como válido para fins de preview técnico.".to_string()
     } else {
-        Ok(Json(VerificarXmlPreviewResp {
-            valido: false,
-            mensagem: "XML não contém tag <SignatureValue>.".to_string(),
-            warnings,
-        }))
+        "XML não contém tag <SignatureValue>.".to_string()
+    };
+
+    // Auditoria técnica — não bloqueia resposta em caso de falha
+    if let Some(pool) = &state.pool {
+        let pool = pool.clone();
+        let sucesso = valido;
+        let msg = mensagem.clone();
+        tokio::spawn(async move {
+            let _ = registrar_evento_homologacao(&pool, RegistrarEventoHomologacaoParams {
+                tipo_evento: "ASSINATURA_PREVIEW_EXECUTADA",
+                pais: Some("BR".into()),
+                modelo: None,
+                venda_id: None,
+                chave_preview: None,
+                cdc_preview: None,
+                sucesso,
+                mensagem: msg,
+                payload_hash: None,
+                erro_codigo: None,
+                payload_preview: Some(serde_json::json!({"operacao": "verificar_preview"})),
+            }).await;
+        });
     }
+
+    Ok(Json(VerificarXmlPreviewResp { valido, mensagem, warnings }))
 }
