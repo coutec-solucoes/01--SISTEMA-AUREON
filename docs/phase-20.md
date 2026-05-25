@@ -79,3 +79,30 @@ cargo check -p aureon-api-local: APROVADO (9 warnings pre-existentes, zero erros
 2. Chave publica ainda nao e distribuida ao PDV
 3. Verificacao offline no PDV ainda nao implementada
 4. Payload usa dados mock (aguarda banco real)
+
+## Bloco 5 — Aplicação Local de Licença Assinada (PDV)
+**Status**: APROVADO
+**Data**: 2026-05-25
+
+### Objetivo
+Capacitar o PDV a receber, verificar usando criptografia Ed25519 offline e aplicar payloads de licença assinados.
+
+### Entregas
+- `licenca_crypto_local.rs`: Módulo de verificação Ed25519 no PDV.
+- Integração de DTOs Rust compartilhados e classes C# (`PdvModels.cs`).
+- UI `LicencaPdv.razor` atualizada com suporte a colagem de Payload e Assinatura com validação local.
+- Build verificado com sucesso para `aureon-pdv` e `aureon-api-local`.
+
+## Bloco 6 — Sincronização Manual/Online da Licença (PDV -> Retaguarda)
+**Status**: CONCLUÍDO (Pronto para Homologação)
+**Data**: 2026-05-25
+
+### Objetivo
+Permitir que o PDV sincronize de forma automática/manual consultando a URL da Retaguarda, enviando um check-in, obtendo o payload criptográfico assinado e aplicando localmente.
+
+### Entregas
+- Commands Tauri: `configurar_licenciamento_online`, `obter_config_licenciamento_online` e `sincronizar_licenca_online`.
+- Tabela SQLite local `licenca_config` criada sob demanda para persistência das configurações de URL e chaves do licenciamento.
+- Regra de tolerância a falhas de rede (Offline-First): se houver erro HTTP ou falha de conexão, a licença local nunca é apagada nem a operação bloqueada. É registrado o evento `LICENCA_SYNC_FALHOU` e exibida mensagem de contingência.
+- UI do Blazor atualizada com campos de URL da retaguarda, Empresa ID e botões funcionais de "Salvar Configuração" e "Sincronizar com Retaguarda".
+

@@ -209,7 +209,12 @@ pub fn run() {
             commands_licenciamento::aplicar_licenca_assinada,
             commands_licenciamento::obter_chave_publica_licenca_local,
             commands_licenciamento::atualizar_chave_publica_licenca_dev,
+            // Commands de Licenciamento — Sincronização Online (Fase 20 Bloco 6)
+            commands_licenciamento::configurar_licenciamento_online,
+            commands_licenciamento::obter_config_licenciamento_online,
+            commands_licenciamento::sincronizar_licenca_online,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

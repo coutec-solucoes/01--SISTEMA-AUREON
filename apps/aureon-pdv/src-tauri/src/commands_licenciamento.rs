@@ -23,11 +23,14 @@ use aureon_core::dtos::{
     LicencaStatusResp, AtivarLicencaReq,
     VerificarLicencaAssinadaReq, VerificarLicencaAssinadaResp,
     AplicarLicencaAssinadaReq, AplicarLicencaAssinadaResp,
+    SincronizarLicencaReq, SincronizarLicencaResp,
+    ConfigLicenciamentoReq, ConfigLicenciamentoResp,
 };
 use crate::estado::EstadoApp;
 use crate::licenca_crypto_local::{
     verificar_assinatura_local, extrair_campos_payload, calcular_hash_payload, ALGORITMO_SUPORTADO,
 };
+
 
 // ================================================================
 // HELPERS INTERNOS
@@ -586,3 +589,441 @@ pub fn atualizar_chave_publica_licenca_dev(
 
     Ok(format!("Chave pública DEV atualizada para key_id='{}'.", key_id))
 }
+
+// ================================================================
+// BLOCO 6: COMMANDS DE SINCRONIZACAO ONLINE (Retaguarda -> PDV)
+// ================================================================
+
+/// Garante que a tabela licenca_config existe para armazenar a URL da Retaguarda.
+fn garantir_tabela_config(conn: &rusqlite::Connection) -> Result<(), String> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS licenca_config (
+            id          TEXT PRIMARY KEY,
+            url_retaguarda TEXT NOT NULL,
+            key_id      TEXT,
+            chave_publica_base64 TEXT,
+            criado_em   TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL
+        );"
+    ).map_err(|e| format!("Erro ao criar tabela licenca_config: {}", e))
+}
+
+#[tauri::command]
+pub fn configurar_licenciamento_online(
+    req: ConfigLicenciamentoReq,
+    estado: State<EstadoApp>,
+) -> Result<ConfigLicenciamentoResp, AureonError> {
+    info!(
+        componente = "commands_licenciamento",
+        url = %req.url_retaguarda,
+        "configurar_licenciamento_online chamado"
+    );
+
+    let conn = estado.conn_sqlite.lock().map_err(|_| AureonError::Interno("LockError".to_string()))?;
+    garantir_tabela_config(&conn).map_err(|e| AureonError::Interno(e))?;
+
+    let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    
+    // Sempre usa a mesma linha ID fixo 'config_unica' para garantir registro único
+    conn.execute(
+        "INSERT INTO licenca_config (id, url_retaguarda, key_id, chave_publica_base64, criado_em, atualizado_em)
+         VALUES ('config_unica', ?1, ?2, ?3, ?4, ?4)
+         ON CONFLICT(id) DO UPDATE SET 
+            url_retaguarda = excluded.url_retaguarda,
+            key_id = excluded.key_id,
+            chave_publica_base64 = excluded.chave_publica_base64,
+            atualizado_em = excluded.atualizado_em",
+        rusqlite::params![
+            req.url_retaguarda.trim(),
+            req.key_id,
+            req.chave_publica_base64,
+            now
+        ],
+    ).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+
+    Ok(ConfigLicenciamentoResp {
+        sucesso: true,
+        url_retaguarda: req.url_retaguarda,
+        key_id: req.key_id.unwrap_or_default(),
+        mensagem: "Configuração de licenciamento salva com sucesso.".to_string(),
+        warnings: vec![],
+    })
+}
+
+#[tauri::command]
+pub fn obter_config_licenciamento_online(
+    estado: State<EstadoApp>,
+) -> Result<ConfigLicenciamentoResp, AureonError> {
+    let conn = estado.conn_sqlite.lock().map_err(|_| AureonError::Interno("LockError".to_string()))?;
+    garantir_tabela_config(&conn).map_err(|e| AureonError::Interno(e))?;
+
+    let row = conn.query_row(
+        "SELECT url_retaguarda, key_id, chave_publica_base64 FROM licenca_config WHERE id = 'config_unica'",
+        [],
+        |r| Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, Option<String>>(1)?,
+            r.get::<_, Option<String>>(2)?,
+        ))
+    ).optional().map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+
+    match row {
+        Some((url, kid, _cpub)) => {
+            Ok(ConfigLicenciamentoResp {
+                sucesso: true,
+                url_retaguarda: url,
+                key_id: kid.unwrap_or_default(),
+                mensagem: "Configuração carregada com sucesso.".to_string(),
+                warnings: vec![],
+            })
+        }
+        None => {
+            // Default dev url
+            Ok(ConfigLicenciamentoResp {
+                sucesso: false,
+                url_retaguarda: "http://localhost:5053".to_string(),
+                key_id: "".to_string(),
+                mensagem: "Nenhuma configuração encontrada localmente. Usando padrões.".to_string(),
+                warnings: vec![],
+            })
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn sincronizar_licenca_online(
+    req: SincronizarLicencaReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<SincronizarLicencaResp, AureonError> {
+    info!(
+        componente = "commands_licenciamento",
+        url = %req.url_retaguarda,
+        "sincronizar_licenca_online iniciado"
+    );
+
+    // 1. Obter identidade local da instalação
+    let (installation_id, emp_id_db, term_id, term_nome) = {
+        let conn = estado.conn_sqlite.lock().map_err(|_| AureonError::Interno("LockError".to_string()))?;
+        let res = conn.query_row(
+            "SELECT installation_id, empresa_id, terminal_id, terminal_nome FROM instalacao_local LIMIT 1",
+            [],
+            |r| Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, Option<String>>(1)?,
+                r.get::<_, Option<String>>(2)?,
+                r.get::<_, String>(3)?,
+            ))
+        ).optional().map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+
+        match res {
+            Some(data) => data,
+            None => {
+                return Ok(SincronizarLicencaResp {
+                    sucesso: false,
+                    online: false,
+                    checkin_realizado: false,
+                    assinatura_valida: false,
+                    aplicado_localmente: false,
+                    status: "PENDENTE_ATIVACAO".to_string(),
+                    modo: "".to_string(),
+                    empresa_id: "".to_string(),
+                    licenca_id: "".to_string(),
+                    plano_codigo: "".to_string(),
+                    terminal_id: None,
+                    validade_fim: None,
+                    pode_operar: false,
+                    mensagem: "Erro: Instalação local não identificada. Ative localmente primeiro.".to_string(),
+                    warnings: vec![],
+                });
+            }
+        }
+    };
+
+    let empresa_id = req.empresa_id.unwrap_or(emp_id_db.unwrap_or_default());
+    if empresa_id.is_empty() {
+        return Ok(SincronizarLicencaResp {
+            sucesso: false,
+            online: false,
+            checkin_realizado: false,
+            assinatura_valida: false,
+            aplicado_localmente: false,
+            status: "PENDENTE_ATIVACAO".to_string(),
+            modo: "".to_string(),
+            empresa_id: "".to_string(),
+            licenca_id: "".to_string(),
+            plano_codigo: "".to_string(),
+            terminal_id: None,
+            validade_fim: None,
+            pode_operar: false,
+            mensagem: "Erro: Empresa ID é obrigatório para check-in.".to_string(),
+            warnings: vec![],
+        });
+    }
+
+    // 2. Chamar o endpoint da Retaguarda: POST /licenciamento/check-in
+    let checkin_url = format!("{}/licenciamento/check-in", req.url_retaguarda.trim_end_matches('/'));
+    
+    // Obter hash/detalhes fictícios ou seguros do dispositivo
+    let dispositivo_hash = format!("DISP-{}", &installation_id[..8]);
+    let app_versao = "0.0.1".to_string();
+    let os_name = std::env::consts::OS.to_string();
+
+    let checkin_payload = serde_json::json!({
+        "installation_id": installation_id,
+        "empresa_id": empresa_id,
+        "terminal_id": term_id,
+        "terminal_nome": term_nome,
+        "dispositivo_hash": dispositivo_hash,
+        "app_versao": app_versao,
+        "sistema_operacional": os_name
+    });
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| AureonError::Interno(format!("Erro ao criar cliente HTTP: {}", e)))?;
+
+    info!(url = %checkin_url, "Enviando POST de check-in para retaguarda");
+    let response_res = client.post(&checkin_url)
+        .json(&checkin_payload)
+        .send()
+        .await;
+
+    let response = match response_res {
+        Ok(r) => r,
+        Err(e) => {
+            // Regra Offline-First: Tratar falha de rede sem apagar licença local
+            warn!(erro = ?e, "Falha de comunicação com a Retaguarda. Mantendo status local.");
+            
+            // Registrar evento local de falha
+            let conn_lock = estado.conn_sqlite.lock().map_err(|_| AureonError::Interno("LockError".to_string()))?;
+            let _ = registrar_evento_interno(
+                &conn_lock,
+                &installation_id,
+                "",
+                "LICENCA_SYNC_FALHOU",
+                "FALHA_CONEXAO",
+                Some(&format!("Falha na sincronização online: {}", e)),
+            );
+
+            return Ok(SincronizarLicencaResp {
+                sucesso: false,
+                online: false,
+                checkin_realizado: false,
+                assinatura_valida: false,
+                aplicado_localmente: false,
+                status: "OFFLINE".to_string(),
+                modo: "".to_string(),
+                empresa_id,
+                licenca_id: "".to_string(),
+                plano_codigo: "".to_string(),
+                terminal_id: term_id,
+                validade_fim: None,
+                pode_operar: true, // assume que mantém a capacidade de operar
+                mensagem: format!("Falha de conexão com a retaguarda: {}. O PDV continua funcionando offline.", e),
+                warnings: vec!["Operando em modo de contingência offline.".to_string()],
+            });
+        }
+    };
+
+    if !response.status().is_success() {
+        let status_code = response.status();
+        let err_body = response.text().await.unwrap_or_default();
+        return Ok(SincronizarLicencaResp {
+            sucesso: false,
+            online: true,
+            checkin_realizado: false,
+            assinatura_valida: false,
+            aplicado_localmente: false,
+            status: "ERRO_HTTP".to_string(),
+            modo: "".to_string(),
+            empresa_id,
+            licenca_id: "".to_string(),
+            plano_codigo: "".to_string(),
+            terminal_id: term_id,
+            validade_fim: None,
+            pode_operar: true,
+            mensagem: format!("Retaguarda respondeu com status {}: {}", status_code, err_body),
+            warnings: vec![],
+        });
+    }
+
+
+    // Receber os dados do check-in
+    let checkin_resp: serde_json::Value = response.json().await
+        .map_err(|e| AureonError::Interno(format!("Erro ao ler JSON da resposta: {}", e)))?;
+
+    // Verificar se a resposta veio com payload assinado
+    let payload_licenca_json_val = checkin_resp.get("payload_licenca_json");
+    let assinatura_licenca_val = checkin_resp.get("assinatura_licenca");
+
+    if payload_licenca_json_val.is_none() || assinatura_licenca_val.is_none() {
+        return Ok(SincronizarLicencaResp {
+            sucesso: false,
+            online: true,
+            checkin_realizado: true,
+            assinatura_valida: false,
+            aplicado_localmente: false,
+            status: "SEM_ASSINATURA".to_string(),
+            modo: "".to_string(),
+            empresa_id,
+            licenca_id: "".to_string(),
+            plano_codigo: "".to_string(),
+            terminal_id: term_id,
+            validade_fim: None,
+            pode_operar: true,
+            mensagem: "Check-in realizado, mas a Retaguarda não forneceu um payload assinado.".to_string(),
+            warnings: vec![],
+        });
+    }
+
+    let payload_str = match payload_licenca_json_val.unwrap().as_str() {
+        Some(s) => s.to_string(),
+        None => payload_licenca_json_val.unwrap().to_string(),
+    };
+    let assinatura_hex = assinatura_licenca_val.unwrap().as_str().unwrap_or_default().to_string();
+
+    // Buscar chave pública registrada localmente para validar
+    let cpub_hex = {
+        let conn = estado.conn_sqlite.lock().map_err(|_| AureonError::Interno("LockError".to_string()))?;
+        garantir_tabela_chaves(&conn).map_err(|e| AureonError::Interno(e))?;
+        // Tenta obter alguma chave pública cadastrada na tabela
+        conn.query_row(
+            "SELECT chave_publica_base64 FROM licenca_chaves LIMIT 1",
+            [],
+            |r| r.get::<_, String>(0)
+        ).optional().map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?
+    };
+
+    let cpub_hex = match cpub_hex {
+        Some(k) => k,
+        None => {
+            // Permite fallback dev ou avisa que precisa de chave pública local
+            return Ok(SincronizarLicencaResp {
+                sucesso: false,
+                online: true,
+                checkin_realizado: true,
+                assinatura_valida: false,
+                aplicado_localmente: false,
+                status: "SEM_CHAVE_PUBLICA".to_string(),
+                modo: "".to_string(),
+                empresa_id,
+                licenca_id: "".to_string(),
+                plano_codigo: "".to_string(),
+                terminal_id: term_id,
+                validade_fim: None,
+                pode_operar: true,
+                mensagem: "Retaguarda respondeu com licença, mas o PDV não possui nenhuma Chave Pública registrada localmente para validar.".to_string(),
+                warnings: vec!["Cadastre a Chave Pública nas configurações do PDV.".to_string()],
+            });
+        }
+    };
+
+    // Validar assinatura Ed25519 localmente
+    let verificacao = verificar_assinatura_local(
+        &payload_str,
+        ALGORITMO_SUPORTADO,
+        "", // key_id opcional
+        &assinatura_hex,
+        None, // payload_hash_informado opcional
+        &cpub_hex,
+    );
+
+    if !verificacao.valido {
+        return Ok(SincronizarLicencaResp {
+            sucesso: false,
+            online: true,
+            checkin_realizado: true,
+            assinatura_valida: false,
+            aplicado_localmente: false,
+            status: "ASSINATURA_INVALIDA".to_string(),
+            modo: "".to_string(),
+            empresa_id,
+            licenca_id: "".to_string(),
+            plano_codigo: "".to_string(),
+            terminal_id: term_id,
+            validade_fim: None,
+            pode_operar: true,
+            mensagem: format!("Assinatura do payload recebido da Retaguarda é INVÁLIDA: {}", verificacao.mensagem),
+            warnings: vec![],
+        });
+    }
+
+
+    // Extrair os campos
+    let campos = match extrair_campos_payload(&payload_str) {
+        Ok(c) => c,
+        Err(e) => {
+            return Ok(SincronizarLicencaResp {
+                sucesso: false,
+                online: true,
+                checkin_realizado: true,
+                assinatura_valida: true,
+                aplicado_localmente: false,
+                status: "PAYLOAD_CORROMPIDO".to_string(),
+                modo: "".to_string(),
+                empresa_id,
+                licenca_id: "".to_string(),
+                plano_codigo: "".to_string(),
+                terminal_id: term_id,
+                validade_fim: None,
+                pode_operar: true,
+                mensagem: format!("Erro ao decodificar campos da licença recebida: {}", e),
+                warnings: vec![],
+            });
+        }
+    };
+
+    // Aplicar no SQLite
+    {
+        let conn = estado.conn_sqlite.lock().map_err(|_| AureonError::Interno("LockError".to_string()))?;
+        let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let validade_fim_db = if campos.validade == "null" { None } else { Some(campos.validade.clone()) };
+
+        conn.execute("DELETE FROM licenca_local", []).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+        conn.execute(
+            "INSERT INTO licenca_local (id, installation_id, empresa_id, plano_codigo, status, modo, validade_fim, ultimo_check_em, tolerancia_offline_dias, bloqueio_total, criado_em, atualizado_em)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, ?8, ?8)",
+            rusqlite::params![
+                campos.licenca_id,
+                installation_id,
+                campos.empresa_id,
+                campos.plano_codigo,
+                campos.status,
+                "PRODUCAO", // Assume produção para licenças online validadas
+                validade_fim_db,
+                now,
+                campos.tolerancia_offline_dias,
+            ],
+        ).map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+
+        // Registrar evento de sucesso
+        let _ = registrar_evento_interno(
+            &conn,
+            &installation_id,
+            &campos.licenca_id,
+            "LICENCA_SYNC_ONLINE_SUCESSO",
+            &campos.status,
+            Some("Check-in online realizado e licença assinada aplicada."),
+        );
+    }
+
+    Ok(SincronizarLicencaResp {
+        sucesso: true,
+        online: true,
+        checkin_realizado: true,
+        assinatura_valida: true,
+        aplicado_localmente: true,
+        status: campos.status.clone(),
+        modo: "PRODUCAO".to_string(),
+        empresa_id: campos.empresa_id,
+        licenca_id: campos.licenca_id,
+        plano_codigo: campos.plano_codigo,
+        terminal_id: Some(campos.terminal),
+        validade_fim: if campos.validade == "null" { None } else { Some(campos.validade) },
+        pode_operar: campos.status == "ATIVA" || campos.status == "MODO_DEV",
+        mensagem: "Licença sincronizada online e atualizada localmente com sucesso!".to_string(),
+        warnings: vec![],
+    })
+}
+

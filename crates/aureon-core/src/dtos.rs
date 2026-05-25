@@ -2058,3 +2058,50 @@ pub struct AplicarLicencaAssinadaResp {
     /// Avisos nao bloqueantes
     pub warnings: Vec<String>,
 }
+
+// ================================================================
+// DTOs FASE 20 - BLOCO 6: SINCRONIZACAO ONLINE DE LICENCA
+// ================================================================
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SincronizarLicencaReq {
+    pub url_retaguarda: String,
+    pub empresa_id: Option<String>,
+    pub forcar_checkin: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SincronizarLicencaResp {
+    pub sucesso: bool,
+    pub online: bool,
+    pub checkin_realizado: bool,
+    pub assinatura_valida: bool,
+    pub aplicado_localmente: bool,
+    pub status: String,
+    pub modo: String,
+    pub empresa_id: String,
+    pub licenca_id: String,
+    pub plano_codigo: String,
+    pub terminal_id: Option<String>,
+    pub validade_fim: Option<String>,
+    pub pode_operar: bool,
+    pub mensagem: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConfigLicenciamentoReq {
+    pub url_retaguarda: String,
+    pub chave_publica_base64: Option<String>,
+    pub key_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConfigLicenciamentoResp {
+    pub sucesso: bool,
+    pub url_retaguarda: String,
+    pub key_id: String,
+    pub mensagem: String,
+    pub warnings: Vec<String>,
+}
+

@@ -1538,11 +1538,12 @@ namespace AureonPdvUi.Services
         public bool Valido { get; set; }
 
         [JsonPropertyName("payload_valido")]
-        public LicencaPayloadResp? PayloadValido { get; set; }
+        public LicencaStatusResp? PayloadValido { get; set; }
 
         [JsonPropertyName("erro")]
         public string? Erro { get; set; }
     }
+
 
     public class AplicarLicencaAssinadaReq
     {
@@ -1567,5 +1568,98 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("warnings")]
         public List<string> Warnings { get; set; } = new();
     }
+
+    // === DTOs — Fase 20 Bloco 6: Sincronização Online ===
+
+    public class SincronizarLicencaReq
+    {
+        [JsonPropertyName("url_retaguarda")]
+        public string UrlRetaguarda { get; set; } = string.Empty;
+
+        [JsonPropertyName("empresa_id")]
+        public string? EmpresaId { get; set; }
+
+        [JsonPropertyName("forcar_checkin")]
+        public bool ForcarCheckin { get; set; }
+    }
+
+    public class SincronizarLicencaResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+
+        [JsonPropertyName("online")]
+        public bool Online { get; set; }
+
+        [JsonPropertyName("checkin_realizado")]
+        public bool CheckinRealizado { get; set; }
+
+        [JsonPropertyName("assinatura_valida")]
+        public bool AssinaturaValida { get; set; }
+
+        [JsonPropertyName("aplicado_localmente")]
+        public bool AplicadoLocalmente { get; set; }
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+
+        [JsonPropertyName("modo")]
+        public string Modo { get; set; } = string.Empty;
+
+        [JsonPropertyName("empresa_id")]
+        public string EmpresaId { get; set; } = string.Empty;
+
+        [JsonPropertyName("licenca_id")]
+        public string LicencaId { get; set; } = string.Empty;
+
+        [JsonPropertyName("plano_codigo")]
+        public string PlanoCodigo { get; set; } = string.Empty;
+
+        [JsonPropertyName("terminal_id")]
+        public string? TerminalId { get; set; }
+
+        [JsonPropertyName("validade_fim")]
+        public string? ValidadeFim { get; set; }
+
+        [JsonPropertyName("pode_operar")]
+        public bool PodeOperar { get; set; }
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
+
+    public class ConfigLicenciamentoReq
+    {
+        [JsonPropertyName("url_retaguarda")]
+        public string UrlRetaguarda { get; set; } = string.Empty;
+
+        [JsonPropertyName("chave_publica_base64")]
+        public string? ChavePublicaBase64 { get; set; }
+
+        [JsonPropertyName("key_id")]
+        public string? KeyId { get; set; }
+    }
+
+    public class ConfigLicenciamentoResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+
+        [JsonPropertyName("url_retaguarda")]
+        public string UrlRetaguarda { get; set; } = string.Empty;
+
+        [JsonPropertyName("key_id")]
+        public string KeyId { get; set; } = string.Empty;
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
 }
+
 

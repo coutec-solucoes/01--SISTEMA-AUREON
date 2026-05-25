@@ -47,6 +47,30 @@
 
             <!-- Coluna 2: Ações de Ativação -->
             <div class="licenca-actions-card">
+                <h3>Sincronização Online (Recomendado)</h3>
+                <p class="description">Consulte a Retaguarda para fazer check-in e atualizar a licença local de forma automática.</p>
+                
+                <div class="form-group">
+                    <label>URL da Retaguarda:</label>
+                    <input type="text" @bind="formUrlRetaguarda" class="form-control" placeholder="http://localhost:5053" />
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label>Empresa ID (Opcional):</label>
+                            <input type="text" @bind="formSyncEmpresaId" class="form-control" placeholder="Deixe em branco para manter local" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="button-group mt-2">
+                    <button class="btn btn-secondary" @onclick="SalvarConfiguracaoOnline">Salvar Configuração</button>
+                    <button class="btn btn-primary" @onclick="SincronizarOnline">Sincronizar com Retaguarda</button>
+                </div>
+
+                <hr class="divider" />
+
                 <h3>Ativação de Licença Assinada (Offline)</h3>
                 <p class="description">Cole o payload da licença assinada gerado pela retaguarda/cloud e a assinatura correspondente para ativar este terminal sem precisar de internet.</p>
                 
@@ -101,10 +125,11 @@
         </div>
 
         <div class="licenca-warning">
-            ⚠️ <strong>Aviso Importante:</strong> O Aureon opera em arquitetura offline-first. Licenças ativadas localmente por assinatura Ed25519 são autossuficientes e seguras.
+            ⚠️ <strong>Aviso Importante:</strong> O Aureon opera em arquitetura offline-first. A internet é usada apenas para sincronizar ou renovar a licença; o PDV continua 100% offline-first para as operações de venda.
         </div>
     }
 </div>
+
 
 <style>
     .licenca-container {
@@ -120,11 +145,12 @@
         margin-top: 20px;
         margin-bottom: 20px;
     }
-    @media (max-width: 768px) {
+    @@media (max-width: 768px) {
         .licenca-grid {
             grid-template-columns: 1fr;
         }
     }
+
     .licenca-card, .licenca-actions-card {
         background: #1e1e24;
         color: #e0e0e6;
@@ -246,6 +272,10 @@
     private bool carregando = true;
     private LicencaStatusResp? statusLicenca;
     
+    // Formulário de Sincronização Online
+    private string formUrlRetaguarda = "http://localhost:5053";
+    private string formSyncEmpresaId = string.Empty;
+
     // Formulário de Assinatura Offline
     private string formPayloadJson = string.Empty;
     private string formAssinaturaHex = string.Empty;
@@ -260,8 +290,26 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await CarregarConfigOnline();
         await CarregarStatus();
     }
+
+    private async Task CarregarConfigOnline()
+    {
+        try
+        {
+            var config = await Tauri.InvocarAsync<ConfigLicenciamentoResp>("obter_config_licenciamento_online", new { });
+            if (!string.IsNullOrWhiteSpace(config.UrlRetaguarda))
+            {
+                formUrlRetaguarda = config.UrlRetaguarda;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao obter URL configurada: {ex.Message}");
+        }
+    }
+
 
     private async Task CarregarStatus()
     {
@@ -307,8 +355,9 @@
             
             if (resp.Valido)
             {
-                feedbackSucesso = $"✓ Assinatura VÁLIDA! Licença emitida para: {resp.PayloadValido?.RazaoSocial} (Expira em: {resp.PayloadValido?.ValidadeFim})";
+                feedbackSucesso = $"✓ Assinatura VÁLIDA! Licença com plano: {resp.PayloadValido?.PlanoCodigo} (Expira em: {resp.PayloadValido?.ValidadeFim})";
             }
+
             else
             {
                 feedbackErro = $"✗ Assinatura INVÁLIDA: {resp.Erro}";
@@ -378,5 +427,85 @@
             feedbackErro = $"Erro ao ativar: {ex.Message}";
         }
     }
+
+    private async Task SalvarConfiguracaoOnline()
+    {
+        feedbackErro = string.Empty;
+        feedbackSucesso = string.Empty;
+        
+        if (string.IsNullOrWhiteSpace(formUrlRetaguarda))
+        {
+            feedbackErro = "Informe uma URL válida para a Retaguarda.";
+            return;
+        }
+
+        try
+        {
+            var req = new ConfigLicenciamentoReq
+            {
+                UrlRetaguarda = formUrlRetaguarda.Trim()
+            };
+            var resp = await Tauri.InvocarAsync<ConfigLicenciamentoResp>("configurar_licenciamento_online", new { req });
+            if (resp.Sucesso)
+            {
+                feedbackSucesso = "✓ URL da Retaguarda configurada e salva com sucesso!";
+            }
+            else
+            {
+                feedbackErro = $"Erro ao salvar configuração: {resp.Mensagem}";
+            }
+        }
+        catch (Exception ex)
+        {
+            feedbackErro = $"Erro de execução: {ex.Message}";
+        }
+    }
+
+    private async Task SincronizarOnline()
+    {
+        feedbackErro = string.Empty;
+        feedbackSucesso = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(formUrlRetaguarda))
+        {
+            feedbackErro = "Informe uma URL para a sincronização.";
+            return;
+        }
+
+        carregando = true;
+        try
+        {
+            var req = new SincronizarLicencaReq
+            {
+                UrlRetaguarda = formUrlRetaguarda.Trim(),
+                EmpresaId = string.IsNullOrWhiteSpace(formSyncEmpresaId) ? null : formSyncEmpresaId.Trim(),
+                ForcarCheckin = true
+            };
+            var resp = await Tauri.InvocarAsync<SincronizarLicencaResp>("sincronizar_licenca_online", new { req });
+            
+            if (resp.Sucesso)
+            {
+                feedbackSucesso = $"✓ Sincronização ONLINE realizada com sucesso! Status: {resp.Status}";
+                await CarregarStatus();
+            }
+            else
+            {
+                feedbackErro = $"Falha na Sincronização: {resp.Mensagem}";
+                if (resp.Warnings.Count > 0)
+                {
+                    feedbackErro += $" (Aviso: {string.Join(", ", resp.Warnings)})";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            feedbackErro = $"Erro ao sincronizar: {ex.Message}";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
 }
+
 
