@@ -6,7 +6,7 @@ Script para acionar o diagnóstico de build fiscal real via Docker a partir do W
 Write-Host "DIAGNOSTICO FISCAL REAL (WINDOWS -> DOCKER)"
 
 # Verifica se o Docker está rodando
-$dockerStatus = (docker info 2>&1)
+$null = (docker info 2>&1)
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERRO] Docker Desktop nao parece estar rodando."
     exit 1
