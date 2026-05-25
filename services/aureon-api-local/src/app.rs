@@ -9,7 +9,7 @@ use crate::routes::{
     cadastros::{pessoas, grupos, produtos},
     configuracoes::operacionais,
     sync::{terminais, pacotes, publicacao, diagnostico as sync_diag},
-    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass, nfce_preview as fiscal_prev, sifen_preview as fiscal_sifen, validacao_preview as fiscal_val, qrcode_preview as fiscal_qr, assinatura_xmldsig as fiscal_ass_xml, homologacao as fiscal_hom}
+    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass, nfce_preview as fiscal_prev, sifen_preview as fiscal_sifen, validacao_preview as fiscal_val, qrcode_preview as fiscal_qr, assinatura_xmldsig as fiscal_ass_xml, homologacao as fiscal_hom, clientes_fiscais as fiscal_cli}
 };
 use crate::middleware::auth_middleware;
 
@@ -212,7 +212,12 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         .route("/fiscal/homologacao/testar-endpoint", post(fiscal_hom::testar_endpoint))
         .route("/fiscal/homologacao/validar-bloqueio-producao", post(fiscal_hom::validar_bloqueio_producao))
 
+        // Conectividade mTLS Diagnóstica (Fase 19 - Bloco 4)
+        // ATENÇÃO: NÃO envia documento fiscal. Diagnóstico de rede apenas.
+        .route("/fiscal/homologacao/testar-conectividade", post(fiscal_cli::testar_conectividade))
+
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
+
 
     Router::new()
         .route("/health",            get(health::handler_health))

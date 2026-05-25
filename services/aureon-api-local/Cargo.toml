@@ -33,11 +33,16 @@ base64.workspace = true
 qrcode = { version = "0.14", features = ["image"] }
 image = { version = "0.24", default-features = false, features = ["png"] }
 
+# Cliente HTTP para diagnóstico de conectividade fiscal (sem envio de documento)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+
 # Dependências Fiscais Opcionais
 openssl = { version = "0.10", optional = true, features = ["vendored"] }
 xmlsec = { version = "0.3.0", optional = true }
+# mTLS com certificado A1 real (apenas em ambiente Linux/WSL/CI)
+reqwest-mtls = { package = "reqwest", version = "0.12", default-features = false, features = ["native-tls"], optional = true }
 
 [features]
 default = []
-fiscal_real = ["openssl"]
+fiscal_real = ["openssl", "reqwest-mtls"]
 fiscal_xmldsig_real = ["xmlsec", "openssl"]

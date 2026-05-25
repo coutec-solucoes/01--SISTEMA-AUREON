@@ -76,7 +76,7 @@ pub struct RegistryEndpointFiscal {
 
 /// Retorna os endpoints de homologação registrados no sistema para diagnóstico.
 /// Nenhuma chamada de rede é executada por esta função.
-fn registry_endpoints_homologacao() -> Vec<RegistryEndpointFiscal> {
+pub fn registry_endpoints_homologacao() -> Vec<RegistryEndpointFiscal> {
     vec![
         // ─── Brasil — NF-e (SVRS — Homologação) ───────────────────────
         RegistryEndpointFiscal {
