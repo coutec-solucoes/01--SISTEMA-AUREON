@@ -4,3 +4,4 @@ pub mod regras;
 pub mod versoes;
 pub mod publicacao;
 pub mod certificados;
+pub mod assinatura;
