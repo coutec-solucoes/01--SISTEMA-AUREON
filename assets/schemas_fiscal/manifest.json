@@ -1,0 +1,43 @@
+{
+  "schemas": [
+    {
+      "pais": "BR",
+      "modelo": "NFE",
+      "versao": "PL_009_V4",
+      "arquivo": "README.md",
+      "caminho": "assets/schemas_fiscal/br/nfe/PL_009_V4/README.md",
+      "fonte_url": "https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=BMPFMBoln3w=",
+      "data_download": "2026-05-25",
+      "sha256": "6F87FD6F906038A0996BC76C9C253773FDEB754FCA0CDC9E8CA9E22F3190314F",
+      "tamanho_bytes": 45,
+      "modificado": false,
+      "observacao": "Arquivo placeholder. Os schemas XSD oficiais do pacote PL_009_V4 devem ser baixados e extraídos nesta pasta manualmente devido à proteção anti-bot do portal da SEFAZ."
+    },
+    {
+      "pais": "BR",
+      "modelo": "NFCE",
+      "versao": "PL_009_V4",
+      "arquivo": "README.md",
+      "caminho": "assets/schemas_fiscal/br/nfce/PL_009_V4/README.md",
+      "fonte_url": "https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=BMPFMBoln3w=",
+      "data_download": "2026-05-25",
+      "sha256": "6F87FD6F906038A0996BC76C9C253773FDEB754FCA0CDC9E8CA9E22F3190314F",
+      "tamanho_bytes": 45,
+      "modificado": false,
+      "observacao": "Arquivo placeholder. Os schemas XSD oficiais do pacote PL_009_V4 devem ser baixados e extraídos nesta pasta manualmente devido à proteção anti-bot do portal da SEFAZ."
+    },
+    {
+      "pais": "PY",
+      "modelo": "SIFEN",
+      "versao": "v150",
+      "arquivo": "README.md",
+      "caminho": "assets/schemas_fiscal/py/sifen/README.md",
+      "fonte_url": "https://www.dnit.gov.py/web/e-kuatia/documentacion-tecnica",
+      "data_download": "2026-05-25",
+      "sha256": "EE356B272A81FDD8A205BB3E013E7D654590014BD185CA5A5618D6519B73A03C",
+      "tamanho_bytes": 35,
+      "modificado": false,
+      "observacao": "Arquivo placeholder. A documentação técnica e JSON schemas oficiais devem ser baixados da DNIT e colocados aqui."
+    }
+  ]
+}

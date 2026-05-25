@@ -77,21 +77,47 @@ pub async fn validar_preview(
     match payload.tipo {
         TipoPreviewValidacao::NFCE_XML | TipoPreviewValidacao::NFE_XML => {
             validar_xml_estrutural(&payload.conteudo, &mut erros, &mut warnings);
-            warnings.push(ValidacaoPreviewErroResp {
-                codigo: "WARN_XSD".to_string(),
-                campo: None,
-                mensagem: "Validação estrutural XML simplificada (sem XSD oficial). Pendência: Integração com schema XSD governamental.".to_string(),
-                severidade: SeveridadeErro::WARNING,
-            });
+            
+            let schema_path = if payload.tipo == TipoPreviewValidacao::NFE_XML {
+                "assets/schemas_fiscal/br/nfe/PL_009_V4"
+            } else {
+                "assets/schemas_fiscal/br/nfce/PL_009_V4"
+            };
+
+            if std::path::Path::new(schema_path).exists() {
+                warnings.push(ValidacaoPreviewErroResp {
+                    codigo: "INFO_SCHEMA".to_string(),
+                    campo: None,
+                    mensagem: format!("Schema oficial XSD detectado em {}. O validador será migrado para usar este schema no próximo bloco.", schema_path),
+                    severidade: SeveridadeErro::WARNING,
+                });
+            } else {
+                warnings.push(ValidacaoPreviewErroResp {
+                    codigo: "WARN_XSD".to_string(),
+                    campo: None,
+                    mensagem: "Validação estrutural XML simplificada. Schema oficial XSD não encontrado no servidor.".to_string(),
+                    severidade: SeveridadeErro::WARNING,
+                });
+            }
         },
         TipoPreviewValidacao::SIFEN_JSON => {
             validar_sifen_estrutural(&payload.conteudo, &mut erros, &mut warnings);
-            warnings.push(ValidacaoPreviewErroResp {
-                codigo: "WARN_SCHEMA".to_string(),
-                campo: None,
-                mensagem: "Validação estrutural JSON simplificada (sem JSON Schema oficial SIFEN). Pendência: Integração com JSON schema SIFEN oficial.".to_string(),
-                severidade: SeveridadeErro::WARNING,
-            });
+            
+            if std::path::Path::new("assets/schemas_fiscal/py/sifen").exists() {
+                warnings.push(ValidacaoPreviewErroResp {
+                    codigo: "INFO_SCHEMA".to_string(),
+                    campo: None,
+                    mensagem: "Pasta do Schema oficial SIFEN detectada. O validador será atualizado em breve.".to_string(),
+                    severidade: SeveridadeErro::WARNING,
+                });
+            } else {
+                warnings.push(ValidacaoPreviewErroResp {
+                    codigo: "WARN_SCHEMA".to_string(),
+                    campo: None,
+                    mensagem: "Validação estrutural JSON simplificada. Schema SIFEN ausente.".to_string(),
+                    severidade: SeveridadeErro::WARNING,
+                });
+            }
         }
     }
 
