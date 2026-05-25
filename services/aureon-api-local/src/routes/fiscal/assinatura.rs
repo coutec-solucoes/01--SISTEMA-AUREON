@@ -17,6 +17,23 @@ pub enum AmbienteFiscal {
     PRODUCAO,
 }
 
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AssinaturaTipo {
+    PreviewTecnica,
+    XmldsigHomologacaoReal,
+    MockIndisponivel,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CanonicalizacaoTipo {
+    C14nExclusive,
+    C14nXmlsec,
+    NaoAplicada,
+}
+
+
 #[derive(Debug, Deserialize)]
 pub struct AssinarXmlPreviewReq {
     pub xml: String,
@@ -33,6 +50,9 @@ pub struct AssinarXmlPreviewReq {
 pub struct AssinaturaXmlPreviewResp {
     pub sucesso: bool,
     pub xml_assinado: Option<String>,
+    pub assinatura_tipo: AssinaturaTipo,
+    pub xmldsig_real: bool,
+    pub canonicalizacao: CanonicalizacaoTipo,
     pub algoritmo_usado: String,
     pub certificado_cn: Option<String>,
     pub certificado_numero_serie: Option<String>,
@@ -93,6 +113,9 @@ pub async fn assinar_preview(
         return Ok(Json(AssinaturaXmlPreviewResp {
             sucesso: false,
             xml_assinado: None,
+            assinatura_tipo: AssinaturaTipo::PreviewTecnica,
+            xmldsig_real: false,
+            canonicalizacao: CanonicalizacaoTipo::NaoAplicada,
             algoritmo_usado: "N/A".to_string(),
             certificado_cn: None,
             certificado_numero_serie: None,
@@ -131,6 +154,9 @@ pub async fn assinar_preview(
             return Ok(Json(AssinaturaXmlPreviewResp {
                 sucesso: false,
                 xml_assinado: None,
+                assinatura_tipo: AssinaturaTipo::PreviewTecnica,
+                xmldsig_real: false,
+                canonicalizacao: CanonicalizacaoTipo::NaoAplicada,
                 algoritmo_usado: "N/A".to_string(),
                 certificado_cn: None,
                 certificado_numero_serie: None,
@@ -194,6 +220,9 @@ pub async fn assinar_preview(
     Ok(Json(AssinaturaXmlPreviewResp {
         sucesso: true,
         xml_assinado: Some(xml_assinado),
+        assinatura_tipo: AssinaturaTipo::PreviewTecnica,
+        xmldsig_real: false,
+        canonicalizacao: CanonicalizacaoTipo::NaoAplicada,
         algoritmo_usado: algoritmo_str.to_string(),
         certificado_cn: subject_cn,
         certificado_numero_serie: Some(serial_number),
@@ -219,6 +248,9 @@ pub async fn assinar_preview(
         return Ok(Json(AssinaturaXmlPreviewResp {
             sucesso: false,
             xml_assinado: None,
+            assinatura_tipo: AssinaturaTipo::MockIndisponivel,
+            xmldsig_real: false,
+            canonicalizacao: CanonicalizacaoTipo::NaoAplicada,
             algoritmo_usado: "N/A".to_string(),
             certificado_cn: None,
             certificado_numero_serie: None,
@@ -250,6 +282,9 @@ pub async fn assinar_preview(
     Ok(Json(AssinaturaXmlPreviewResp {
         sucesso: true,
         xml_assinado: Some(xml_assinado),
+        assinatura_tipo: AssinaturaTipo::PreviewTecnica,
+        xmldsig_real: false,
+        canonicalizacao: CanonicalizacaoTipo::NaoAplicada,
         algoritmo_usado: algoritmo_str.to_string(),
         certificado_cn: Some("MOCK EMPRESA LTDA".to_string()),
         certificado_numero_serie: Some("A1B2C3D4E5F6".to_string()),

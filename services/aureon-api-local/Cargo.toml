@@ -35,7 +35,9 @@ image = { version = "0.24", default-features = false, features = ["png"] }
 
 # Dependências Fiscais Opcionais
 openssl = { version = "0.10", optional = true, features = ["vendored"] }
+xmlsec = { version = "0.3.0", optional = true }
 
 [features]
 default = []
 fiscal_real = ["openssl"]
+fiscal_xmldsig_real = ["xmlsec", "openssl"]

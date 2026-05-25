@@ -22,6 +22,11 @@ pub async fn handler_diagnostico(pool: Option<PgPool>) -> Json<Value> {
                                .unwrap_or_else(|_| "desenvolvimento".to_string()),
                 "horario":  horario
             },
+            "fiscal": {
+                "fiscal_real": cfg!(feature = "fiscal_real"),
+                "fiscal_xmldsig_real": cfg!(feature = "fiscal_xmldsig_real"),
+                "backend_assinatura": if cfg!(feature = "fiscal_xmldsig_real") { "xmlsec" } else if cfg!(feature = "fiscal_real") { "openssl_tecnico" } else { "mock" }
+            },
             "postgresql": {
                 "status":   pg_status,
                 "mensagem": pg_mensagem
