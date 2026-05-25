@@ -304,3 +304,30 @@ DecisÃµes de arquitetura adotadas na Fase 16 â€” Fiscal Base e Espelho TÃ©cnico 
   - O payload atual Ã© enviado como JSON Ãºnico (sem chunking). Para bases fiscais massivas (>10.000 NCM/CFOP), serÃ¡ necessÃ¡ria paginaÃ§Ã£o em fase futura.
   - A aplicaÃ§Ã£o manual de pacotes via UI Ã© apenas para diagnÃ³stico/homologaÃ§Ã£o tÃ©cnica.
 - **ConsequÃªncia**: Arquitetura clara, auditÃ¡vel e preparada para futuras fases de emissÃ£o fiscal real (NF-e, NFC-e, SIFEN), sem comprometer a estabilidade operacional atual do PDV.
+
+---
+
+# Registro de Decisões de Projeto (ADR) — Fase 18
+
+Decisões de arquitetura adotadas na Fase 18 — Homologação Técnica Fiscal: Certificados, Assinatura, XML/JSON Preview e Validação Local.
+
+---
+
+## ?? ADR 30: Certificado A1 Exclusivo na Retaguarda
+- **Contexto**: Para assinar documentos fiscais, é necessário ler certificados digitais (A1, A3, HSM).
+- **Decisão**: Apenas certificados A1 (arquivos PFX/P12) são suportados, e eles residem exclusivamente na Retaguarda. Certificados A3/HSM ficaram fora de escopo. A chave privada e a senha nunca são persistidas em banco de dados ou logadas.
+- **Consequência**: Simplifica a gestão e evita problemas complexos de drivers locais. A Retaguarda vira um hub centralizado de assinatura. A chave não viaja pela rede para o PDV local.
+
+---
+
+## ?? ADR 31: Assinatura Técnica Preview (Sem XMLDSig definitivo)
+- **Contexto**: A assinatura XMLDSig com C14N exigida pela SEFAZ exige bibliotecas criptográficas específicas (como libxmlsec1), difíceis de compilar estaticamente no Windows de forma portátil em cross-compilation.
+- **Decisão**: A Fase 18 implementa uma assinatura RSA-SHA256 puramente técnica (preview), injetando uma tag <Signature> simplificada. A assinatura XMLDSig oficial fica como pendência técnica para a fase de transmissão real.
+- **Consequência**: Permite validar todo o fluxo de leitura do certificado, extração de chaves e geração do hash, mantendo a compilação do projeto simples, mas bloqueando intencionalmente qualquer tentativa de usar a nota como documento fiscal legal.
+
+---
+
+## ?? ADR 32: Espelho Preview Sem Transmissão e Sem Validade Jurídica
+- **Contexto**: O sistema precisa montar XML NFC-e/NF-e e JSON SIFEN/DTE, além de validá-los, mas sem transmitir para os órgãos competentes.
+- **Decisão**: Todos os endpoints de preview (XML e JSON) geram arquivos com ambiente obrigatoriamente definido para HOMOLOGACAO (tpAmb=2), injetam avisos de DOCUMENTO TECNICO DE HOMOLOGACAO SEM VALIDADE FISCAL, e bloqueiam qualquer requisição de PRODUCAO. O QR gerado é SVG base64 sem cHashQR oficial.
+- **Consequência**: A arquitetura técnica foi criada e validada (estruturação, formatação de minor units, cálculo segregado de IVA), garantindo que o PDV e a retaguarda estão preparados para integração real sem expor clientes a riscos fiscais de emissão indevida.
