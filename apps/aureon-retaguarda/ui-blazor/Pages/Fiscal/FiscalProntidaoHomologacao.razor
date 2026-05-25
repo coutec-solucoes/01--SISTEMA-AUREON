@@ -1,0 +1,123 @@
+@page "/fiscal/prontidao-homologacao"
+@using AureonRetaguardaUi.Services
+@inject FiscalApiClient FiscalApi
+@inject IJSRuntime JSRuntime
+
+<div class="header-pagina">
+    <h1>Checklist de Prontidão Fiscal</h1>
+    <p>Painel de Pendências Técnicas para Homologação Real</p>
+</div>
+
+<div class="alert alert-warning" style="margin-bottom: 24px; font-weight: bold; font-size: 14px; text-align: center; border: 2px solid var(--cor-warning);">
+    A PRONTIDÃO TÉCNICA NÃO SIGNIFICA AUTORIZAÇÃO FISCAL.<br/>
+    ESTA TELA NÃO EMITE, NÃO AUTORIZA E NÃO TRANSMITE DOCUMENTOS FISCAIS.
+</div>
+
+@if (prontidao == null)
+{
+    <p>Verificando prontidão técnica do ambiente...</p>
+}
+else
+{
+    <div class="cards-grid" style="margin-bottom: 24px;">
+        <div class="card @(prontidao.ProntoParaHomologacao ? "bg-success" : "bg-danger")" style="text-align: center; color: white;">
+            <h3>Status Geral</h3>
+            <div style="font-size: 24px; font-weight: bold; margin-top: 12px; margin-bottom: 8px;">
+                @(prontidao.ProntoParaHomologacao ? "PRONTO PARA TESTES REAIS" : "BLOQUEADO / PENDENTE")
+            </div>
+            <div style="font-size: 12px; opacity: 0.9;">
+                @prontidao.Mensagem
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Resumo do Checklist</h3>
+            <div style="font-size: 14px; margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>✔️ OK: <strong>@prontidao.TotalOk</strong></div>
+                <div style="color: var(--cor-warning);">⚠️ Pendentes: <strong>@prontidao.TotalPendente</strong></div>
+                <div style="color: var(--cor-danger);">⛔ Bloqueados: <strong>@prontidao.TotalBloqueado</strong></div>
+                <div style="color: var(--cor-info);">ℹ️ Alertas: <strong>@prontidao.TotalAlerta</strong></div>
+            </div>
+            <div style="margin-top: 16px;">
+                <button class="btn btn-outline" @onclick="CarregarProntidao" style="width: 100%;">🔄 Atualizar Diagnóstico</button>
+            </div>
+        </div>
+    </div>
+
+    @if (prontidao.Itens != null && prontidao.Itens.Any())
+    {
+        <div class="card" style="padding: 0;">
+            <table class="table-custom">
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">Status</th>
+                        <th>Requisito Técnico</th>
+                        <th>Mensagem de Diagnóstico</th>
+                        <th>Ação Recomendada</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in prontidao.Itens)
+                    {
+                        <tr>
+                            <td>
+                                @if (item.Status == "OK")
+                                {
+                                    <span class="badge" style="background: var(--cor-sucesso); color: white; width: 100%; text-align: center;">✔️ OK</span>
+                                }
+                                else if (item.Status == "PENDENTE")
+                                {
+                                    <span class="badge" style="background: var(--cor-warning); color: #333; width: 100%; text-align: center;">⚠️ PENDENTE</span>
+                                }
+                                else if (item.Status == "BLOQUEADO")
+                                {
+                                    <span class="badge" style="background: var(--cor-danger); color: white; width: 100%; text-align: center;">⛔ BLOQUEADO</span>
+                                }
+                                else
+                                {
+                                    <span class="badge" style="background: var(--cor-info); color: white; width: 100%; text-align: center;">ℹ️ ALERTA</span>
+                                }
+                                
+                                @if (item.Obrigatorio)
+                                {
+                                    <div style="font-size: 10px; text-align: center; margin-top: 4px; color: var(--cor-danger); font-weight: bold;">(Obrigatório)</div>
+                                }
+                            </td>
+                            <td>
+                                <strong>@item.Titulo</strong><br/>
+                                <span style="font-size: 11px; color: var(--cor-texto-disabled); font-family: monospace;">@item.Codigo</span>
+                            </td>
+                            <td style="font-size: 13px;">@item.Mensagem</td>
+                            <td style="font-size: 13px; color: var(--cor-primaria);">
+                                @if (!string.IsNullOrEmpty(item.AcaoRecomendada))
+                                {
+                                    <span>👉 @item.AcaoRecomendada</span>
+                                }
+                                else
+                                {
+                                    <span style="color: var(--cor-sucesso);">Tudo Certo.</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private FiscalProntidaoHomologacaoResp? prontidao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarProntidao();
+    }
+
+    private async Task CarregarProntidao()
+    {
+        prontidao = null;
+        StateHasChanged();
+        prontidao = await FiscalApi.ObterProntidaoHomologacaoAsync();
+    }
+}

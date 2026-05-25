@@ -530,4 +530,41 @@ namespace AureonRetaguardaUi.Services
         [JsonPropertyName("criado_em")]
         public string CriadoEm { get; set; } = string.Empty;
     }
+
+    // ─── DTOs de Prontidão Fiscal (Fase 19 - Bloco 9) ──────────────────────
+    public class FiscalProntidaoItemResp
+    {
+        [JsonPropertyName("codigo")]
+        public string Codigo { get; set; } = string.Empty;
+        [JsonPropertyName("titulo")]
+        public string Titulo { get; set; } = string.Empty;
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+        [JsonPropertyName("obrigatorio")]
+        public bool Obrigatorio { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+        [JsonPropertyName("detalhe")]
+        public string? Detalhe { get; set; }
+        [JsonPropertyName("acao_recomendada")]
+        public string? AcaoRecomendada { get; set; }
+    }
+
+    public class FiscalProntidaoHomologacaoResp
+    {
+        [JsonPropertyName("pronto_para_homologacao")]
+        public bool ProntoParaHomologacao { get; set; }
+        [JsonPropertyName("total_ok")]
+        public int TotalOk { get; set; }
+        [JsonPropertyName("total_pendente")]
+        public int TotalPendente { get; set; }
+        [JsonPropertyName("total_bloqueado")]
+        public int TotalBloqueado { get; set; }
+        [JsonPropertyName("total_alerta")]
+        public int TotalAlerta { get; set; }
+        [JsonPropertyName("itens")]
+        public List<FiscalProntidaoItemResp>? Itens { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+    }
 }

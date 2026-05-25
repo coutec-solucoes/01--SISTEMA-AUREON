@@ -298,5 +298,15 @@ namespace AureonRetaguardaUi.Services
         {
             return await _http.GetFromJsonAsync<HistoricoHomologacaoFiscalResp>($"/fiscal/homologacao/historico/{id}");
         }
+        // --- Prontidão Fiscal (Fase 19 - Bloco 9) ---
+        public async Task<FiscalProntidaoHomologacaoResp?> ObterProntidaoHomologacaoAsync()
+        {
+            return await _http.GetFromJsonAsync<FiscalProntidaoHomologacaoResp>("/fiscal/homologacao/prontidao");
+        }
+
+        public async Task<FiscalProntidaoHomologacaoResp?> ObterPendenciasProntidaoHomologacaoAsync()
+        {
+            return await _http.GetFromJsonAsync<FiscalProntidaoHomologacaoResp>("/fiscal/homologacao/prontidao/pendencias");
+        }
     }
 }

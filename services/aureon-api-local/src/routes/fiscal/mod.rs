@@ -13,3 +13,4 @@ pub mod assinatura_xmldsig;
 pub mod homologacao;
 pub mod clientes_fiscais;
 pub mod historico_homologacao;
+pub mod prontidao;
