@@ -255,5 +255,48 @@ namespace AureonRetaguardaUi.Services
         {
             return await _http.GetFromJsonAsync<QrCodePreviewResp>($"/fiscal/preview/qrcode/sifen/{cdcPreview}");
         }
+        // --- Homologação Fiscal (Fase 19 - Bloco 7) ---
+        public async Task<DiagnosticoFiscalHomologacaoResp?> ObterDiagnosticoHomologacaoAsync()
+        {
+            return await _http.GetFromJsonAsync<DiagnosticoFiscalHomologacaoResp>("/fiscal/homologacao/diagnostico");
+        }
+
+        public async Task<List<FiscalEndpointConfigResp>?> ListarEndpointsHomologacaoAsync()
+        {
+            return await _http.GetFromJsonAsync<List<FiscalEndpointConfigResp>>("/fiscal/homologacao/endpoints");
+        }
+
+        public async Task<TestarEndpointFiscalResp?> TestarEndpointHomologacaoAsync(TestarEndpointFiscalReq req)
+        {
+            var res = await _http.PostAsJsonAsync("/fiscal/homologacao/testar-endpoint", req);
+            return await res.Content.ReadFromJsonAsync<TestarEndpointFiscalResp>();
+        }
+
+        public async Task<TestarEndpointFiscalResp?> ValidarBloqueioProducaoAsync(TestarEndpointFiscalReq req)
+        {
+            var res = await _http.PostAsJsonAsync("/fiscal/homologacao/validar-bloqueio-producao", req);
+            return await res.Content.ReadFromJsonAsync<TestarEndpointFiscalResp>();
+        }
+
+        public async Task<TestarConectividadeFiscalResp?> TestarConectividadeHomologacaoAsync(TestarConectividadeFiscalReq req)
+        {
+            var res = await _http.PostAsJsonAsync("/fiscal/homologacao/testar-conectividade", req);
+            return await res.Content.ReadFromJsonAsync<TestarConectividadeFiscalResp>();
+        }
+
+        public async Task<List<HistoricoHomologacaoFiscalResp>?> ListarHistoricoHomologacaoAsync(int limite = 50, int offset = 0)
+        {
+            return await _http.GetFromJsonAsync<List<HistoricoHomologacaoFiscalResp>>($"/fiscal/homologacao/historico?limite={limite}&offset={offset}");
+        }
+
+        public async Task<List<string>?> ListarTiposEventoHomologacaoAsync()
+        {
+            return await _http.GetFromJsonAsync<List<string>>("/fiscal/homologacao/historico/tipos");
+        }
+
+        public async Task<HistoricoHomologacaoFiscalResp?> ObterHistoricoHomologacaoAsync(string id)
+        {
+            return await _http.GetFromJsonAsync<HistoricoHomologacaoFiscalResp>($"/fiscal/homologacao/historico/{id}");
+        }
     }
 }

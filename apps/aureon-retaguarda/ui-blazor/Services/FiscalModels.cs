@@ -382,4 +382,152 @@ namespace AureonRetaguardaUi.Services
         [JsonPropertyName("warnings")]
         public List<string>? Warnings { get; set; }
     }
+    // ─── DTOs de Homologação Fiscal (Fase 19 - Bloco 7) ──────────────────────
+    public class FiscalEndpointConfigResp
+    {
+        [JsonPropertyName("pais")]
+        public string Pais { get; set; } = string.Empty;
+        [JsonPropertyName("modelo")]
+        public string Modelo { get; set; } = string.Empty;
+        [JsonPropertyName("uf")]
+        public string? Uf { get; set; }
+        [JsonPropertyName("servico")]
+        public string Servico { get; set; } = string.Empty;
+        [JsonPropertyName("url")]
+        public string Url { get; set; } = string.Empty;
+        [JsonPropertyName("producao_bloqueada")]
+        public bool ProducaoBloqueada { get; set; }
+    }
+
+    public class DiagnosticoFiscalHomologacaoResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+        [JsonPropertyName("feature_fiscal_real_ativa")]
+        public bool FeatureFiscalRealAtiva { get; set; }
+        [JsonPropertyName("feature_xmldsig_real_ativa")]
+        public bool FeatureXmldsigRealAtiva { get; set; }
+        [JsonPropertyName("certificado_configurado")]
+        public bool CertificadoConfigurado { get; set; }
+        [JsonPropertyName("schemas_nfe_presentes")]
+        public bool SchemasNfePresentes { get; set; }
+        [JsonPropertyName("schemas_nfce_presentes")]
+        public bool SchemasNfcePresentes { get; set; }
+        [JsonPropertyName("schemas_sifen_presentes")]
+        public bool SchemasSifenPresentes { get; set; }
+        [JsonPropertyName("bloqueio_producao_ativo")]
+        public bool BloqueioProducaoAtivo { get; set; }
+        [JsonPropertyName("total_endpoints_registrados")]
+        public int TotalEndpointsRegistrados { get; set; }
+        [JsonPropertyName("warnings")]
+        public List<string>? Warnings { get; set; }
+    }
+
+    public class TestarEndpointFiscalReq
+    {
+        [JsonPropertyName("pais")]
+        public string Pais { get; set; } = string.Empty;
+        [JsonPropertyName("modelo")]
+        public string Modelo { get; set; } = string.Empty;
+        [JsonPropertyName("uf")]
+        public string? Uf { get; set; }
+        [JsonPropertyName("servico")]
+        public string Servico { get; set; } = string.Empty;
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = "HOMOLOGACAO";
+    }
+
+    public class TestarEndpointFiscalResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = string.Empty;
+        [JsonPropertyName("url_resolvida")]
+        public string UrlResolvida { get; set; } = string.Empty;
+        [JsonPropertyName("producao_bloqueada")]
+        public bool ProducaoBloqueada { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+        [JsonPropertyName("warnings")]
+        public List<string>? Warnings { get; set; }
+    }
+
+    public class TestarConectividadeFiscalReq
+    {
+        [JsonPropertyName("pais")]
+        public string Pais { get; set; } = string.Empty;
+        [JsonPropertyName("modelo")]
+        public string Modelo { get; set; } = string.Empty;
+        [JsonPropertyName("uf")]
+        public string? Uf { get; set; }
+        [JsonPropertyName("servico")]
+        public string Servico { get; set; } = string.Empty;
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = "HOMOLOGACAO";
+        [JsonPropertyName("usar_mtls")]
+        public bool? UsarMtls { get; set; }
+        [JsonPropertyName("timeout_ms")]
+        public long? TimeoutMs { get; set; }
+    }
+
+    public class TestarConectividadeFiscalResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = string.Empty;
+        [JsonPropertyName("url")]
+        public string Url { get; set; } = string.Empty;
+        [JsonPropertyName("producao_bloqueada")]
+        public bool ProducaoBloqueada { get; set; }
+        [JsonPropertyName("dns_ok")]
+        public bool DnsOk { get; set; }
+        [JsonPropertyName("tls_ok")]
+        public bool TlsOk { get; set; }
+        [JsonPropertyName("mtls_usado")]
+        public bool MtlsUsado { get; set; }
+        [JsonPropertyName("certificado_configurado")]
+        public bool CertificadoConfigurado { get; set; }
+        [JsonPropertyName("http_status")]
+        public int? HttpStatus { get; set; }
+        [JsonPropertyName("tempo_ms")]
+        public long TempoMs { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+        [JsonPropertyName("warnings")]
+        public List<string>? Warnings { get; set; }
+    }
+
+    public class HistoricoHomologacaoFiscalResp
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("tipo_evento")]
+        public string TipoEvento { get; set; } = string.Empty;
+        [JsonPropertyName("pais")]
+        public string? Pais { get; set; }
+        [JsonPropertyName("modelo")]
+        public string? Modelo { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = string.Empty;
+        [JsonPropertyName("venda_id")]
+        public string? VendaId { get; set; }
+        [JsonPropertyName("chave_preview")]
+        public string? ChavePreview { get; set; }
+        [JsonPropertyName("cdc_preview")]
+        public string? CdcPreview { get; set; }
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+        [JsonPropertyName("payload_hash")]
+        public string? PayloadHash { get; set; }
+        [JsonPropertyName("erro_codigo")]
+        public string? ErroCodigo { get; set; }
+        [JsonPropertyName("payload_preview")]
+        public object? PayloadPreview { get; set; } // Será tratado como JSON dinâmico na UI
+        [JsonPropertyName("criado_em")]
+        public string CriadoEm { get; set; } = string.Empty;
+    }
 }

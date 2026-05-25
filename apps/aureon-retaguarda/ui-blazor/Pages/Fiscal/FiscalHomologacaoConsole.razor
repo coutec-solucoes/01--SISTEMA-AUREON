@@ -1,0 +1,488 @@
+@page "/fiscal/homologacao-console"
+@using AureonRetaguardaUi.Services
+@inject FiscalApiClient FiscalApi
+@inject IJSRuntime JSRuntime
+@using System.Text.Json
+
+<div class="header-pagina">
+    <h1>Console de Homologação Fiscal</h1>
+    <p>Diagnóstico, Histórico e Segurança de Integração</p>
+</div>
+
+<div class="alert alert-warning" style="margin-bottom: 24px; font-weight: bold; font-size: 14px; text-align: center; border: 2px solid var(--cor-warning);">
+    HOMOLOGAÇÃO FISCAL CONTROLADA — SEM VALIDADE JURÍDICA<br/>
+    ESTA TELA NÃO EMITE, NÃO AUTORIZA E NÃO TRANSMITE DOCUMENTOS FISCAIS
+</div>
+
+@if (diagnostico == null)
+{
+    <p>Carregando diagnóstico...</p>
+}
+else
+{
+    <div class="cards-grid" style="margin-bottom: 24px;">
+        <div class="card">
+            <h3>Status de Segurança (Bloqueio Prod)</h3>
+            <div style="font-size: 14px; margin-top: 12px;">
+                <div>Bloqueio Produção: <strong>@(diagnostico.BloqueioProducaoAtivo ? "Ativo" : "Inativo")</strong></div>
+                <div>Endpoints Registrados: <strong>@diagnostico.TotalEndpointsRegistrados</strong></div>
+            </div>
+            <div style="margin-top: 16px;">
+                <button class="btn btn-outline" @onclick="AbrirModalBloqueioProd">Validar Bloqueio</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Features & Módulos Nativos</h3>
+            <div style="font-size: 14px; margin-top: 12px;">
+                <div>Fiscal Real (LibXML2/OpenSSL): <strong>@(diagnostico.FeatureFiscalRealAtiva ? "Sim" : "Não (Mock)")</strong></div>
+                <div>XMLDSig Nativo: <strong>@(diagnostico.FeatureXmldsigRealAtiva ? "Sim" : "Não (Mock)")</strong></div>
+                <div>Certificado Configurado: <strong>@(diagnostico.CertificadoConfigurado ? "Sim" : "Não")</strong></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Schemas Oficiais (XSD/JSON)</h3>
+            <div style="font-size: 14px; margin-top: 12px;">
+                <div>NFe XSD: <strong>@(diagnostico.SchemasNfePresentes ? "OK" : "Pendente")</strong></div>
+                <div>NFCe XSD: <strong>@(diagnostico.SchemasNfcePresentes ? "OK" : "Pendente")</strong></div>
+                <div>SIFEN JSON: <strong>@(diagnostico.SchemasSifenPresentes ? "OK" : "Pendente")</strong></div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 24px;">
+        @if (diagnostico.Warnings != null && diagnostico.Warnings.Any())
+        {
+            @foreach(var warn in diagnostico.Warnings)
+            {
+                <div class="alert alert-warning" style="margin-bottom: 8px;">
+                    <strong>Aviso:</strong> @warn
+                </div>
+            }
+        }
+    </div>
+
+    <div class="tabs-container">
+        <div class="tabs-header">
+            <button class="tab-btn @(tabAtiva == "endpoints" ? "ativo" : "")" @onclick="@(() => tabAtiva = "endpoints")">Endpoints & Conectividade</button>
+            <button class="tab-btn @(tabAtiva == "historico" ? "ativo" : "")" @onclick="@(() => tabAtiva = "historico")">Histórico Técnico</button>
+        </div>
+
+        <div class="tab-content" style="padding: 24px;">
+            @if (tabAtiva == "endpoints")
+            {
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h3>Endpoints de Homologação Registrados</h3>
+                    <button class="btn btn-primary" @onclick="CarregarEndpoints">Atualizar</button>
+                </div>
+
+                @if (endpoints == null)
+                {
+                    <p>Carregando endpoints...</p>
+                }
+                else if (!endpoints.Any())
+                {
+                    <p>Nenhum endpoint registrado.</p>
+                }
+                else
+                {
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th>País/Modelo</th>
+                                <th>UF/Amb</th>
+                                <th>Serviço</th>
+                                <th>URL</th>
+                                <th>Status Produção</th>
+                                <th style="width: 250px;">Ações Técnicas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var ep in endpoints)
+                            {
+                                <tr>
+                                    <td><strong>@ep.Pais</strong> / @ep.Modelo</td>
+                                    <td>@(ep.Uf ?? "-") (HOM)</td>
+                                    <td>@ep.Servico</td>
+                                    <td style="word-break: break-all; font-size: 12px; font-family: monospace;">@ep.Url</td>
+                                    <td>
+                                        @if (ep.ProducaoBloqueada)
+                                        {
+                                            <span class="badge" style="background: var(--cor-danger); color: white;">Bloqueada</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge" style="background: var(--cor-sucesso); color: white;">OK</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline" @onclick="@(() => TestarRegistro(ep))">Reg. Local</button>
+                                        <button class="btn btn-sm btn-outline" @onclick="@(() => TestarConectividade(ep))">Rede/mTLS</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+            else if (tabAtiva == "historico")
+            {
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h3>Eventos Técnicos e Auditoria de Homologação</h3>
+                    <button class="btn btn-primary" @onclick="CarregarHistorico">Atualizar</button>
+                </div>
+
+                @if (historico == null)
+                {
+                    <p>Carregando histórico...</p>
+                }
+                else if (!historico.Any())
+                {
+                    <p>Nenhum evento registrado.</p>
+                }
+                else
+                {
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th>Data/Hora</th>
+                                <th>Evento</th>
+                                <th>Modelo/UF</th>
+                                <th>Status</th>
+                                <th>Mensagem</th>
+                                <th>Detalhes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var ev in historico)
+                            {
+                                <tr>
+                                    <td style="white-space: nowrap;">@FormatarData(ev.CriadoEm)</td>
+                                    <td><strong>@ev.TipoEvento</strong></td>
+                                    <td>@ev.Pais / @ev.Modelo</td>
+                                    <td>
+                                        @if (ev.Sucesso)
+                                        {
+                                            <span class="badge" style="background: var(--cor-sucesso); color: white;">OK</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge" style="background: var(--cor-danger); color: white;">FALHA</span>
+                                        }
+                                    </td>
+                                    <td style="font-size: 12px;" title="@ev.Mensagem">
+                                        @(ev.Mensagem?.Length > 50 ? ev.Mensagem.Substring(0, 50) + "..." : ev.Mensagem)
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline" @onclick="@(() => ExibirDetalhesEvento(ev))">Ver Payload</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        </div>
+    </div>
+}
+
+@if (modalEventoAberta)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="max-width: 800px;">
+            <h3>Detalhes do Evento Técnico</h3>
+            <p><strong>Nota:</strong> Este histórico não constitui autorização fiscal válida.</p>
+            
+            <div style="margin-top: 16px; margin-bottom: 16px;">
+                <div><strong>Tipo Evento:</strong> @eventoSelecionado?.TipoEvento</div>
+                <div><strong>Data:</strong> @eventoSelecionado?.CriadoEm</div>
+                <div><strong>Ambiente:</strong> @eventoSelecionado?.Ambiente</div>
+                <div><strong>Mensagem:</strong> @eventoSelecionado?.Mensagem</div>
+                @if (!string.IsNullOrEmpty(eventoSelecionado?.VendaId))
+                {
+                    <div><strong>Venda ID:</strong> @eventoSelecionado?.VendaId</div>
+                }
+                @if (!string.IsNullOrEmpty(eventoSelecionado?.ChavePreview))
+                {
+                    <div><strong>Chave Preview:</strong> @eventoSelecionado?.ChavePreview</div>
+                }
+                @if (!string.IsNullOrEmpty(eventoSelecionado?.ErroCodigo))
+                {
+                    <div><strong>Código de Erro:</strong> @eventoSelecionado?.ErroCodigo</div>
+                }
+            </div>
+
+            @if (eventoSelecionado?.PayloadPreview != null)
+            {
+                <h4>Payload Técnico (Reduzido/Diagnóstico)</h4>
+                <div style="background-color: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 4px; overflow-x: auto; font-family: monospace; font-size: 13px; max-height: 300px; overflow-y: auto; margin-bottom: 16px;">
+                    <pre>@FormatarJson(eventoSelecionado.PayloadPreview)</pre>
+                </div>
+            }
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-outline" @onclick="FecharModalEvento">Fechar</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (modalConectividadeAberta)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <h3>Diagnóstico de Conectividade Técnica</h3>
+            <p>Os resultados abaixo atestam apenas resolução DNS, estabilidade TLS e HTTP. Eles <strong>não autorizam a nota</strong>.</p>
+            
+            @if (carregandoTeste)
+            {
+                <div style="text-align: center; padding: 24px;">
+                    <p>Realizando requisição mTLS...</p>
+                </div>
+            }
+            else if (testeConectividadeResp != null)
+            {
+                <div style="margin-top: 16px; margin-bottom: 16px;">
+                    <div><strong>Sucesso Técnico:</strong> @(testeConectividadeResp.Sucesso ? "Sim" : "Não")</div>
+                    <div><strong>Ambiente Bloqueado (Produção):</strong> @(testeConectividadeResp.ProducaoBloqueada ? "Sim" : "Não")</div>
+                    <div><strong>URL Diagnosticada:</strong> <span style="font-size: 11px;">@testeConectividadeResp.Url</span></div>
+                    <div><strong>Tempo de Resposta:</strong> @testeConectividadeResp.TempoMs ms</div>
+                    <div><strong>Status HTTP:</strong> @(testeConectividadeResp.HttpStatus?.ToString() ?? "N/A")</div>
+                    <div><strong>Certificado Encontrado:</strong> @(testeConectividadeResp.CertificadoConfigurado ? "Sim" : "Não")</div>
+                    <div><strong>DNS/Rede OK:</strong> @(testeConectividadeResp.DnsOk ? "Sim" : "Não")</div>
+                    <div><strong>TLS Handshake OK:</strong> @(testeConectividadeResp.TlsOk ? "Sim" : "Não")</div>
+                    <div style="margin-top: 12px;"><strong>Diagnóstico Final:</strong> @testeConectividadeResp.Mensagem</div>
+                </div>
+
+                @if (testeConectividadeResp.Warnings != null && testeConectividadeResp.Warnings.Any())
+                {
+                    <div class="alert alert-warning">
+                        @foreach(var w in testeConectividadeResp.Warnings)
+                        {
+                            <div>@w</div>
+                        }
+                    </div>
+                }
+            }
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-outline" @onclick="FecharModalConectividade">Fechar</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (modalBloqueioProdAberta)
+{
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <h3>Testar Bloqueio de Produção</h3>
+            <p>Validar se o sistema bloqueia tentativas com ambiente=PRODUCAO.</p>
+            
+            <div class="form-group">
+                <label>País</label>
+                <select @bind="bloqueioTesteReq.Pais" class="form-control">
+                    <option value="BR">Brasil</option>
+                    <option value="PY">Paraguay</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Modelo</label>
+                <select @bind="bloqueioTesteReq.Modelo" class="form-control">
+                    <option value="NFE">NF-e (BR)</option>
+                    <option value="NFCE">NFC-e (BR)</option>
+                    <option value="SIFEN">SIFEN (PY)</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="display: @(bloqueioTesteReq.Pais == "BR" ? "block" : "none")">
+                <label>UF</label>
+                <input type="text" @bind="bloqueioTesteReq.Uf" class="form-control" placeholder="Ex: SP, PR, RS" />
+            </div>
+
+            <div class="form-group">
+                <label>Ambiente Injetado</label>
+                <select @bind="bloqueioTesteReq.Ambiente" class="form-control">
+                    <option value="HOMOLOGACAO">Homologação (Normal)</option>
+                    <option value="PRODUCAO">Produção (Deve ser BLOQUEADO)</option>
+                </select>
+            </div>
+
+            @if (bloqueioTesteResp != null)
+            {
+                <div class="alert @(bloqueioTesteResp.ProducaoBloqueada ? "alert-success" : (bloqueioTesteResp.Sucesso ? "alert-info" : "alert-warning"))" style="margin-top: 16px;">
+                    <strong>Resultado:</strong> @bloqueioTesteResp.Mensagem<br/>
+                    @if (bloqueioTesteResp.ProducaoBloqueada)
+                    {
+                        <span>✔️ SUCESSO DE SEGURANÇA: Endpoint de Produção Rejeitado.</span>
+                    }
+                </div>
+            }
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-outline" @onclick="FecharModalBloqueioProd">Cancelar</button>
+                <button type="button" class="btn btn-primary" @onclick="ExecutarTesteBloqueioProd" disabled="@carregandoTeste">Validar Segurança</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DiagnosticoFiscalHomologacaoResp? diagnostico;
+    private List<FiscalEndpointConfigResp>? endpoints;
+    private List<HistoricoHomologacaoFiscalResp>? historico;
+    
+    private string tabAtiva = "endpoints";
+    private bool carregandoTeste = false;
+
+    // Modais
+    private bool modalEventoAberta = false;
+    private HistoricoHomologacaoFiscalResp? eventoSelecionado;
+
+    private bool modalConectividadeAberta = false;
+    private TestarConectividadeFiscalResp? testeConectividadeResp;
+
+    private bool modalBloqueioProdAberta = false;
+    private TestarEndpointFiscalReq bloqueioTesteReq = new TestarEndpointFiscalReq { Pais = "BR", Modelo = "NFCE", Servico = "Autorizacao", Ambiente = "PRODUCAO" };
+    private TestarEndpointFiscalResp? bloqueioTesteResp;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDiagnostico();
+        await CarregarEndpoints();
+    }
+
+    private async Task CarregarDiagnostico()
+    {
+        diagnostico = await FiscalApi.ObterDiagnosticoHomologacaoAsync();
+    }
+
+    private async Task CarregarEndpoints()
+    {
+        endpoints = await FiscalApi.ListarEndpointsHomologacaoAsync();
+    }
+
+    private async Task CarregarHistorico()
+    {
+        historico = await FiscalApi.ListarHistoricoHomologacaoAsync(100, 0);
+    }
+
+    private async Task TestarRegistro(FiscalEndpointConfigResp ep)
+    {
+        var req = new TestarEndpointFiscalReq
+        {
+            Pais = ep.Pais,
+            Modelo = ep.Modelo,
+            Uf = ep.Uf,
+            Servico = ep.Servico,
+            Ambiente = "HOMOLOGACAO"
+        };
+
+        var resp = await FiscalApi.TestarEndpointHomologacaoAsync(req);
+        if (resp != null)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"URL Local Resolvida:\n{resp.UrlResolvida}\n\nMensagem: {resp.Mensagem}");
+        }
+    }
+
+    private async Task TestarConectividade(FiscalEndpointConfigResp ep)
+    {
+        testeConectividadeResp = null;
+        modalConectividadeAberta = true;
+        carregandoTeste = true;
+        StateHasChanged();
+
+        var req = new TestarConectividadeFiscalReq
+        {
+            Pais = ep.Pais,
+            Modelo = ep.Modelo,
+            Uf = ep.Uf,
+            Servico = ep.Servico,
+            Ambiente = "HOMOLOGACAO",
+            UsarMtls = true,
+            TimeoutMs = 10000
+        };
+
+        try
+        {
+            testeConectividadeResp = await FiscalApi.TestarConectividadeHomologacaoAsync(req);
+        }
+        catch (Exception ex)
+        {
+            testeConectividadeResp = new TestarConectividadeFiscalResp 
+            { 
+                Sucesso = false, 
+                Mensagem = "Falha de rede ou timeout: " + ex.Message 
+            };
+        }
+        finally
+        {
+            carregandoTeste = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AbrirModalBloqueioProd()
+    {
+        bloqueioTesteResp = null;
+        bloqueioTesteReq = new TestarEndpointFiscalReq { Pais = "BR", Modelo = "NFCE", Servico = "Autorizacao", Ambiente = "PRODUCAO" };
+        modalBloqueioProdAberta = true;
+    }
+
+    private void FecharModalBloqueioProd()
+    {
+        modalBloqueioProdAberta = false;
+    }
+
+    private async Task ExecutarTesteBloqueioProd()
+    {
+        carregandoTeste = true;
+        bloqueioTesteResp = await FiscalApi.ValidarBloqueioProducaoAsync(bloqueioTesteReq);
+        carregandoTeste = false;
+    }
+
+    private void FecharModalConectividade()
+    {
+        modalConectividadeAberta = false;
+    }
+
+    private void ExibirDetalhesEvento(HistoricoHomologacaoFiscalResp ev)
+    {
+        eventoSelecionado = ev;
+        modalEventoAberta = true;
+    }
+
+    private void FecharModalEvento()
+    {
+        modalEventoAberta = false;
+        eventoSelecionado = null;
+    }
+
+    private string FormatarData(string dataIso)
+    {
+        if (DateTime.TryParse(dataIso, out var dt))
+        {
+            return dt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
+        }
+        return dataIso;
+    }
+
+    private string FormatarJson(object? obj)
+    {
+        if (obj == null) return "null";
+        try
+        {
+            if (obj is JsonElement je)
+            {
+                return JsonSerializer.Serialize(je, new JsonSerializerOptions { WriteIndented = true });
+            }
+            return JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return obj.ToString() ?? "";
+        }
+    }
+}
