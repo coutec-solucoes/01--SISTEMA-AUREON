@@ -213,8 +213,9 @@ pub fn run() {
             commands_licenciamento::configurar_licenciamento_online,
             commands_licenciamento::obter_config_licenciamento_online,
             commands_licenciamento::sincronizar_licenca_online,
-            // Commands de Licenciamento — Política Operacional (Fase 20 Bloco 7)
+            // Commands de Licenciamento — Política Operacional (Fase 20 Bloco 7 e 8)
             commands_licenciamento::obter_politica_licenca,
+            commands_licenciamento::verificar_operacao_permitida_licenca,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

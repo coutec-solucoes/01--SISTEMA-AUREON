@@ -106,3 +106,29 @@ Permitir que o PDV sincronize de forma automática/manual consultando a URL da R
 - Regra de tolerância a falhas de rede (Offline-First): se houver erro HTTP ou falha de conexão, a licença local nunca é apagada nem a operação bloqueada. É registrado o evento `LICENCA_SYNC_FALHOU` e exibida mensagem de contingência.
 - UI do Blazor atualizada com campos de URL da retaguarda, Empresa ID e botões funcionais de "Salvar Configuração" e "Sincronizar com Retaguarda".
 
+## Bloco 7 — Política de Bloqueio Suave e Alertas
+**Status**: APROVADO
+**Data**: 2026-05-25
+
+### Objetivo
+Construir a política operacional e alertas para a licença, calculando o nível atual baseado na tolerância offline e dias restantes, sem aplicar bloqueio duro de caixa/venda.
+
+### Entregas
+- Command `obter_politica_licenca` que calcula o nível (`OK`, `ALERTA_VENCIMENTO`, `TOLERANCIA_OFFLINE`, `EXPIRADA`, `BLOQUEADA`, `MODO_DEV`, `SEM_LICENCA`).
+- UI `LicencaPdv.razor` atualizada com exibição clara do status, cores e recomendações operacionais.
+
+## Bloco 8 — Guarda Operacional de Licença (Bloqueio Controlado)
+**Status**: CONCLUÍDO
+**Data**: 2026-05-25
+
+### Objetivo
+Implementar bloqueio operacional real para operações críticas com base na política de licença, de forma limitada, auditável e reversível. A regularização nunca pode ser travada.
+
+### Entregas
+- DTOs `VerificarOperacaoLicencaReq` e `VerificarOperacaoLicencaResp` adicionados em `aureon-core` e `PdvModels.cs`.
+- Módulo e functions `avaliar_operacao_licenca` e `garantir_operacao_licenciada` criados no Tauri.
+- Inserção da guarda em `commands_caixa` (`abrir_caixa`) e `commands_pagamento` (`finalizar_venda` e `registrar_pagamento`).
+- Eventos de auditoria gravados: `LICENCA_OPERACAO_PERMITIDA`, `LICENCA_OPERACAO_BLOQUEADA`, `LICENCA_BLOQUEIO_SUAVE_APLICADO`.
+- Nenhuma operação de leitura, backup ou sincronização foi afetada, garantindo total regularização.
+
+

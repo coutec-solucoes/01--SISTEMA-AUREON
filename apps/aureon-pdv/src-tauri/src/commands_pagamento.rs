@@ -34,6 +34,9 @@ pub async fn registrar_pagamento(
 
     let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
 
+    // GUARDA OPERACIONAL DE LICENCA - Bloqueio de registro de pagamento
+    crate::commands_licenciamento::garantir_operacao_licenciada(&conn, "FECHAR_VENDA_PAGAMENTO", Some(&dto.venda_id), None)?;
+
     let venda_ok: bool = conn.query_row(
         "SELECT COUNT(*) > 0 FROM vendas WHERE id = ?1 AND status = 'EM_ANDAMENTO'",
         rusqlite::params![&dto.venda_id],
@@ -220,6 +223,9 @@ pub async fn finalizar_venda(
     );
 
     let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    // GUARDA OPERACIONAL DE LICENCA - Bloqueio de finalizacao de venda
+    crate::commands_licenciamento::garantir_operacao_licenciada(&conn, "FINALIZAR_VENDA", Some(&venda_id), None)?;
 
     // Verificar venda EM_ANDAMENTO e buscar total e contagem de itens
     let (total_venda_minor, total_itens, usuario_id): (i64, i64, String) = conn.query_row(

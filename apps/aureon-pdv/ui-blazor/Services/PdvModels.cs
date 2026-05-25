@@ -1707,6 +1707,50 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("warnings")]
         public List<string> Warnings { get; set; } = new();
     }
+
+    // === DTOs — Fase 20 Bloco 8: Guarda Operacional ===
+
+    public class VerificarOperacaoLicencaReq
+    {
+        [JsonPropertyName("operacao")]
+        public string Operacao { get; set; } = string.Empty;
+
+        [JsonPropertyName("contexto_id")]
+        public string? ContextoId { get; set; }
+
+        [JsonPropertyName("origem")]
+        public string? Origem { get; set; }
+    }
+
+    public class VerificarOperacaoLicencaResp
+    {
+        [JsonPropertyName("permitido")]
+        public bool Permitido { get; set; }
+
+        [JsonPropertyName("nivel")]
+        public string Nivel { get; set; } = string.Empty;
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+
+        [JsonPropertyName("modo")]
+        public string Modo { get; set; } = string.Empty;
+
+        [JsonPropertyName("operacao")]
+        public string Operacao { get; set; } = string.Empty;
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("motivo_bloqueio")]
+        public string? MotivoBloqueio { get; set; }
+
+        [JsonPropertyName("acoes_recomendadas")]
+        public List<string> AcoesRecomendadas { get; set; } = new();
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
 }
 
 

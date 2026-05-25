@@ -2127,4 +2127,26 @@ pub struct LicencaPoliticaResp {
     pub warnings: Vec<String>,
 }
 
+// ================================================================
+// DTOs FASE 20 - BLOCO 8: GUARDA OPERACIONAL DE LICENCA
+// ================================================================
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VerificarOperacaoLicencaReq {
+    pub operacao: String,
+    pub contexto_id: Option<String>,
+    pub origem: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VerificarOperacaoLicencaResp {
+    pub permitido: bool,
+    pub nivel: String,
+    pub status: String,
+    pub modo: String,
+    pub operacao: String,
+    pub mensagem: String,
+    pub motivo_bloqueio: Option<String>,
+    pub acoes_recomendadas: Vec<String>,
+    pub warnings: Vec<String>,
+}

@@ -25,7 +25,7 @@ use aureon_core::dtos::{
     AplicarLicencaAssinadaReq, AplicarLicencaAssinadaResp,
     SincronizarLicencaReq, SincronizarLicencaResp,
     ConfigLicenciamentoReq, ConfigLicenciamentoResp,
-    LicencaPoliticaResp,
+    LicencaPoliticaResp, VerificarOperacaoLicencaReq, VerificarOperacaoLicencaResp,
 };
 
 use crate::estado::EstadoApp;
@@ -1186,4 +1186,181 @@ pub fn obter_politica_licenca(estado: State<EstadoApp>) -> Result<LicencaPolitic
         acoes_recomendadas: acoes,
         warnings,
     })
+}
+
+// ================================================================
+// BLOCO 8: GUARDA OPERACIONAL DE LICENCA (BLOQUEIO)
+// ================================================================
+
+pub fn avaliar_operacao_licenca(
+    conn: &rusqlite::Connection,
+    operacao: &str,
+    _contexto_id: Option<&str>,
+) -> Result<VerificarOperacaoLicencaResp, String> {
+    let lic_opt = conn.query_row(
+        "SELECT id, status, modo, validade_fim, ultimo_check_em, tolerancia_offline_dias, bloqueio_total, motivo_bloqueio
+         FROM licenca_local LIMIT 1",
+        [],
+        |r| Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, String>(2)?,
+            r.get::<_, Option<String>>(3)?,
+            r.get::<_, Option<String>>(4)?,
+            r.get::<_, i64>(5)?,
+            r.get::<_, i32>(6)?,
+            r.get::<_, Option<String>>(7)?,
+        ))
+    ).optional().map_err(|e| e.to_string())?;
+
+    let now_dt = chrono::Utc::now();
+
+    let (_, status, modo, validade_fim, ultimo_check_em, tolerancia_dias, bloqueio_total, motivo_bloqueio) = match lic_opt {
+        Some(data) => data,
+        None => {
+            return Ok(VerificarOperacaoLicencaResp {
+                permitido: true,
+                nivel: "SEM_LICENCA".to_string(),
+                status: "PENDENTE_ATIVACAO".to_string(),
+                modo: "".to_string(),
+                operacao: operacao.to_string(),
+                mensagem: "Operação permitida (sem licença), mas regularização pendente.".to_string(),
+                motivo_bloqueio: None,
+                acoes_recomendadas: vec!["Sincronizar online com a Retaguarda".to_string()],
+                warnings: vec!["Terminal sem licença operando em período de graça provisório.".to_string()],
+            });
+        }
+    };
+
+    let dias_desde_ultimo_check = match &ultimo_check_em {
+        Some(check_str) => {
+            if let Ok(check_dt) = chrono::NaiveDateTime::parse_from_str(check_str, "%Y-%m-%d %H:%M:%S") {
+                let check_dt_utc = chrono::DateTime::<chrono::Utc>::from_utc(check_dt, chrono::Utc);
+                now_dt.signed_duration_since(check_dt_utc).num_days()
+            } else {
+                0
+            }
+        }
+        None => 0,
+    };
+
+    let dias_restantes = match &validade_fim {
+        Some(val_str) => {
+            if let Ok(val_dt) = chrono::NaiveDateTime::parse_from_str(val_str, "%Y-%m-%d %H:%M:%S") {
+                let val_dt_utc = chrono::DateTime::<chrono::Utc>::from_utc(val_dt, chrono::Utc);
+                Some(val_dt_utc.signed_duration_since(now_dt).num_days())
+            } else {
+                None
+            }
+        }
+        None => None,
+    };
+
+    let mut nivel = "OK".to_string();
+    let mut permitido = true;
+    let mut mensagem = "Operação permitida.".to_string();
+    let mut warnings = vec![];
+
+    if bloqueio_total == 1 || status == "BLOQUEADA" {
+        nivel = "BLOQUEADA".to_string();
+        permitido = false;
+        mensagem = "Operação bloqueada pela política de licença local. Acesse Sistema > Licença para sincronizar ou regularizar.".to_string();
+    } else if modo == "DEV" {
+        nivel = "MODO_DEV".to_string();
+        warnings.push("Operação permitida em modo DEV.".to_string());
+    } else {
+        if let Some(restantes) = dias_restantes {
+            if restantes < 0 {
+                if dias_desde_ultimo_check < tolerancia_dias {
+                    nivel = "TOLERANCIA_OFFLINE".to_string();
+                    warnings.push("Operação permitida em tolerância offline.".to_string());
+                } else {
+                    nivel = "EXPIRADA".to_string();
+                    permitido = false;
+                    mensagem = "Operação bloqueada pela política de licença local. Acesse Sistema > Licença para sincronizar ou regularizar.".to_string();
+                }
+            } else if restantes <= 7 {
+                nivel = "ALERTA_VENCIMENTO".to_string();
+                warnings.push("Licença próxima do vencimento.".to_string());
+            }
+        }
+    }
+
+    Ok(VerificarOperacaoLicencaResp {
+        permitido,
+        nivel,
+        status,
+        modo,
+        operacao: operacao.to_string(),
+        mensagem,
+        motivo_bloqueio: if !permitido { motivo_bloqueio } else { None },
+        acoes_recomendadas: vec![],
+        warnings,
+    })
+}
+
+pub fn garantir_operacao_licenciada(
+    conn: &rusqlite::Connection,
+    operacao: &str,
+    contexto_id: Option<&str>,
+    origem: Option<&str>,
+) -> Result<(), String> {
+    let result = avaliar_operacao_licenca(conn, operacao, contexto_id)?;
+
+    // Buscar licenca_id
+    let lic_id: String = conn.query_row(
+        "SELECT id FROM licenca_local LIMIT 1",
+        [],
+        |r| r.get(0)
+    ).unwrap_or_default();
+
+    let evt_tipo = if result.permitido { "LICENCA_OPERACAO_PERMITIDA" } else { "LICENCA_OPERACAO_BLOQUEADA" };
+    let payload = serde_json::json!({
+        "operacao": operacao,
+        "nivel": &result.nivel,
+        "status": &result.status,
+        "contexto_id": contexto_id,
+        "origem": origem,
+        "motivo": &result.motivo_bloqueio
+    });
+
+    let _ = conn.execute(
+        "INSERT INTO licenca_eventos (id, installation_id, licenca_id, tipo_evento, status_novo, mensagem, criado_em)
+         VALUES (?1, '', ?2, ?3, ?4, ?5, datetime('now'))",
+        rusqlite::params![
+            Uuid::new_v4().to_string(),
+            &lic_id,
+            evt_tipo,
+            &result.nivel,
+            &payload.to_string(),
+        ],
+    );
+
+    if result.permitido {
+        if result.nivel != "OK" && result.nivel != "SEM_LICENCA" {
+            let _ = conn.execute(
+                "INSERT INTO licenca_eventos (id, installation_id, licenca_id, tipo_evento, status_novo, mensagem, criado_em)
+                 VALUES (?1, '', ?2, 'LICENCA_BLOQUEIO_SUAVE_APLICADO', ?3, ?4, datetime('now'))",
+                rusqlite::params![
+                    Uuid::new_v4().to_string(),
+                    &lic_id,
+                    &result.nivel,
+                    &format!("Operação permitida com alerta. Operação: {}", operacao),
+                ],
+            );
+        }
+        Ok(())
+    } else {
+        Err(result.mensagem)
+    }
+}
+
+#[tauri::command]
+pub async fn verificar_operacao_permitida_licenca(
+    req: VerificarOperacaoLicencaReq,
+    estado: State<'_, EstadoApp>,
+) -> Result<aureon_core::RespostaBase<VerificarOperacaoLicencaResp>, String> {
+    let conn = estado.conn_sqlite.lock().map_err(|_| "LockError".to_string())?;
+    let result = avaliar_operacao_licenca(&conn, &req.operacao, req.contexto_id.as_deref())?;
+    Ok(aureon_core::RespostaBase::ok("Consulta finalizada", result))
 }
