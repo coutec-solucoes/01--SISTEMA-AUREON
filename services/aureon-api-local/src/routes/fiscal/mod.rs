@@ -6,3 +6,4 @@ pub mod publicacao;
 pub mod certificados;
 pub mod assinatura;
 pub mod nfce_preview;
+pub mod sifen_preview;
