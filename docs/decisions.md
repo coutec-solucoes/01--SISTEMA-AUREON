@@ -366,3 +366,10 @@ Decis�es de arquitetura adotadas na Fase 18 � Homologa��o T�cnica Fiscal: Certif
 - **Contexto**: PDVs frequentemente operam em ambientes com internet instável, mas o licenciamento de software SaaS depende de validação online para prevenir pirataria e garantir cobrança.
 - **Decisão**: Implementar uma arquitetura de duas camadas. O PDV consulta localmente (SQLite) as tabelas `licenca_local` e `instalacao_local` que mantêm o estado de `pode_operar`, tolerância (ex: 10 dias) e último check. As regras de venda olham apenas para o estado local, garantindo zero latência.
 - **Consequência**: Aumenta a robustez operacional na ponta (o PDV não trava no meio do expediente por queda de internet). No entanto, exigirá (nos blocos subsequentes) um job de sincronização de fundo (sync de licença) confiável e criptografado para evitar adulteração do banco SQLite local.
+
+---
+
+## 💡 ADR 38: Retaguarda como Fonte Mestre de Licenciamento Comercial
+- **Contexto**: Para viabilizar a comercialização do Aureon (PDV e Retaguarda), precisamos de um sistema de validação que garanta que o cliente está com a fatura em dia e respeitando limites de caixas. Contudo, o PDV não pode parar por falta momentânea de internet.
+- **Decisão**: A Retaguarda em Nuvem (PostgreSQL) será a fonte mestre, detendo toda a regra de negócio comercial, planos, tokens e status. O PDV local fará cache assinado dessa licença (ADR 37) com tolerância de dias. Em caso de bloqueio gerado na retaguarda, o PDV localiza e impõe a barreira em sua próxima janela de conexão ou esgotamento de prazo.
+- **Consequência**: Isola a complexidade comercial no servidor cloud. O PDV só precisa saber ler e validar o cache criptográfico da licença enviada pela retaguarda. Facilita integrações com gateways (Stripe/Asaas) no futuro.

@@ -226,6 +226,9 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         .route("/fiscal/homologacao/prontidao", get(fiscal_pront::obter_prontidao))
         .route("/fiscal/homologacao/prontidao/pendencias", get(fiscal_pront::obter_pendencias_prontidao))
 
+        // Licenciamento Mestre (Fase 20 - Bloco 2)
+        .nest("/licenciamento", crate::routes::licenciamento::router())
+
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
 

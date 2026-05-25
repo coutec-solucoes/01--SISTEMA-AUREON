@@ -1726,3 +1726,116 @@ pub struct AtivarLicencaReq {
     pub terminal_nome: String,
     pub modo: String,
 }
+
+// ================================================================
+// DTOs DE LICENCIAMENTO MESTRE (RETAGUARDA)
+// ================================================================
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LicPlanoDto {
+    pub id: String,
+    pub codigo: String,
+    pub nome: String,
+    pub descricao: Option<String>,
+    pub max_empresas: i32,
+    pub max_terminais: i32,
+    pub permite_pdv: bool,
+    pub permite_retaguarda: bool,
+    pub permite_delivery: bool,
+    pub permite_gourmet: bool,
+    pub permite_fiscal: bool,
+    pub ativo: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CriarLicPlanoReq {
+    pub codigo: String,
+    pub nome: String,
+    pub descricao: Option<String>,
+    pub max_empresas: i32,
+    pub max_terminais: i32,
+    pub permite_pdv: bool,
+    pub permite_retaguarda: bool,
+    pub permite_delivery: bool,
+    pub permite_gourmet: bool,
+    pub permite_fiscal: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LicEmpresaDto {
+    pub id: String,
+    pub empresa_id: String,
+    pub nome_empresa: String,
+    pub documento: Option<String>,
+    pub pais: Option<String>,
+    pub status: String,
+    pub plano_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CriarLicEmpresaReq {
+    pub empresa_id: String,
+    pub nome_empresa: String,
+    pub documento: Option<String>,
+    pub pais: Option<String>,
+    pub status: String,
+    pub plano_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AtualizarStatusReq {
+    pub status: String,
+    pub motivo: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LicLicencaDto {
+    pub id: String,
+    pub empresa_licenciada_id: String,
+    pub plano_id: String,
+    pub status: String,
+    pub modo: String,
+    pub validade_inicio: Option<String>,
+    pub validade_fim: Option<String>,
+    pub tolerancia_offline_dias: i32,
+    pub bloqueio_total: bool,
+    pub motivo_bloqueio: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CriarLicLicencaReq {
+    pub empresa_licenciada_id: String,
+    pub plano_id: String,
+    pub modo: String,
+    pub validade_fim: Option<String>,
+    pub tolerancia_offline_dias: i32,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LicTerminalDto {
+    pub id: String,
+    pub licenca_id: String,
+    pub installation_id: Option<String>,
+    pub terminal_id: Option<String>,
+    pub terminal_nome: Option<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AutorizarTerminalReq {
+    pub installation_id: Option<String>,
+    pub terminal_id: Option<String>,
+    pub terminal_nome: Option<String>,
+    pub dispositivo_hash: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LicEventoDto {
+    pub id: String,
+    pub empresa_licenciada_id: Option<String>,
+    pub licenca_id: Option<String>,
+    pub terminal_id: Option<String>,
+    pub tipo_evento: String,
+    pub mensagem: Option<String>,
+    pub criado_em: String,
+}

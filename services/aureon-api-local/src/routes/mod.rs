@@ -7,3 +7,4 @@ pub mod cadastros;
 pub mod configuracoes;
 pub mod sync;
 pub mod fiscal;
+pub mod licenciamento;
