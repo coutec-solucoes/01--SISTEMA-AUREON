@@ -5,3 +5,4 @@ pub mod versoes;
 pub mod publicacao;
 pub mod certificados;
 pub mod assinatura;
+pub mod nfce_preview;

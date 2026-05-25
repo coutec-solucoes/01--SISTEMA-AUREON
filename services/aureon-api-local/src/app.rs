@@ -9,7 +9,7 @@ use crate::routes::{
     cadastros::{pessoas, grupos, produtos},
     configuracoes::operacionais,
     sync::{terminais, pacotes, publicacao, diagnostico as sync_diag},
-    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass}
+    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass, nfce_preview as fiscal_prev}
 };
 use crate::middleware::auth_middleware;
 
@@ -148,6 +148,11 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         .route("/fiscal/assinatura/testar", post(fiscal_ass::testar_assinatura))
         .route("/fiscal/assinatura/assinar-preview", post(fiscal_ass::assinar_preview))
         .route("/fiscal/assinatura/verificar-preview", post(fiscal_ass::verificar_preview))
+
+        // Montagem de XML NFC-e/NF-e Preview (Fase 18 - Bloco 3)
+        .route("/fiscal/nfce/preview/montar", post(fiscal_prev::montar_preview))
+        .route("/fiscal/nfce/preview/montar-assinar", post(fiscal_prev::montar_assinar_preview))
+        .route("/fiscal/nfce/preview/venda/:venda_id", get(fiscal_prev::get_venda_preview))
 
         // Dicionários
         .route("/fiscal/dicionarios/ncm", get(fiscal_dic::obter_ncms).post(fiscal_dic::criar_ncm))
