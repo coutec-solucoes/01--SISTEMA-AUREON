@@ -18,6 +18,34 @@
             <!-- Coluna 1: Status Atual -->
             <div class="licenca-card">
                 <h3>Status: <span class="badge @(statusLicenca.Status.ToLower())">@statusLicenca.Status</span></h3>
+                
+                @if (politicaLicenca != null)
+                {
+                    <div class="policy-box nivel-@(politicaLicenca.Nivel.ToLower()) mt-2 mb-2">
+                        <h4>Política Operacional: <span class="badge policy-badge">@politicaLicenca.Nivel</span></h4>
+                        <p class="mt-1">@politicaLicenca.Mensagem</p>
+                        
+                        <div class="policy-metrics mt-2">
+                            <p><strong>Dias restantes:</strong> @(politicaLicenca.DiasRestantes?.ToString() ?? "N/A") dias</p>
+                            <p><strong>Última sincronização:</strong> há @politicaLicenca.DiasDesdeUltimoCheck dias</p>
+                            <p><strong>Tolerância offline máxima:</strong> @politicaLicenca.ToleranciaOfflineDias dias</p>
+                        </div>
+
+                        @if (politicaLicenca.AcoesRecomendadas.Count > 0)
+                        {
+                            <div class="recommended-actions mt-2">
+                                <h5>Ações Recomendadas:</h5>
+                                <ul>
+                                    @foreach (var acao in politicaLicenca.AcoesRecomendadas)
+                                    {
+                                        <li>💡 @acao</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                }
+
                 <div class="info-group">
                     <p><strong>Installation ID:</strong> <code class="code-id">@statusLicenca.InstallationId</code></p>
                     <p><strong>Empresa ID:</strong> @statusLicenca.EmpresaId</p>
@@ -26,24 +54,24 @@
                     <p><strong>Plano:</strong> <span class="badge plano">@statusLicenca.PlanoCodigo</span></p>
                     <p><strong>Modo de Licença:</strong> <span class="badge modo @(statusLicenca.Modo.ToLower())">@(string.IsNullOrEmpty(statusLicenca.Modo) ? "NENHUM" : statusLicenca.Modo)</span></p>
                     <p><strong>Validade Fim:</strong> @statusLicenca.ValidadeFim</p>
-                    <p><strong>Mensagem:</strong> @statusLicenca.Mensagem</p>
                 </div>
 
-                @if (statusLicenca.PodeOperar)
+                @if (politicaLicenca != null ? politicaLicenca.PodeOperar : statusLicenca.PodeOperar)
                 {
                     <div class="alert success">
-                        <strong>✓ OPERAÇÃO PERMITIDA:</strong> Este terminal está totalmente autorizado a funcionar offline.
+                        <strong>✓ OPERAÇÃO LIBERADA (BLOQUEIO SUAVE):</strong> As vendas e abertura de caixa estão ativas.
                     </div>
                 }
                 else
                 {
                     <div class="alert error">
-                        <strong>✗ TERMINAL BLOQUEADO:</strong> A operação deste terminal está impedida de prosseguir.
+                        <strong>✗ LIMITE EXCEDIDO:</strong> O terminal está fora dos termos operacionais (sujeito a bloqueio futuro).
                         <br />
-                        <strong>Motivo:</strong> @statusLicenca.MotivoBloqueio
+                        <strong>Motivo:</strong> @(politicaLicenca?.MotivoBloqueio ?? statusLicenca.MotivoBloqueio)
                     </div>
                 }
             </div>
+
 
             <!-- Coluna 2: Ações de Ativação -->
             <div class="licenca-actions-card">
@@ -159,6 +187,34 @@
         border: 1px solid #2d2d38;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
+    .policy-box {
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid #3d3d4e;
+    }
+    .policy-box.nivel-ok { background-color: rgba(46, 125, 50, 0.1); border-color: #2e7d32; }
+    .policy-box.nivel-alerta_vencimento { background-color: rgba(245, 124, 0, 0.1); border-color: #f57c00; }
+    .policy-box.nivel-tolerancia_offline { background-color: rgba(251, 192, 45, 0.1); border-color: #fbc02d; }
+    .policy-box.nivel-expirada, .policy-box.nivel-bloqueada { background-color: rgba(198, 40, 40, 0.1); border-color: #c62828; }
+    .policy-box.nivel-modo_dev { background-color: rgba(255, 183, 77, 0.05); border-color: #ffb74d; }
+    .policy-box.nivel-sem_licenca { background-color: rgba(97, 97, 97, 0.1); border-color: #616161; }
+    .policy-badge {
+        font-size: 0.9em;
+    }
+    .policy-metrics p {
+        margin: 4px 0;
+        font-size: 0.9em;
+    }
+    .recommended-actions h5 {
+        margin-bottom: 6px;
+        color: #90caf9;
+    }
+    .recommended-actions ul {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 0.88em;
+    }
+
     .badge {
         padding: 4px 8px;
         border-radius: 4px;
@@ -271,7 +327,8 @@
 @code {
     private bool carregando = true;
     private LicencaStatusResp? statusLicenca;
-    
+    private LicencaPoliticaResp? politicaLicenca;
+
     // Formulário de Sincronização Online
     private string formUrlRetaguarda = "http://localhost:5053";
     private string formSyncEmpresaId = string.Empty;
@@ -319,6 +376,14 @@
         try
         {
             statusLicenca = await Tauri.InvocarAsync<LicencaStatusResp>("obter_status_licenca", new { });
+            try
+            {
+                politicaLicenca = await Tauri.InvocarAsync<LicencaPoliticaResp>("obter_politica_licenca", new { });
+            }
+            catch (Exception pex)
+            {
+                Console.WriteLine($"Erro ao obter política da licença: {pex.Message}");
+            }
         }
         catch (Exception ex)
         {
@@ -330,6 +395,7 @@
             carregando = false;
         }
     }
+
 
     private async Task VerificarLicencaAssinada()
     {

@@ -25,7 +25,9 @@ use aureon_core::dtos::{
     AplicarLicencaAssinadaReq, AplicarLicencaAssinadaResp,
     SincronizarLicencaReq, SincronizarLicencaResp,
     ConfigLicenciamentoReq, ConfigLicenciamentoResp,
+    LicencaPoliticaResp,
 };
+
 use crate::estado::EstadoApp;
 use crate::licenca_crypto_local::{
     verificar_assinatura_local, extrair_campos_payload, calcular_hash_payload, ALGORITMO_SUPORTADO,
@@ -1027,3 +1029,161 @@ pub async fn sincronizar_licenca_online(
     })
 }
 
+// ================================================================
+// BLOCO 7: COMMANDS DE POLITICA OPERACIONAL DE LICENCA (OFFLINE-FIRST)
+// ================================================================
+
+#[tauri::command]
+pub fn obter_politica_licenca(estado: State<EstadoApp>) -> Result<LicencaPoliticaResp, AureonError> {
+    info!(componente = "commands_licenciamento", "Calculando politica operacional de licenca local");
+    let conn = estado.conn_sqlite.lock().map_err(|_| AureonError::Interno("LockError".to_string()))?;
+
+    // 1. Busca licença local ativa
+    let lic_opt = conn.query_row(
+        "SELECT id, status, modo, validade_fim, ultimo_check_em, tolerancia_offline_dias, bloqueio_total, motivo_bloqueio
+         FROM licenca_local LIMIT 1",
+        [],
+        |r| Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, String>(2)?,
+            r.get::<_, Option<String>>(3)?,
+            r.get::<_, Option<String>>(4)?,
+            r.get::<_, i64>(5)?,
+            r.get::<_, i32>(6)?,
+            r.get::<_, Option<String>>(7)?,
+        ))
+    ).optional().map_err(|e| AureonError::ConexaoSqlite(e.to_string()))?;
+
+    let now_dt = chrono::Utc::now();
+    let mut warnings = vec![];
+    let mut acoes = vec![];
+
+    let (lic_id, status, modo, validade_fim, ultimo_check_em, tolerancia_dias, bloqueio_total, motivo_bloqueio) = match lic_opt {
+        Some(data) => data,
+        None => {
+            // SEM LICENÇA LOCAL
+            return Ok(LicencaPoliticaResp {
+                nivel: "SEM_LICENCA".to_string(),
+                pode_operar: true, // Decisão conservadora (true com aviso para não travar implantação)
+                deve_exibir_alerta: true,
+                deve_sincronizar: true,
+                dias_restantes: None,
+                dias_desde_ultimo_check: 0,
+                tolerancia_offline_dias: 10,
+                status: "PENDENTE_ATIVACAO".to_string(),
+                modo: "".to_string(),
+                bloqueio_total: 0,
+                motivo_bloqueio: None,
+                mensagem: "Terminal sem licença ativa. Por favor, ative online ou via payload offline.".to_string(),
+                acoes_recomendadas: vec!["Sincronizar online com a Retaguarda".to_string(), "Inserir payload assinado manualmente".to_string()],
+                warnings: vec!["Nenhuma licença local encontrada no SQLite.".to_string()],
+            });
+        }
+    };
+
+    // Calcular dias desde último check-in
+    let dias_desde_ultimo_check = match &ultimo_check_em {
+        Some(check_str) => {
+            if let Ok(check_dt) = chrono::NaiveDateTime::parse_from_str(check_str, "%Y-%m-%d %H:%M:%S") {
+                let check_dt_utc = chrono::DateTime::<chrono::Utc>::from_utc(check_dt, chrono::Utc);
+                now_dt.signed_duration_since(check_dt_utc).num_days()
+            } else {
+                0
+            }
+        }
+        None => 0,
+    };
+
+    // Calcular dias restantes da validade
+    let dias_restantes = match &validade_fim {
+        Some(val_str) => {
+            if let Ok(val_dt) = chrono::NaiveDateTime::parse_from_str(val_str, "%Y-%m-%d %H:%M:%S") {
+                let val_dt_utc = chrono::DateTime::<chrono::Utc>::from_utc(val_dt, chrono::Utc);
+                Some(val_dt_utc.signed_duration_since(now_dt).num_days())
+            } else {
+                None
+            }
+        }
+        None => None,
+    };
+
+
+    let mut nivel = "OK".to_string();
+    let mut pode_operar = true;
+    let mut deve_exibir_alerta = false;
+    let mut deve_sincronizar = dias_desde_ultimo_check >= tolerancia_dias;
+    let mut mensagem = "Licença regular e terminal autorizado.".to_string();
+
+    // Regras de cálculo da política
+    if bloqueio_total == 1 || status == "BLOQUEADA" {
+        nivel = "BLOQUEADA".to_string();
+        pode_operar = false;
+        deve_exibir_alerta = true;
+        mensagem = format!("Licença bloqueada pela retaguarda. Motivo: {}", motivo_bloqueio.clone().unwrap_or_else(|| "Bloqueio administrativo".to_string()));
+        acoes.push("Contatar a administração central para regularização".to_string());
+        
+        let _ = registrar_evento_interno(&conn, "", &lic_id, "LICENCA_BLOQUEADA", &status, motivo_bloqueio.as_deref());
+    } else if modo == "DEV" {
+        nivel = "MODO_DEV".to_string();
+        pode_operar = true;
+        deve_exibir_alerta = true;
+        mensagem = "Terminal operando em modo de Desenvolvimento/Demonstração.".to_string();
+        acoes.push("Utilizar apenas para testes. Não utilizar em produção.".to_string());
+        warnings.push("Licença de demonstração não comercial ativa.".to_string());
+    } else {
+        // Validação de datas
+        if let Some(restantes) = dias_restantes {
+            if restantes < 0 {
+                // Licença expirada
+                if dias_desde_ultimo_check < tolerancia_dias {
+                    // Expirada mas dentro da tolerância offline
+                    nivel = "TOLERANCIA_OFFLINE".to_string();
+                    pode_operar = true;
+                    deve_exibir_alerta = true;
+                    mensagem = format!("Sua licença expirou há {} dias, mas a operação offline temporária está ativa (tolerância: {} dias).", restantes.abs(), tolerancia_dias);
+                    acoes.push("Conectar à internet e sincronizar com a Retaguarda imediatamente".to_string());
+                    
+                    let _ = registrar_evento_interno(&conn, "", &lic_id, "LICENCA_TOLERANCIA_OFFLINE", &status, Some("Tolerância offline ativa"));
+                } else {
+                    // Completamente expirada
+                    nivel = "EXPIRADA".to_string();
+                    pode_operar = false;
+                    deve_exibir_alerta = true;
+                    mensagem = "Licença expirada e fora do período de tolerância offline.".to_string();
+                    acoes.push("Sincronizar licença online ou aplicar novo payload".to_string());
+                    
+                    let _ = registrar_evento_interno(&conn, "", &lic_id, "LICENCA_EXPIRADA_DETECTADA", &status, Some("Licença completamente expirada"));
+                }
+            } else if restantes <= 7 {
+                // Alerta de vencimento próximo
+                nivel = "ALERTA_VENCIMENTO".to_string();
+                pode_operar = true;
+                deve_exibir_alerta = true;
+                mensagem = format!("Sua licença vencerá em {} dias. Programe a renovação.", restantes);
+                acoes.push("Providenciar a renovação da licença na central".to_string());
+            }
+        }
+    }
+
+    if deve_sincronizar {
+        warnings.push(format!("Terminal está sem sincronizar há {} dias. Recomenda-se realizar check-in.", dias_desde_ultimo_check));
+    }
+
+    Ok(LicencaPoliticaResp {
+        nivel,
+        pode_operar,
+        deve_exibir_alerta,
+        deve_sincronizar,
+        dias_restantes,
+        dias_desde_ultimo_check,
+        tolerancia_offline_dias: tolerancia_dias,
+        status,
+        modo,
+        bloqueio_total,
+        motivo_bloqueio,
+        mensagem,
+        acoes_recomendadas: acoes,
+        warnings,
+    })
+}

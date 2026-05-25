@@ -1660,6 +1660,54 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("warnings")]
         public List<string> Warnings { get; set; } = new();
     }
+
+    // === DTOs — Fase 20 Bloco 7: Politica Operacional ===
+
+    public class LicencaPoliticaResp
+    {
+        [JsonPropertyName("nivel")]
+        public string Nivel { get; set; } = string.Empty;
+
+        [JsonPropertyName("pode_operar")]
+        public bool PodeOperar { get; set; }
+
+        [JsonPropertyName("deve_exibir_alerta")]
+        public bool DeveExibirAlerta { get; set; }
+
+        [JsonPropertyName("deve_sincronizar")]
+        public bool DeveSincronizar { get; set; }
+
+        [JsonPropertyName("dias_restantes")]
+        public long? DiasRestantes { get; set; }
+
+        [JsonPropertyName("dias_desde_ultimo_check")]
+        public long DiasDesdeUltimoCheck { get; set; }
+
+        [JsonPropertyName("tolerancia_offline_dias")]
+        public long ToleranciaOfflineDias { get; set; }
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+
+        [JsonPropertyName("modo")]
+        public string Modo { get; set; } = string.Empty;
+
+        [JsonPropertyName("bloqueio_total")]
+        public int BloqueioTotal { get; set; }
+
+        [JsonPropertyName("motivo_bloqueio")]
+        public string? MotivoBloqueio { get; set; }
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("acoes_recomendadas")]
+        public List<string> AcoesRecomendadas { get; set; } = new();
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
 }
+
 
 

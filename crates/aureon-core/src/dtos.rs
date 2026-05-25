@@ -2105,3 +2105,26 @@ pub struct ConfigLicenciamentoResp {
     pub warnings: Vec<String>,
 }
 
+// ================================================================
+// DTOs FASE 20 - BLOCO 7: POLITICA DE BLOQUEIO SUAVE E ALERTAS
+// ================================================================
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LicencaPoliticaResp {
+    pub nivel: String, // OK | ALERTA_VENCIMENTO | TOLERANCIA_OFFLINE | EXPIRADA | BLOQUEADA | MODO_DEV | SEM_LICENCA
+    pub pode_operar: bool,
+    pub deve_exibir_alerta: bool,
+    pub deve_sincronizar: bool,
+    pub dias_restantes: Option<i64>,
+    pub dias_desde_ultimo_check: i64,
+    pub tolerancia_offline_dias: i64,
+    pub status: String,
+    pub modo: String,
+    pub bloqueio_total: i32,
+    pub motivo_bloqueio: Option<String>,
+    pub mensagem: String,
+    pub acoes_recomendadas: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+
