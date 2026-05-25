@@ -9,7 +9,7 @@ use crate::routes::{
     cadastros::{pessoas, grupos, produtos},
     configuracoes::operacionais,
     sync::{terminais, pacotes, publicacao, diagnostico as sync_diag},
-    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass, nfce_preview as fiscal_prev, sifen_preview as fiscal_sifen, validacao_preview as fiscal_val, qrcode_preview as fiscal_qr, assinatura_xmldsig as fiscal_ass_xml, homologacao as fiscal_hom, clientes_fiscais as fiscal_cli}
+    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass, nfce_preview as fiscal_prev, sifen_preview as fiscal_sifen, validacao_preview as fiscal_val, qrcode_preview as fiscal_qr, assinatura_xmldsig as fiscal_ass_xml, homologacao as fiscal_hom, clientes_fiscais as fiscal_cli, historico_homologacao as fiscal_hist}
 };
 use crate::middleware::auth_middleware;
 
@@ -216,7 +216,14 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         // ATENÇÃO: NÃO envia documento fiscal. Diagnóstico de rede apenas.
         .route("/fiscal/homologacao/testar-conectividade", post(fiscal_cli::testar_conectividade))
 
+        // Histórico Técnico de Homologação (Fase 19 - Bloco 5)
+        // ATENÇÃO: auditoria técnica interna. NÃO é autorização fiscal.
+        .route("/fiscal/homologacao/historico", get(fiscal_hist::listar_historico))
+        .route("/fiscal/homologacao/historico/tipos", get(fiscal_hist::listar_tipos_evento))
+        .route("/fiscal/homologacao/historico/:id", get(fiscal_hist::obter_historico))
+
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
+
 
 
     Router::new()
