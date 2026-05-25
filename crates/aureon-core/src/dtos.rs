@@ -1839,3 +1839,60 @@ pub struct LicEventoDto {
     pub mensagem: Option<String>,
     pub criado_em: String,
 }
+
+// ================================================================
+// DTOs FASE 20 - BLOCO 3: CHECK-IN DE LICENÇA (PDV -> NUVEM)
+// ================================================================
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LicencaCheckInReq {
+    pub installation_id: String,
+    pub empresa_id: String,
+    pub terminal_id: Option<String>,
+    pub terminal_nome: String,
+    pub dispositivo_hash: String,
+    pub app_versao: String,
+    pub sistema_operacional: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LicencaPayloadResp {
+    pub sucesso: bool,
+    pub pode_operar: bool,
+    pub status: String,
+    pub modo: String,
+    pub empresa_id: String,
+    pub licenca_id: Option<String>,
+    pub plano_codigo: Option<String>,
+    pub terminal_id: Option<String>,
+    pub terminal_status: Option<String>,
+    pub validade_inicio: Option<String>,
+    pub validade_fim: Option<String>,
+    pub tolerancia_offline_dias: i32,
+    pub bloqueio_total: bool,
+    pub motivo_bloqueio: Option<String>,
+    pub ultimo_check_em: Option<String>,
+    pub assinatura_licenca: Option<String>,
+    pub payload_licenca_json: Option<serde_json::Value>,
+    pub mensagem: Option<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidarTerminalReq {
+    pub licenca_id: String,
+    pub installation_id: String,
+    pub terminal_id: Option<String>,
+    pub terminal_nome: String,
+    pub dispositivo_hash: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidarTerminalResp {
+    pub sucesso: bool,
+    pub terminal_id: Option<String>,
+    pub status: String,
+    pub autorizado: bool,
+    pub mensagem: Option<String>,
+    pub warnings: Vec<String>,
+}

@@ -30,6 +30,10 @@ pub fn router() -> Router<AppState> {
         .route("/terminais/:id/autorizar", put(reativar_terminal))
         // Eventos
         .route("/eventos", get(listar_eventos))
+        // Check-in (Fase 20 Bloco 3)
+        .route("/check-in", post(checkin_licenca))
+        .route("/validar-terminal", post(validar_terminal))
+        .route("/licencas/:id/payload", get(obter_licenca_payload))
 }
 
 // ==========================================
@@ -248,4 +252,137 @@ async fn listar_eventos(
     State(_state): State<AppState>,
 ) -> impl IntoResponse {
     Json(RespostaBase::ok("Eventos", Vec::<LicEventoDto>::new()))
+}
+
+// ==========================================
+// CHECK-IN E PAYLOAD (BLOCO 3)
+// ==========================================
+async fn checkin_licenca(
+    State(_state): State<AppState>,
+    Json(payload): Json<LicencaCheckInReq>,
+) -> impl IntoResponse {
+    // 1. Validar Empresa
+    if payload.empresa_id.is_empty() {
+        return Json(RespostaBase::ok("Empresa inválida", LicencaPayloadResp {
+            sucesso: false,
+            pode_operar: false,
+            status: "BLOQUEADA".to_string(),
+            modo: "MANUAL".to_string(),
+            empresa_id: payload.empresa_id,
+            licenca_id: None,
+            plano_codigo: None,
+            terminal_id: None,
+            terminal_status: None,
+            validade_inicio: None,
+            validade_fim: None,
+            tolerancia_offline_dias: 0,
+            bloqueio_total: true,
+            motivo_bloqueio: Some("Empresa não identificada".to_string()),
+            ultimo_check_em: Some(chrono::Utc::now().to_rfc3339()),
+            assinatura_licenca: None,
+            payload_licenca_json: None,
+            mensagem: Some("Empresa inválida".to_string()),
+            warnings: vec![],
+        }));
+    }
+
+    // Mocking check-in logic
+    let mut warnings = vec![];
+    warnings.push("Assinatura futura não implementada".to_string());
+
+    let payload_json = serde_json::json!({
+        "empresa_id": payload.empresa_id,
+        "licenca_id": Uuid::new_v4().to_string(),
+        "plano_codigo": "ESSENCIAL",
+        "permissoes": ["PDV", "FISCAL"],
+        "validade": null,
+        "terminal": payload.terminal_id.clone().unwrap_or_else(|| "PENDENTE".to_string()),
+        "tolerancia_offline_dias": 10,
+        "emitido_em": chrono::Utc::now().to_rfc3339()
+    });
+
+    let resp = LicencaPayloadResp {
+        sucesso: true,
+        pode_operar: true,
+        status: "ATIVA".to_string(),
+        modo: "DEV".to_string(),
+        empresa_id: payload.empresa_id,
+        licenca_id: Some(Uuid::new_v4().to_string()),
+        plano_codigo: Some("ESSENCIAL".to_string()),
+        terminal_id: payload.terminal_id,
+        terminal_status: Some("AUTORIZADO".to_string()),
+        validade_inicio: Some(chrono::Utc::now().to_rfc3339()),
+        validade_fim: None, // DEV mode
+        tolerancia_offline_dias: 10,
+        bloqueio_total: false,
+        motivo_bloqueio: None,
+        ultimo_check_em: Some(chrono::Utc::now().to_rfc3339()),
+        assinatura_licenca: Some("ASSINATURA_FUTURA_NAO_IMPLEMENTADA".to_string()),
+        payload_licenca_json: Some(payload_json),
+        mensagem: Some("Check-in efetuado com sucesso".to_string()),
+        warnings,
+    };
+
+    Json(RespostaBase::ok("Check-in aprovado", resp))
+}
+
+async fn validar_terminal(
+    State(_state): State<AppState>,
+    Json(payload): Json<ValidarTerminalReq>,
+) -> impl IntoResponse {
+    let mut warnings = vec![];
+    if payload.terminal_id.is_none() {
+        warnings.push("Terminal_id não fornecido, criando como PENDENTE".to_string());
+    }
+
+    let resp = ValidarTerminalResp {
+        sucesso: true,
+        terminal_id: Some(payload.terminal_id.unwrap_or_else(|| Uuid::new_v4().to_string())),
+        status: "AUTORIZADO".to_string(),
+        autorizado: true,
+        mensagem: Some("Terminal autorizado no modo DEV".to_string()),
+        warnings,
+    };
+
+    Json(RespostaBase::ok("Terminal validado", resp))
+}
+
+async fn obter_licenca_payload(
+    Path(id): Path<String>,
+    State(_state): State<AppState>,
+) -> impl IntoResponse {
+    let payload_json = serde_json::json!({
+        "empresa_id": "MOCK-EMP",
+        "licenca_id": id,
+        "plano_codigo": "ESSENCIAL",
+        "permissoes": ["PDV", "FISCAL"],
+        "validade": null,
+        "terminal": "PENDENTE",
+        "tolerancia_offline_dias": 10,
+        "emitido_em": chrono::Utc::now().to_rfc3339()
+    });
+
+    let resp = LicencaPayloadResp {
+        sucesso: true,
+        pode_operar: true,
+        status: "ATIVA".to_string(),
+        modo: "DEV".to_string(),
+        empresa_id: "MOCK-EMP".to_string(),
+        licenca_id: Some(id),
+        plano_codigo: Some("ESSENCIAL".to_string()),
+        terminal_id: None,
+        terminal_status: None,
+        validade_inicio: Some(chrono::Utc::now().to_rfc3339()),
+        validade_fim: None,
+        tolerancia_offline_dias: 10,
+        bloqueio_total: false,
+        motivo_bloqueio: None,
+        ultimo_check_em: Some(chrono::Utc::now().to_rfc3339()),
+        assinatura_licenca: Some("ASSINATURA_FUTURA_NAO_IMPLEMENTADA".to_string()),
+        payload_licenca_json: Some(payload_json),
+        mensagem: Some("Payload gerado com sucesso".to_string()),
+        warnings: vec!["Assinatura futura não implementada".to_string()],
+    };
+
+    Json(RespostaBase::ok("Payload obtido", resp))
 }
