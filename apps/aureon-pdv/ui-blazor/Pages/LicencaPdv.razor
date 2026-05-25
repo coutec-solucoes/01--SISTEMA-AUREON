@@ -1,0 +1,108 @@
+@page "/licenca"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="licenca-container">
+    <h2>Licenciamento Local</h2>
+
+    @if (carregando)
+    {
+        <p>Aguarde, carregando status da licença...</p>
+    }
+    else if (statusLicenca != null)
+    {
+        <div class="licenca-card">
+            <h3>Status: @statusLicenca.Status</h3>
+            <p><strong>Installation ID:</strong> @statusLicenca.InstallationId</p>
+            <p><strong>Empresa ID:</strong> @statusLicenca.EmpresaId</p>
+            <p><strong>Terminal ID:</strong> @statusLicenca.TerminalId</p>
+            <p><strong>Terminal Nome:</strong> @statusLicenca.TerminalNome</p>
+            <p><strong>Plano:</strong> @statusLicenca.PlanoCodigo</p>
+            <p><strong>Modo:</strong> @statusLicenca.Modo</p>
+            <p><strong>Validade Fim:</strong> @statusLicenca.ValidadeFim</p>
+            <p><strong>Mensagem:</strong> @statusLicenca.Mensagem</p>
+
+            @if (statusLicenca.PodeOperar)
+            {
+                <div class="alert success">
+                    A operação deste terminal está PERMITIDA.
+                </div>
+            }
+            else
+            {
+                <div class="alert error">
+                    A operação deste terminal está BLOQUEADA.
+                    <br />
+                    Motivo: @statusLicenca.MotivoBloqueio
+                </div>
+            }
+        </div>
+
+        @if (statusLicenca.Status == "PENDENTE_ATIVACAO" || statusLicenca.Modo == "")
+        {
+            <div class="licenca-actions">
+                <h4>Ativação Local</h4>
+                <div class="form-group">
+                    <label>Empresa ID:</label>
+                    <input type="text" @bind="formEmpresaId" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <label>Terminal Nome:</label>
+                    <input type="text" @bind="formTerminalNome" class="form-control" />
+                </div>
+                <button class="btn btn-primary" @onclick="AtivarModoDev">Ativar modo DEV local</button>
+            </div>
+        }
+
+        <div class="licenca-warning">
+            ⚠️ <strong>Aviso:</strong> Licenciamento local offline-first. Validação cloud será implementada em etapa futura.
+        </div>
+    }
+</div>
+
+@code {
+    private bool carregando = true;
+    private LicencaStatusResp? statusLicenca;
+    private string formEmpresaId = "EMP-001";
+    private string formTerminalNome = "CAIXA-01";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarStatus();
+    }
+
+    private async Task CarregarStatus()
+    {
+        carregando = true;
+        try
+        {
+            statusLicenca = await Tauri.InvocarAsync<LicencaStatusResp>("obter_status_licenca", new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao carregar licença: {ex.Message}");
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private async Task AtivarModoDev()
+    {
+        try
+        {
+            var req = new AtivarLicencaReq
+            {
+                EmpresaId = formEmpresaId,
+                TerminalNome = formTerminalNome,
+                Modo = "DEV"
+            };
+            statusLicenca = await Tauri.InvocarAsync<LicencaStatusResp>("ativar_licenca_dev", new { req });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao ativar licença: {ex.Message}");
+        }
+    }
+}

@@ -359,3 +359,10 @@ Decis�es de arquitetura adotadas na Fase 18 � Homologa��o T�cnica Fiscal: Certif
 - **Contexto**: Com todos os testes verdes, usuários poderiam assumir que notas estão valendo.
 - **Decisão**: Criar a entidade Prontidão que reflete APENAS a infraestrutura ("tenho rede, tenho certificado, tenho libxmlsec"). Inserir banners de aviso de que "Prontidão não é autorização".
 - **Consequência**: Previne interpretações dúbias e a falsa sensação de que a emissão em si já está valendo. Protege contra problemas jurídicos.
+
+---
+
+## 💡 ADR 37: Licenciamento Local Offline-First com Tolerância
+- **Contexto**: PDVs frequentemente operam em ambientes com internet instável, mas o licenciamento de software SaaS depende de validação online para prevenir pirataria e garantir cobrança.
+- **Decisão**: Implementar uma arquitetura de duas camadas. O PDV consulta localmente (SQLite) as tabelas `licenca_local` e `instalacao_local` que mantêm o estado de `pode_operar`, tolerância (ex: 10 dias) e último check. As regras de venda olham apenas para o estado local, garantindo zero latência.
+- **Consequência**: Aumenta a robustez operacional na ponta (o PDV não trava no meio do expediente por queda de internet). No entanto, exigirá (nos blocos subsequentes) um job de sincronização de fundo (sync de licença) confiável e criptografado para evitar adulteração do banco SQLite local.

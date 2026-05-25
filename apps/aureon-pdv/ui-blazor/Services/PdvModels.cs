@@ -1459,5 +1459,63 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("criado_em")]
         public string CriadoEm { get; set; } = string.Empty;
     }
+
+    // --- Licenciamento Local (Fase 20) ---
+    public class LicencaStatusResp
+    {
+        [JsonPropertyName("installation_id")]
+        public string InstallationId { get; set; } = string.Empty;
+        
+        [JsonPropertyName("empresa_id")]
+        public string? EmpresaId { get; set; }
+        
+        [JsonPropertyName("terminal_id")]
+        public string? TerminalId { get; set; }
+        
+        [JsonPropertyName("terminal_nome")]
+        public string? TerminalNome { get; set; }
+        
+        [JsonPropertyName("plano_codigo")]
+        public string PlanoCodigo { get; set; } = string.Empty;
+        
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+        
+        [JsonPropertyName("modo")]
+        public string Modo { get; set; } = string.Empty;
+        
+        [JsonPropertyName("validade_fim")]
+        public string? ValidadeFim { get; set; }
+        
+        [JsonPropertyName("dias_restantes")]
+        public int? DiasRestantes { get; set; }
+        
+        [JsonPropertyName("tolerancia_offline_dias")]
+        public int ToleranciaOfflineDias { get; set; }
+        
+        [JsonPropertyName("bloqueio_total")]
+        public int BloqueioTotal { get; set; }
+        
+        [JsonPropertyName("motivo_bloqueio")]
+        public string? MotivoBloqueio { get; set; }
+        
+        [JsonPropertyName("pode_operar")]
+        public bool PodeOperar { get; set; }
+        
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+    }
+
+    public class AtivarLicencaReq
+    {
+        [JsonPropertyName("empresa_id")]
+        public string EmpresaId { get; set; } = string.Empty;
+        
+        [JsonPropertyName("terminal_nome")]
+        public string TerminalNome { get; set; } = string.Empty;
+        
+        [JsonPropertyName("modo")]
+        public string Modo { get; set; } = string.Empty;
+    }
 }
 

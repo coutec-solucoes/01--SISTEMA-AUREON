@@ -1700,3 +1700,29 @@ pub struct AuditoriaMestreResp {
     pub usuario_id: Option<String>,
     pub criado_em: String,
 }
+
+// --- Licenciamento Local (Fase 20) ---
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LicencaStatusResp {
+    pub installation_id: String,
+    pub empresa_id: Option<String>,
+    pub terminal_id: Option<String>,
+    pub terminal_nome: Option<String>,
+    pub plano_codigo: String,
+    pub status: String,
+    pub modo: String,
+    pub validade_fim: Option<String>,
+    pub dias_restantes: Option<i32>,
+    pub tolerancia_offline_dias: i32,
+    pub bloqueio_total: i32,
+    pub motivo_bloqueio: Option<String>,
+    pub pode_operar: bool,
+    pub mensagem: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AtivarLicencaReq {
+    pub empresa_id: String,
+    pub terminal_nome: String,
+    pub modo: String,
+}
