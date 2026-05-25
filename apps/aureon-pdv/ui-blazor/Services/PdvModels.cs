@@ -1751,6 +1751,176 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("warnings")]
         public List<string> Warnings { get; set; } = new();
     }
+
+    // === DTOs — Fase 20 Bloco 9: Backup Local ===
+
+    public class CriarBackupReq
+    {
+        [JsonPropertyName("destino_dir")]
+        public string? DestinoDir { get; set; }
+
+        [JsonPropertyName("motivo")]
+        public string? Motivo { get; set; }
+
+        [JsonPropertyName("incluir_metadados")]
+        public bool IncluirMetadados { get; set; }
+    }
+
+    public class BackupResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+
+        [JsonPropertyName("backup_id")]
+        public string BackupId { get; set; } = string.Empty;
+
+        [JsonPropertyName("arquivo")]
+        public string Arquivo { get; set; } = string.Empty;
+
+        [JsonPropertyName("metadados_arquivo")]
+        public string? MetadadosArquivo { get; set; }
+
+        [JsonPropertyName("tamanho_bytes")]
+        public long TamanhoBytes { get; set; }
+
+        [JsonPropertyName("sha256")]
+        public string Sha256 { get; set; } = string.Empty;
+
+        [JsonPropertyName("criado_em")]
+        public string CriadoEm { get; set; } = string.Empty;
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
+
+    public class BackupInfoResp
+    {
+        [JsonPropertyName("backup_id")]
+        public string BackupId { get; set; } = string.Empty;
+
+        [JsonPropertyName("arquivo")]
+        public string Arquivo { get; set; } = string.Empty;
+
+        [JsonPropertyName("metadados_arquivo")]
+        public string? MetadadosArquivo { get; set; }
+
+        [JsonPropertyName("tamanho_bytes")]
+        public long TamanhoBytes { get; set; }
+
+        [JsonPropertyName("sha256")]
+        public string Sha256 { get; set; } = string.Empty;
+
+        [JsonPropertyName("criado_em")]
+        public string CriadoEm { get; set; } = string.Empty;
+
+        [JsonPropertyName("empresa_id")]
+        public string? EmpresaId { get; set; }
+
+        [JsonPropertyName("installation_id")]
+        public string? InstallationId { get; set; }
+
+        [JsonPropertyName("terminal_id")]
+        public string? TerminalId { get; set; }
+
+        [JsonPropertyName("app_versao")]
+        public string? AppVersao { get; set; }
+
+        [JsonPropertyName("valido")]
+        public bool? Valido { get; set; }
+
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+    }
+
+    public class ValidarBackupReq
+    {
+        [JsonPropertyName("arquivo")]
+        public string Arquivo { get; set; } = string.Empty;
+    }
+
+    public class ValidarBackupResp
+    {
+        [JsonPropertyName("valido")]
+        public bool Valido { get; set; }
+
+        [JsonPropertyName("arquivo")]
+        public string Arquivo { get; set; } = string.Empty;
+
+        [JsonPropertyName("tamanho_bytes")]
+        public long TamanhoBytes { get; set; }
+
+        [JsonPropertyName("sha256")]
+        public string Sha256 { get; set; } = string.Empty;
+
+        [JsonPropertyName("sqlite_integrity_ok")]
+        public bool SqliteIntegrityOk { get; set; }
+
+        [JsonPropertyName("migrations_ok")]
+        public bool MigrationsOk { get; set; }
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
+
+    public class RestaurarBackupReq
+    {
+        [JsonPropertyName("arquivo")]
+        public string Arquivo { get; set; } = string.Empty;
+
+        [JsonPropertyName("confirmacao_texto")]
+        public string ConfirmacaoTexto { get; set; } = string.Empty;
+
+        [JsonPropertyName("motivo")]
+        public string? Motivo { get; set; }
+    }
+
+    public class RestaurarBackupResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+
+        [JsonPropertyName("backup_restaurado")]
+        public string BackupRestaurado { get; set; } = string.Empty;
+
+        [JsonPropertyName("backup_pre_restauracao")]
+        public string? BackupPreRestauracao { get; set; }
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
+
+    public class DiagnosticoBancoResp
+    {
+        [JsonPropertyName("sqlite_integrity_ok")]
+        public bool SqliteIntegrityOk { get; set; }
+
+        [JsonPropertyName("tamanho_bytes")]
+        public long TamanhoBytes { get; set; }
+
+        [JsonPropertyName("caminho_banco")]
+        public string CaminhoBanco { get; set; } = string.Empty;
+
+        [JsonPropertyName("migrations_count")]
+        public long MigrationsCount { get; set; }
+
+        [JsonPropertyName("ultima_migration")]
+        public string? UltimaMigration { get; set; }
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
 }
 
 

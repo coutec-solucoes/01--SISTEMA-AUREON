@@ -131,4 +131,19 @@ Implementar bloqueio operacional real para operações críticas com base na pol
 - Eventos de auditoria gravados: `LICENCA_OPERACAO_PERMITIDA`, `LICENCA_OPERACAO_BLOQUEADA`, `LICENCA_BLOQUEIO_SUAVE_APLICADO`.
 - Nenhuma operação de leitura, backup ou sincronização foi afetada, garantindo total regularização.
 
+## Bloco 9 — Backup Local e Restauração Controlada
+**Status**: CONCLUÍDO
+**Data**: 2026-05-25
+
+### Objetivo
+Criar a base de backup e restauração local do PDV Aureon, permitindo gerar cópias seguras do SQLite local, validar integridade, listar backups existentes e restaurar de forma controlada, sem depender de internet e sem bloqueios de licença.
+
+### Entregas
+- Commands Tauri: `criar_backup_local`, `listar_backups_locais`, `validar_backup_local`, `restaurar_backup_local`, `diagnosticar_banco_local`.
+- DTOs em `dtos.rs` e `PdvModels.cs`.
+- Página Blazor `BackupPdv.razor` para gerenciamento seguro.
+- Proteção de Restauração: a restauração gera um backup prévio obrigatório, exige confirmação estrita "RESTAURAR" na tela e recusa restaurar arquivos com integridade corrompida.
+- Validação SQLite: uso do `PRAGMA integrity_check` tanto no banco atual quanto nos arquivos de backup.
+- **Isenção de Licença**: As rotinas de backup e restauração são blindadas contra bloqueios comerciais (não usam guarda operacional).
+
 

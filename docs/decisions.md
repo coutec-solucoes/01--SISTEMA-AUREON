@@ -415,3 +415,15 @@ Implementar uma "Guarda Operacional" (Bloqueio Suave) restrita a operações cr�
 - A tela de licença, backup, relatórios de leitura e rotinas de sincronização NUNCA são bloqueados.
 - Todas as decisões são auditadas na tabela `licenca_eventos`.
 
+## ADR: Backup e Restauração Independentes de Licença (Fase 20, Bloco 9)
+
+### Contexto
+Sistemas PDV críticos precisam de rotinas de backup locais que garantam a preservação e a recuperação de dados independente de pagamentos ou bloqueios de licença. Cortar acesso à base de dados que pertence ao cliente é destrutivo.
+
+### Decisão
+A rotina de criação, listagem, validação e restauração de backups locais deve estar disponível para o operador independentemente do status da licença (`OK`, `EXPIRADA`, `BLOQUEADA`, etc). 
+
+### Consequências
+- A interface de backup e os commands de backup no Tauri não têm validações de `garantir_operacao_licenciada`.
+- O cliente sempre tem o direito e a habilidade de salvar seus dados localmente e recuperar o PDV se algo der errado (ex: atualização falha, corrupção).
+

@@ -1,0 +1,344 @@
+@page "/backup"
+@using AureonPdvUi.Services
+@inject IJSRuntime JS
+@inject TauriService Tauri
+
+<div class="padrao-container" style="max-width: 900px; margin: 0 auto;">
+    <h2 style="color: #80cbc4; margin-bottom: 5px;">Backup e Restauração Local</h2>
+    <p style="color: #aaa; margin-bottom: 20px;">
+        Proteja e recupere seus dados. <strong>As operações de backup e restauração NÃO dependem de licença ativa.</strong>
+    </p>
+
+    <!-- Alertas -->
+    @if (!string.IsNullOrEmpty(mensagemAviso))
+    {
+        <div style="background-color: #333; color: #ffeb3b; padding: 12px; border-left: 4px solid #ffeb3b; margin-bottom: 20px; border-radius: 4px;">
+            @mensagemAviso
+            <button @onclick="() => mensagemAviso = null" style="float: right; background: none; border: none; color: white; cursor: pointer;">X</button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(mensagemSucesso))
+    {
+        <div style="background-color: #1b5e20; color: white; padding: 12px; border-left: 4px solid #4caf50; margin-bottom: 20px; border-radius: 4px;">
+            @mensagemSucesso
+            <button @onclick="() => mensagemSucesso = null" style="float: right; background: none; border: none; color: white; cursor: pointer;">X</button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(mensagemErro))
+    {
+        <div style="background-color: #b71c1c; color: white; padding: 12px; border-left: 4px solid #f44336; margin-bottom: 20px; border-radius: 4px;">
+            @mensagemErro
+            <button @onclick="() => mensagemErro = null" style="float: right; background: none; border: none; color: white; cursor: pointer;">X</button>
+        </div>
+    }
+
+    <!-- Diagnóstico do Banco -->
+    <div class="card" style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+        <h3 style="margin-top: 0; color: #fff;">Diagnóstico do Banco Atual</h3>
+        @if (diagnostico == null)
+        {
+            <p>Carregando diagnóstico...</p>
+        }
+        else
+        {
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div><strong>Caminho:</strong> <span style="color: #ccc;">@diagnostico.CaminhoBanco</span></div>
+                <div><strong>Tamanho:</strong> <span style="color: #ccc;">@(Math.Round(diagnostico.TamanhoBytes / 1024.0 / 1024.0, 2)) MB</span></div>
+                <div>
+                    <strong>Integridade (SQLite):</strong> 
+                    <span style="color: @(diagnostico.SqliteIntegrityOk ? "#4caf50" : "#f44336"); font-weight: bold;">
+                        @(diagnostico.SqliteIntegrityOk ? "OK" : "FALHOU")
+                    </span>
+                </div>
+                <div><strong>Migrations Ativas:</strong> <span style="color: #ccc;">@diagnostico.MigrationsCount</span></div>
+            </div>
+            @if (diagnostico.Warnings != null && diagnostico.Warnings.Any())
+            {
+                <div style="margin-top: 10px; color: #f44336; font-size: 14px;">
+                    <strong>Alertas de Integridade:</strong>
+                    <ul>
+                        @foreach (var w in diagnostico.Warnings)
+                        {
+                            <li>@w</li>
+                        }
+                    </ul>
+                </div>
+            }
+        }
+        <div style="margin-top: 20px;">
+            <button class="btn btn-primary" @onclick="GerarBackup" disabled="@processando">
+                @(processando ? "Processando..." : "Gerar Backup Agora")
+            </button>
+        </div>
+    </div>
+
+    <!-- Lista de Backups -->
+    <div class="card" style="background-color: #1e1e1e; padding: 20px; border-radius: 8px;">
+        <h3 style="margin-top: 0; color: #fff; display: flex; justify-content: space-between;">
+            Backups Locais
+            <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 10px;" @onclick="CarregarBackups">Atualizar Lista</button>
+        </h3>
+        
+        @if (listaBackups == null)
+        {
+            <p>Carregando...</p>
+        }
+        else if (!listaBackups.Any())
+        {
+            <p style="color: #aaa;">Nenhum backup encontrado na pasta local.</p>
+        }
+        else
+        {
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #444; text-align: left; color: #aaa;">
+                        <th style="padding: 10px;">Arquivo</th>
+                        <th style="padding: 10px;">Tamanho</th>
+                        <th style="padding: 10px;">Status</th>
+                        <th style="padding: 10px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var bkp in listaBackups.OrderByDescending(b => b.Arquivo))
+                    {
+                        <tr style="border-bottom: 1px solid #333;">
+                            <td style="padding: 10px; color: #ddd;">@bkp.Arquivo</td>
+                            <td style="padding: 10px; color: #aaa;">@(Math.Round(bkp.TamanhoBytes / 1024.0 / 1024.0, 2)) MB</td>
+                            <td style="padding: 10px;">
+                                @if (bkp.Valido.HasValue)
+                                {
+                                    <span style="color: @(bkp.Valido.Value ? "#4caf50" : "#f44336");">
+                                        @(bkp.Valido.Value ? "Válido" : "Inválido")
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span style="color: #777;">Não validado</span>
+                                }
+                            </td>
+                            <td style="padding: 10px; display: flex; gap: 8px;">
+                                <button class="btn btn-secondary" style="padding: 4px 10px;" @onclick="() => ValidarBackup(bkp)" disabled="@processando">Validar</button>
+                                <button class="btn btn-danger" style="padding: 4px 10px; background-color: #c62828;" @onclick="() => PrepararRestauracao(bkp)" disabled="@processando">Restaurar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Restauração -->
+@if (backupSelecionado != null)
+{
+    <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+        <div style="background: #1e1e1e; padding: 24px; border-radius: 8px; width: 500px; max-width: 90%; border: 1px solid #444;">
+            <h3 style="color: #f44336; margin-top: 0;">Atenção Risco Alto: Restauração</h3>
+            <p>Você está prestes a restaurar o banco de dados a partir do arquivo:</p>
+            <p><strong style="color: #fff;">@backupSelecionado.Arquivo</strong></p>
+            <p style="color: #ff9800; font-size: 14px;">
+                Isso sobrescreverá <strong>TODO</strong> o estado atual do sistema (vendas, caixa, estoque, configurações). Um backup automático do estado atual será gerado antes por segurança.
+            </p>
+            <p style="margin-top: 15px; font-weight: bold; color: #ddd;">
+                Para confirmar, digite exatamente <span style="color: #f44336;">RESTAURAR</span> no campo abaixo:
+            </p>
+            <input type="text" @bind="confirmacaoRestore" style="width: 100%; padding: 10px; margin-bottom: 20px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; text-align: center; font-weight: bold;" />
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn btn-secondary" @onclick="CancelarRestauracao" disabled="@processando">Cancelar</button>
+                <button class="btn btn-danger" style="background-color: #d32f2f;" @onclick="ExecutarRestauracao" disabled="@(processando || confirmacaoRestore != "RESTAURAR")">
+                    @(processando ? "Aguarde..." : "Confirmar Restauração")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: opacity 0.2s;
+    }
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .btn-primary { background-color: #80cbc4; color: #004d40; }
+    .btn-primary:hover:not(:disabled) { background-color: #4db6ac; }
+    .btn-secondary { background-color: #555; color: white; }
+    .btn-secondary:hover:not(:disabled) { background-color: #666; }
+    .btn-danger { color: white; }
+    .btn-danger:hover:not(:disabled) { opacity: 0.8; }
+</style>
+
+@code {
+    private bool processando = false;
+    private string? mensagemSucesso;
+    private string? mensagemErro;
+    private string? mensagemAviso;
+
+    private DiagnosticoBancoResp? diagnostico;
+    private List<BackupInfoResp>? listaBackups;
+
+    private BackupInfoResp? backupSelecionado;
+    private string confirmacaoRestore = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDiagnostico();
+        await CarregarBackups();
+    }
+
+    private void LimparMensagens()
+    {
+        mensagemSucesso = null;
+        mensagemErro = null;
+        mensagemAviso = null;
+    }
+
+    private async Task CarregarDiagnostico()
+    {
+        try
+        {
+            diagnostico = await Tauri.InvocarAsync<DiagnosticoBancoResp>("diagnosticar_banco_local", new { });
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            mensagemAviso = "Não foi possível carregar o diagnóstico do banco: " + ex.Message;
+        }
+    }
+
+    private async Task CarregarBackups()
+    {
+        try
+        {
+            listaBackups = await Tauri.InvocarAsync<List<BackupInfoResp>>("listar_backups_locais", new { });
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = "Erro ao carregar lista de backups: " + ex.Message;
+        }
+    }
+
+    private async Task GerarBackup()
+    {
+        processando = true;
+        LimparMensagens();
+        StateHasChanged();
+
+        try
+        {
+            var req = new CriarBackupReq { IncluirMetadados = true, Motivo = "Backup manual do operador" };
+            var resp = await Tauri.InvocarAsync<BackupResp>("criar_backup_local", new { req });
+
+            if (resp != null && resp.Sucesso)
+            {
+                mensagemSucesso = "Backup gerado com sucesso: " + resp.Arquivo;
+                await CarregarBackups();
+            }
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = "Erro ao gerar backup: " + ex.Message;
+        }
+        finally
+        {
+            processando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ValidarBackup(BackupInfoResp bkp)
+    {
+        processando = true;
+        LimparMensagens();
+        StateHasChanged();
+
+        try
+        {
+            var req = new ValidarBackupReq { Arquivo = bkp.Arquivo };
+            var resp = await Tauri.InvocarAsync<ValidarBackupResp>("validar_backup_local", new { req });
+
+            if (resp != null)
+            {
+                bkp.Valido = resp.Valido;
+                if (resp.Valido)
+                {
+                    mensagemSucesso = $"O backup {bkp.Arquivo} é válido e íntegro.";
+                }
+                else
+                {
+                    mensagemErro = $"O backup {bkp.Arquivo} está CORROMPIDO. Detalhes: {resp.Mensagem}";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = "Erro ao validar backup: " + ex.Message;
+            bkp.Valido = false;
+        }
+        finally
+        {
+            processando = false;
+            StateHasChanged();
+        }
+    }
+
+    private void PrepararRestauracao(BackupInfoResp bkp)
+    {
+        LimparMensagens();
+        backupSelecionado = bkp;
+        confirmacaoRestore = "";
+    }
+
+    private void CancelarRestauracao()
+    {
+        backupSelecionado = null;
+        confirmacaoRestore = "";
+    }
+
+    private async Task ExecutarRestauracao()
+    {
+        if (backupSelecionado == null || confirmacaoRestore != "RESTAURAR") return;
+
+        processando = true;
+        LimparMensagens();
+        StateHasChanged();
+
+        try
+        {
+            var req = new RestaurarBackupReq 
+            { 
+                Arquivo = backupSelecionado.Arquivo,
+                ConfirmacaoTexto = confirmacaoRestore,
+                Motivo = "Restauracao manual via UI"
+            };
+            
+            var resp = await Tauri.InvocarAsync<RestaurarBackupResp>("restaurar_backup_local", new { req });
+
+            if (resp != null && resp.Sucesso)
+            {
+                mensagemSucesso = resp.Mensagem + (resp.BackupPreRestauracao != null ? $" Um backup de segurança foi salvo como {resp.BackupPreRestauracao}." : "");
+                backupSelecionado = null;
+                await CarregarDiagnostico();
+                await CarregarBackups();
+            }
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = "Falha crítica na restauração: " + ex.Message;
+            backupSelecionado = null;
+        }
+        finally
+        {
+            processando = false;
+            StateHasChanged();
+        }
+    }
+}

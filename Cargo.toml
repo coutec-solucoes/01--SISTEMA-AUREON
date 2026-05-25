@@ -38,7 +38,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 
 # SQLite (bundled = sem dependência externa)
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 
 # PostgreSQL async
 sqlx = { version = "0.8", features = [

@@ -14,6 +14,7 @@ pub mod commands_impressao;
 pub mod commands_fiscal;
 pub mod commands_sync_fiscal;
 pub mod commands_licenciamento;
+pub mod commands_backup;
 pub mod licenca_crypto_local;
 pub mod estado;
 
@@ -216,6 +217,12 @@ pub fn run() {
             // Commands de Licenciamento — Política Operacional (Fase 20 Bloco 7 e 8)
             commands_licenciamento::obter_politica_licenca,
             commands_licenciamento::verificar_operacao_permitida_licenca,
+            // Commands de Backup (Fase 20 Bloco 9)
+            commands_backup::criar_backup_local,
+            commands_backup::listar_backups_locais,
+            commands_backup::validar_backup_local,
+            commands_backup::restaurar_backup_local,
+            commands_backup::diagnosticar_banco_local,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2150,3 +2150,87 @@ pub struct VerificarOperacaoLicencaResp {
     pub acoes_recomendadas: Vec<String>,
     pub warnings: Vec<String>,
 }
+
+// ================================================================
+// DTOs FASE 20 - BLOCO 9: BACKUP E RESTAURACAO LOCAL
+// ================================================================
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CriarBackupReq {
+    pub destino_dir: Option<String>,
+    pub motivo: Option<String>,
+    pub incluir_metadados: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BackupResp {
+    pub sucesso: bool,
+    pub backup_id: String,
+    pub arquivo: String,
+    pub metadados_arquivo: Option<String>,
+    pub tamanho_bytes: u64,
+    pub sha256: String,
+    pub criado_em: String,
+    pub mensagem: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BackupInfoResp {
+    pub backup_id: String,
+    pub arquivo: String,
+    pub metadados_arquivo: Option<String>,
+    pub tamanho_bytes: u64,
+    pub sha256: String,
+    pub criado_em: String,
+    pub empresa_id: Option<String>,
+    pub installation_id: Option<String>,
+    pub terminal_id: Option<String>,
+    pub app_versao: Option<String>,
+    pub valido: Option<bool>,
+    pub mensagem: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidarBackupReq {
+    pub arquivo: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidarBackupResp {
+    pub valido: bool,
+    pub arquivo: String,
+    pub tamanho_bytes: u64,
+    pub sha256: String,
+    pub sqlite_integrity_ok: bool,
+    pub migrations_ok: bool,
+    pub mensagem: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RestaurarBackupReq {
+    pub arquivo: String,
+    pub confirmacao_texto: String,
+    pub motivo: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RestaurarBackupResp {
+    pub sucesso: bool,
+    pub backup_restaurado: String,
+    pub backup_pre_restauracao: Option<String>,
+    pub mensagem: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DiagnosticoBancoResp {
+    pub sqlite_integrity_ok: bool,
+    pub tamanho_bytes: u64,
+    pub caminho_banco: String,
+    pub migrations_count: i64,
+    pub ultima_migration: Option<String>,
+    pub mensagem: String,
+    pub warnings: Vec<String>,
+}
