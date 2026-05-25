@@ -9,7 +9,7 @@ use crate::routes::{
     cadastros::{pessoas, grupos, produtos},
     configuracoes::operacionais,
     sync::{terminais, pacotes, publicacao, diagnostico as sync_diag},
-    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass, nfce_preview as fiscal_prev, sifen_preview as fiscal_sifen, validacao_preview as fiscal_val}
+    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass, nfce_preview as fiscal_prev, sifen_preview as fiscal_sifen, validacao_preview as fiscal_val, qrcode_preview as fiscal_qr}
 };
 use crate::middleware::auth_middleware;
 
@@ -162,6 +162,11 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         .route("/fiscal/preview/validar", post(fiscal_val::validar_preview))
         .route("/fiscal/preview/validar-xml", post(fiscal_val::validar_xml))
         .route("/fiscal/preview/validar-sifen", post(fiscal_val::validar_sifen))
+
+        // QR Code Fiscal Preview (Fase 18 - Bloco 6)
+        .route("/fiscal/preview/qrcode", post(fiscal_qr::gerar_qrcode))
+        .route("/fiscal/preview/qrcode/nfce/:chave_preview", get(fiscal_qr::qrcode_nfce))
+        .route("/fiscal/preview/qrcode/sifen/:cdc_preview", get(fiscal_qr::qrcode_sifen))
 
         // Dicionários
         .route("/fiscal/dicionarios/ncm", get(fiscal_dic::obter_ncms).post(fiscal_dic::criar_ncm))
