@@ -9,7 +9,7 @@ use crate::routes::{
     cadastros::{pessoas, grupos, produtos},
     configuracoes::operacionais,
     sync::{terminais, pacotes, publicacao, diagnostico as sync_diag},
-    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass, nfce_preview as fiscal_prev, sifen_preview as fiscal_sifen}
+    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert, assinatura as fiscal_ass, nfce_preview as fiscal_prev, sifen_preview as fiscal_sifen, validacao_preview as fiscal_val}
 };
 use crate::middleware::auth_middleware;
 
@@ -157,6 +157,11 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         // Montagem de JSON SIFEN/DTE Preview (Fase 18 - Bloco 4)
         .route("/fiscal/sifen/preview/montar", post(fiscal_sifen::montar_preview))
         .route("/fiscal/sifen/preview/venda/:venda_id", get(fiscal_sifen::get_venda_preview))
+
+        // Validação Local de Schemas Preview (Fase 18 - Bloco 5)
+        .route("/fiscal/preview/validar", post(fiscal_val::validar_preview))
+        .route("/fiscal/preview/validar-xml", post(fiscal_val::validar_xml))
+        .route("/fiscal/preview/validar-sifen", post(fiscal_val::validar_sifen))
 
         // Dicionários
         .route("/fiscal/dicionarios/ncm", get(fiscal_dic::obter_ncms).post(fiscal_dic::criar_ncm))
