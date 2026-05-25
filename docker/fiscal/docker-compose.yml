@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  aureon-fiscal-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Monta o diretório raiz do projeto dentro de /app no container
+      - ../../:/app
+      # Cria um volume anônimo para a pasta target, evitando conflitos de build (Linux vs Windows)
+      - target_cache:/app/target
+      - cargo_registry:/usr/local/cargo/registry
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=sqlite:////app/banco_offline.db
+    # Por padrão, roda cargo check sem features
+    command: cargo check -p aureon-api-local
+
+volumes:
+  target_cache:
+  cargo_registry:
