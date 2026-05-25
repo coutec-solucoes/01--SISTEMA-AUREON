@@ -331,3 +331,31 @@ Decis�es de arquitetura adotadas na Fase 18 � Homologa��o T�cnica Fiscal: Certif
 - **Contexto**: O sistema precisa montar XML NFC-e/NF-e e JSON SIFEN/DTE, al�m de valid�-los, mas sem transmitir para os �rg�os competentes.
 - **Decis�o**: Todos os endpoints de preview (XML e JSON) geram arquivos com ambiente obrigatoriamente definido para HOMOLOGACAO (tpAmb=2), injetam avisos de DOCUMENTO TECNICO DE HOMOLOGACAO SEM VALIDADE FISCAL, e bloqueiam qualquer requisi��o de PRODUCAO. O QR gerado � SVG base64 sem cHashQR oficial.
 - **Consequ�ncia**: A arquitetura t�cnica foi criada e validada (estrutura��o, formata��o de minor units, c�lculo segregado de IVA), garantindo que o PDV e a retaguarda est�o preparados para integra��o real sem expor clientes a riscos fiscais de emiss�o indevida.
+
+---
+
+## 💡 ADR 33: XMLDSig real via xmlsec/libxmlsec atrás de feature fiscal_xmldsig_real
+- **Contexto**: A assinatura de XML padrão SEFAZ (com canonicalização e C-HASH) requer manipulação avançada usando ferramentas C que dificultam o build multi-plataforma no Windows.
+- **Decisão**: Isolar a dependência técnica por trás de uma macro condicional (`cfg(feature = "fiscal_xmldsig_real")`). O runtime local e laboratório Docker em Linux/WSL serão usados para testes, enquanto o build padrão ignorará o binding.
+- **Consequência**: Preserva a experiência de desenvolvimento (cargo check rápido no Windows) enquanto provê uma infraestrutura de produção escalável e correta.
+
+---
+
+## 💡 ADR 34: Bloqueio absoluto de produção na Fase 19
+- **Contexto**: Testar conexões e URLs de serviços do governo acarreta riscos, inclusive emitir notas ou rejeições em ambiente oficial de Produção.
+- **Decisão**: Bloqueio hard-coded para qualquer URL contendo ambientes de Produção e obrigatoriedade da flag `tpAmb=2`.
+- **Consequência**: Zero chance de uma nota vazar para produção acidentalmente no período de desenvolvimento e validação técnica da Fase 19.
+
+---
+
+## 💡 ADR 35: Homologação real depende de artefatos externos e runtime Linux/WSL
+- **Contexto**: Homologar e garantir as integrações não pode ser falsificado via mocks.
+- **Decisão**: Aceitar "Pendências Externas" (ausência de `xsd` físico, ambiente `WSL`, certificados A1 PFX não commitados) como bloqueadores mapeados, não ocultos. A API reporta o que falta, em vez de simular sucesso.
+- **Consequência**: Transparência para equipe Ops/DevOps. Os deploys passam a ter um painel de prontidão (Readiness) explícito.
+
+---
+
+## 💡 ADR 36: Prontidão fiscal não equivale a autorização fiscal
+- **Contexto**: Com todos os testes verdes, usuários poderiam assumir que notas estão valendo.
+- **Decisão**: Criar a entidade Prontidão que reflete APENAS a infraestrutura ("tenho rede, tenho certificado, tenho libxmlsec"). Inserir banners de aviso de que "Prontidão não é autorização".
+- **Consequência**: Previne interpretações dúbias e a falsa sensação de que a emissão em si já está valendo. Protege contra problemas jurídicos.
