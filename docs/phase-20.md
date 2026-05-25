@@ -30,3 +30,52 @@ O PDV agora consegue identificar-se via `installation_id` e consultar uma licen�
 - **Nenhum bloqueio automático em vendas ainda.**
 - **Nenhum servidor cloud de licenças implementado.**
 - Criptografia estrutural, assinatura real virá nas próximas etapas.
+
+## Bloco 4 — Assinatura Criptografica de Licenca (Ed25519)
+**Status**: IMPLEMENTADO
+**Data**: 2026-05-25
+
+### Objetivo
+Criar camada de assinatura criptografica do payload de licenca, permitindo que o PDV valide autenticidade offline futuramente sem depender de internet permanente.
+
+### Algoritmo
+Ed25519 via crate ed25519-dalek v2. Assinatura de 64 bytes em base64.
+
+### Modulo Criado
+- services/aureon-api-local/src/licenca_crypto.rs
+  - ChaveLicenca: gerencia chave privada/publica
+  - assinar_payload(): gera assinatura Ed25519 real
+  - verificar_payload(): verifica com chave publica
+  - PayloadCanonicoLicenca: canonicalizacao deterministica
+
+### Endpoints Adicionados
+- GET /licenciamento/licencas/{id}/payload-assinado
+- POST /licenciamento/licencas/verificar-payload
+- GET /licenciamento/chaves/status
+
+### DTOs Criados
+- LicencaPayloadAssinadoResp
+- VerificarLicencaPayloadReq
+- VerificarLicencaPayloadResp
+- StatusChavesResp
+
+### Dependencias Adicionadas
+- ed25519-dalek = { version = 2, features = [rand_core] }
+- hex = 0.4
+
+### Canonicalizacao
+Campos em ordem fixa: empresa_id, licenca_id, plano_codigo, status, validade, terminal, tolerancia_offline_dias, emitido_em. Sem floats. SHA-256 e objeto assinado.
+
+### Seguranca
+- Chave privada NUNCA sai da Retaguarda
+- Chave DEV efemera em modo sem env configurado (warning explicito)
+- Chave de producao via AUREON_LICENSE_PRIVATE_KEY_B64
+
+### Build
+cargo check -p aureon-api-local: APROVADO (9 warnings pre-existentes, zero erros)
+
+### Pendencias / Limitacoes
+1. PDV ainda nao consome payload assinado (proximo bloco)
+2. Chave publica ainda nao e distribuida ao PDV
+3. Verificacao offline no PDV ainda nao implementada
+4. Payload usa dados mock (aguarda banco real)

@@ -6,3 +6,4 @@ pub mod routes;
 pub mod services;
 pub mod crypto;
 pub mod middleware;
+pub mod licenca_crypto;

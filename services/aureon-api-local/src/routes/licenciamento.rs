@@ -7,6 +7,10 @@ use axum::{
 use aureon_core::RespostaBase;
 use aureon_core::dtos::*;
 use crate::app::AppState;
+use crate::licenca_crypto::{
+    assinar_payload, verificar_payload, chave_global,
+    PayloadCanonicoLicenca, ALGORITMO,
+};
 use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
@@ -34,6 +38,10 @@ pub fn router() -> Router<AppState> {
         .route("/check-in", post(checkin_licenca))
         .route("/validar-terminal", post(validar_terminal))
         .route("/licencas/:id/payload", get(obter_licenca_payload))
+        // Assinatura Criptográfica (Fase 20 Bloco 4)
+        .route("/licencas/:id/payload-assinado", get(obter_payload_assinado))
+        .route("/licencas/verificar-payload", post(verificar_licenca_payload))
+        .route("/chaves/status", get(status_chaves))
 }
 
 // ==========================================
@@ -385,4 +393,142 @@ async fn obter_licenca_payload(
     };
 
     Json(RespostaBase::ok("Payload obtido", resp))
+}
+
+// ==========================================
+// ASSINATURA CRIPTOGRÁFICA (BLOCO 4)
+// ==========================================
+
+/// GET /licenciamento/licencas/{id}/payload-assinado
+///
+/// Gera um payload de licença assinado com Ed25519 real.
+/// A assinatura cobre o SHA-256 do payload canônico determinístico.
+/// NUNCA expõe a chave privada.
+async fn obter_payload_assinado(
+    Path(id): Path<String>,
+    State(_state): State<AppState>,
+) -> impl IntoResponse {
+    let emitido_em = chrono::Utc::now().to_rfc3339();
+
+    // Construir payload canônico com campos obrigatórios fixos.
+    // Ordem dos campos é determinística — não depende de serde_json.
+    let payload = PayloadCanonicoLicenca {
+        empresa_id: "MOCK-EMP",
+        licenca_id: &id,
+        plano_codigo: "ESSENCIAL",
+        status: "ATIVA",
+        validade: "null",
+        terminal: "PENDENTE",
+        tolerancia_offline_dias: 10,
+        emitido_em: &emitido_em,
+    };
+
+    // Assinar com Ed25519 (chave privada fica na Retaguarda)
+    let resultado = assinar_payload(&payload);
+
+    let mut warnings = Vec::new();
+    // Avisar se estiver usando chave DEV
+    if resultado.is_dev {
+        warnings.push(
+            "ATENÇÃO: Assinatura gerada com chave DEV efêmera. \
+             Configure AUREON_LICENSE_PRIVATE_KEY_B64 para produção."
+                .to_string(),
+        );
+    }
+
+    let resp = LicencaPayloadAssinadoResp {
+        sucesso: true,
+        payload_licenca_json: resultado.payload_json,
+        algoritmo_assinatura: ALGORITMO.to_string(),
+        key_id: resultado.key_id,
+        assinatura_licenca: resultado.assinatura_b64,
+        payload_hash: resultado.payload_hash_hex,
+        emitido_em,
+        mensagem: Some("Payload assinado com Ed25519 gerado com sucesso.".to_string()),
+        warnings,
+    };
+
+    Json(RespostaBase::ok("Payload assinado gerado", resp))
+}
+
+/// POST /licenciamento/licencas/verificar-payload
+///
+/// Verifica se um payload de licença foi assinado com a chave desta Retaguarda.
+/// Retorna valido=false se o payload foi adulterado ou a assinatura é inválida.
+async fn verificar_licenca_payload(
+    State(_state): State<AppState>,
+    Json(req): Json<VerificarLicencaPayloadReq>,
+) -> impl IntoResponse {
+    // Verificar algoritmo declarado
+    if req.algoritmo_assinatura != ALGORITMO {
+        let algo = req.algoritmo_assinatura.clone();
+        let resp = VerificarLicencaPayloadResp {
+            valido: false,
+            algoritmo_assinatura: req.algoritmo_assinatura,
+            key_id: req.key_id,
+            payload_hash: String::new(),
+            mensagem: format!(
+                "Algoritmo '{}' não suportado. Algoritmo esperado: '{}'.",
+                algo, ALGORITMO
+            ),
+            warnings: vec![],
+        };
+        return Json(RespostaBase::ok("Verificação concluída", resp));
+    }
+
+    // Verificar assinatura com chave pública
+    let resultado = verificar_payload(
+        &req.payload_licenca_json,
+        &req.assinatura_licenca,
+        &req.key_id,
+        req.payload_hash.as_deref(),
+    );
+
+    let resp = VerificarLicencaPayloadResp {
+        valido: resultado.valido,
+        algoritmo_assinatura: ALGORITMO.to_string(),
+        key_id: req.key_id,
+        payload_hash: resultado.payload_hash_calculado,
+        mensagem: resultado.mensagem,
+        warnings: resultado.warnings,
+    };
+
+    Json(RespostaBase::ok("Verificação concluída", resp))
+}
+
+/// GET /licenciamento/chaves/status
+///
+/// Retorna informações da chave pública ativa.
+/// NUNCA retorna a chave privada — apenas dados públicos.
+async fn status_chaves(
+    State(_state): State<AppState>,
+) -> impl IntoResponse {
+    let chave = chave_global();
+    let mut warnings = vec![];
+
+    if chave.is_dev {
+        warnings.push(
+            "Modo DEV: chave efêmera gerada em runtime. Configure \
+             AUREON_LICENSE_PRIVATE_KEY_B64 para produção persistente."
+                .to_string(),
+        );
+        warnings.push(
+            "Em produção, distribua a chave pública ao PDV para validação offline."
+                .to_string(),
+        );
+    }
+
+    let resp = StatusChavesResp {
+        modo_chave: if chave.is_dev {
+            "DEV".to_string()
+        } else {
+            "PRODUCAO".to_string()
+        },
+        key_id: chave.key_id.clone(),
+        chave_publica_base64: chave.chave_publica_b64(),
+        algoritmo: ALGORITMO.to_string(),
+        warnings,
+    };
+
+    Json(RespostaBase::ok("Status das chaves de licença", resp))
 }

@@ -373,3 +373,30 @@ Decis�es de arquitetura adotadas na Fase 18 � Homologa��o T�cnica Fiscal: Certif
 - **Contexto**: Para viabilizar a comercialização do Aureon (PDV e Retaguarda), precisamos de um sistema de validação que garanta que o cliente está com a fatura em dia e respeitando limites de caixas. Contudo, o PDV não pode parar por falta momentânea de internet.
 - **Decisão**: A Retaguarda em Nuvem (PostgreSQL) será a fonte mestre, detendo toda a regra de negócio comercial, planos, tokens e status. O PDV local fará cache assinado dessa licença (ADR 37) com tolerância de dias. Em caso de bloqueio gerado na retaguarda, o PDV localiza e impõe a barreira em sua próxima janela de conexão ou esgotamento de prazo.
 - **Consequência**: Isola a complexidade comercial no servidor cloud. O PDV só precisa saber ler e validar o cache criptográfico da licença enviada pela retaguarda. Facilita integrações com gateways (Stripe/Asaas) no futuro.
+
+## ADR-020-004 — Licencas locais verificaveis offline por assinatura assimetrica
+**Data**: 2026-05-25
+**Status**: Aprovado
+**Fase**: 20 Bloco 4
+
+### Contexto
+O PDV opera em modo offline-first. O payload de licenca precisa ser verificavel localmente sem internet, mas nao pode ser adulterado pelo operador ou por software malicioso.
+
+### Decisao
+Usar assinatura assimetrica Ed25519 (RFC 8032) para assinar payloads de licenca na Retaguarda. A chave privada fica exclusivamente na Retaguarda. A chave publica e distribuida ao PDV para verificacao offline.
+
+### Algoritmo escolhido: Ed25519
+- Alternativas consideradas: ECDSA P-256, RSA-PSS, HMAC-SHA256.
+- Ed25519 venceu por: assinatura de 64 bytes (compacta), sem parametros de curva, resistencia nativa a timing attacks, velocidade superior ao ECDSA.
+- HMAC descartado: exige segredo compartilhado no PDV, criando risco de exposicao.
+
+### Canonicalizacao
+- Campos do payload em ordem fixa explicita (nao depende de serde_json).
+- Sem floats, sem campos opcionais ausentes.
+- SHA-256 do payload canonico e o objeto assinado (nao o payload bruto).
+
+### Consequencias
+- PDV podera validar licencas offline com chave publica local (proximos blocos).
+- Rotacao de chaves e suportada via key_id.
+- Modo DEV usa chave efemera com warning explicito.
+- Chave privada nunca sai da Retaguarda.

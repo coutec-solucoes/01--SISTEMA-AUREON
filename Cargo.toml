@@ -56,11 +56,15 @@ tower-http = { version = "0.5", features = ["cors", "trace"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
 # Criptografia
-aes-gcm = "0.10"
-rand    = "0.8"
-base64  = "0.22"
-argon2  = "0.5"
-sha2    = "0.10"
+aes-gcm       = "0.10"
+rand          = "0.8"
+base64        = "0.22"
+argon2        = "0.5"
+sha2          = "0.10"
+# Assinatura assimétrica Ed25519 (Fase 20 Bloco 4)
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+# Encoding hexadecimal (hash SHA-256)
+hex           = "0.4"
 
 # Precisão Financeira
 rust_decimal = { version = "1.34", features = ["serde-float"] }
