@@ -186,6 +186,7 @@ dependencies = [
  "aureon-core",
  "aureon-shared",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "dotenvy",
  "rand 0.8.6",

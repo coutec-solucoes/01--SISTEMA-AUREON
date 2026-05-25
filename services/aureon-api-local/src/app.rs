@@ -9,7 +9,7 @@ use crate::routes::{
     cadastros::{pessoas, grupos, produtos},
     configuracoes::operacionais,
     sync::{terminais, pacotes, publicacao, diagnostico as sync_diag},
-    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub}
+    fiscal::{configuracoes as fiscal_config, dicionarios as fiscal_dic, regras as fiscal_reg, versoes as fiscal_ver, publicacao as fiscal_pub, certificados as fiscal_cert}
 };
 use crate::middleware::auth_middleware;
 
@@ -140,6 +140,10 @@ pub fn criar_app(pool: Option<PgPool>) -> Router {
         .route("/fiscal/configuracoes", get(fiscal_config::obter_configuracoes).post(fiscal_config::criar_configuracao))
         .route("/fiscal/configuracoes/:id", put(fiscal_config::atualizar_configuracao))
         
+        // Certificados (Fase 18 - Bloco 1)
+        .route("/fiscal/certificado/validar", post(fiscal_cert::validar_certificado))
+        .route("/fiscal/certificado/status", get(fiscal_cert::status_certificado))
+
         // Dicionários
         .route("/fiscal/dicionarios/ncm", get(fiscal_dic::obter_ncms).post(fiscal_dic::criar_ncm))
         .route("/fiscal/dicionarios/ncm/:id", put(fiscal_dic::atualizar_ncm))

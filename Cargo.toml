@@ -26,7 +26,6 @@ tokio      = { version = "1", features = ["full"] }
 
 # Erros
 thiserror  = "2"
-anyhow     = "1"
 
 # Logs
 tracing              = "0.1"
@@ -53,7 +52,6 @@ sqlx = { version = "0.8", features = [
 
 # HTTP API
 axum   = { version = "0.7", features = ["json"] }
-tower  = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
@@ -72,4 +70,3 @@ aureon-core   = { path = "crates/aureon-core" }
 aureon-shared = { path = "crates/aureon-shared" }
 aureon-domain = { path = "crates/aureon-domain" }
 aureon-infra  = { path = "crates/aureon-infra" }
-aureon-sync   = { path = "crates/aureon-sync" }

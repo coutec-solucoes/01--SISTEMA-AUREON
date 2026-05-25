@@ -28,3 +28,4 @@ sha2         = { workspace = true }
 
 # Variáveis de ambiente
 dotenvy = "0.15"
+base64.workspace = true
