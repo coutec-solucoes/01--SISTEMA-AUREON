@@ -3,68 +3,260 @@
 @inject TauriService Tauri
 
 <div class="licenca-container">
-    <h2>Licenciamento Local</h2>
+    <h2>Licenciamento Local & Assinatura Digital</h2>
 
     @if (carregando)
     {
-        <p>Aguarde, carregando status da licença...</p>
+        <div class="loading-box">
+            <span class="spinner"></span>
+            <p>Aguarde, consultando base de dados local...</p>
+        </div>
     }
     else if (statusLicenca != null)
     {
-        <div class="licenca-card">
-            <h3>Status: @statusLicenca.Status</h3>
-            <p><strong>Installation ID:</strong> @statusLicenca.InstallationId</p>
-            <p><strong>Empresa ID:</strong> @statusLicenca.EmpresaId</p>
-            <p><strong>Terminal ID:</strong> @statusLicenca.TerminalId</p>
-            <p><strong>Terminal Nome:</strong> @statusLicenca.TerminalNome</p>
-            <p><strong>Plano:</strong> @statusLicenca.PlanoCodigo</p>
-            <p><strong>Modo:</strong> @statusLicenca.Modo</p>
-            <p><strong>Validade Fim:</strong> @statusLicenca.ValidadeFim</p>
-            <p><strong>Mensagem:</strong> @statusLicenca.Mensagem</p>
+        <div class="licenca-grid">
+            <!-- Coluna 1: Status Atual -->
+            <div class="licenca-card">
+                <h3>Status: <span class="badge @(statusLicenca.Status.ToLower())">@statusLicenca.Status</span></h3>
+                <div class="info-group">
+                    <p><strong>Installation ID:</strong> <code class="code-id">@statusLicenca.InstallationId</code></p>
+                    <p><strong>Empresa ID:</strong> @statusLicenca.EmpresaId</p>
+                    <p><strong>Terminal ID:</strong> @statusLicenca.TerminalId</p>
+                    <p><strong>Terminal Nome:</strong> @statusLicenca.TerminalNome</p>
+                    <p><strong>Plano:</strong> <span class="badge plano">@statusLicenca.PlanoCodigo</span></p>
+                    <p><strong>Modo de Licença:</strong> <span class="badge modo @(statusLicenca.Modo.ToLower())">@(string.IsNullOrEmpty(statusLicenca.Modo) ? "NENHUM" : statusLicenca.Modo)</span></p>
+                    <p><strong>Validade Fim:</strong> @statusLicenca.ValidadeFim</p>
+                    <p><strong>Mensagem:</strong> @statusLicenca.Mensagem</p>
+                </div>
 
-            @if (statusLicenca.PodeOperar)
-            {
-                <div class="alert success">
-                    A operação deste terminal está PERMITIDA.
+                @if (statusLicenca.PodeOperar)
+                {
+                    <div class="alert success">
+                        <strong>✓ OPERAÇÃO PERMITIDA:</strong> Este terminal está totalmente autorizado a funcionar offline.
+                    </div>
+                }
+                else
+                {
+                    <div class="alert error">
+                        <strong>✗ TERMINAL BLOQUEADO:</strong> A operação deste terminal está impedida de prosseguir.
+                        <br />
+                        <strong>Motivo:</strong> @statusLicenca.MotivoBloqueio
+                    </div>
+                }
+            </div>
+
+            <!-- Coluna 2: Ações de Ativação -->
+            <div class="licenca-actions-card">
+                <h3>Ativação de Licença Assinada (Offline)</h3>
+                <p class="description">Cole o payload da licença assinada gerado pela retaguarda/cloud e a assinatura correspondente para ativar este terminal sem precisar de internet.</p>
+                
+                <div class="form-group">
+                    <label>Payload JSON da Licença:</label>
+                    <textarea @bind="formPayloadJson" class="form-control text-area" placeholder='{"id": "...", "empresa_id": "...", ...}' rows="5"></textarea>
                 </div>
-            }
-            else
-            {
-                <div class="alert error">
-                    A operação deste terminal está BLOQUEADA.
-                    <br />
-                    Motivo: @statusLicenca.MotivoBloqueio
+                
+                <div class="form-group">
+                    <label>Assinatura Criptográfica (Hex):</label>
+                    <input type="text" @bind="formAssinaturaHex" class="form-control" placeholder="64-byte hex signature..." />
                 </div>
-            }
+
+                <div class="form-group">
+                    <label>Chave Pública da Licença (Hex):</label>
+                    <input type="text" @bind="formChavePublicaHex" class="form-control" placeholder="32-byte hex public key..." />
+                </div>
+
+                @if (!string.IsNullOrEmpty(feedbackErro))
+                {
+                    <div class="alert error">@feedbackErro</div>
+                }
+                @if (!string.IsNullOrEmpty(feedbackSucesso))
+                {
+                    <div class="alert success">@feedbackSucesso</div>
+                }
+
+                <div class="button-group">
+                    <button class="btn btn-secondary" @onclick="VerificarLicencaAssinada">Verificar Assinatura</button>
+                    <button class="btn btn-primary" @onclick="AplicarLicencaAssinada">Aplicar Licença Offline</button>
+                </div>
+
+                <hr class="divider" />
+
+                <!-- Modo Dev -->
+                <div class="dev-section">
+                    <h4>Ativação Rápida (Apenas Desenvolvimento)</h4>
+                    <p class="small-text">Ativação local para testes sem assinatura criptográfica.</p>
+                    <div class="row">
+                        <div class="col">
+                            <label>Empresa ID:</label>
+                            <input type="text" @bind="formEmpresaId" class="form-control form-control-sm" />
+                        </div>
+                        <div class="col">
+                            <label>Terminal:</label>
+                            <input type="text" @bind="formTerminalNome" class="form-control form-control-sm" />
+                        </div>
+                    </div>
+                    <button class="btn btn-warning btn-sm mt-2" @onclick="AtivarModoDev">Ativar modo DEV local</button>
+                </div>
+            </div>
         </div>
 
-        @if (statusLicenca.Status == "PENDENTE_ATIVACAO" || statusLicenca.Modo == "")
-        {
-            <div class="licenca-actions">
-                <h4>Ativação Local</h4>
-                <div class="form-group">
-                    <label>Empresa ID:</label>
-                    <input type="text" @bind="formEmpresaId" class="form-control" />
-                </div>
-                <div class="form-group">
-                    <label>Terminal Nome:</label>
-                    <input type="text" @bind="formTerminalNome" class="form-control" />
-                </div>
-                <button class="btn btn-primary" @onclick="AtivarModoDev">Ativar modo DEV local</button>
-            </div>
-        }
-
         <div class="licenca-warning">
-            ⚠️ <strong>Aviso:</strong> Licenciamento local offline-first. Validação cloud será implementada em etapa futura.
+            ⚠️ <strong>Aviso Importante:</strong> O Aureon opera em arquitetura offline-first. Licenças ativadas localmente por assinatura Ed25519 são autossuficientes e seguras.
         </div>
     }
 </div>
 
+<style>
+    .licenca-container {
+        padding: 24px;
+        max-width: 1200px;
+        margin: 0 auto;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .licenca-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+    @media (max-width: 768px) {
+        .licenca-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    .licenca-card, .licenca-actions-card {
+        background: #1e1e24;
+        color: #e0e0e6;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid #2d2d38;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+    .badge.ativa, .badge.valido { background-color: #2e7d32; color: #fff; }
+    .badge.pendente_ativacao { background-color: #f57c00; color: #fff; }
+    .badge.modo.dev { background-color: #e65100; color: #fff; }
+    .badge.modo.producao { background-color: #1565c0; color: #fff; }
+    .badge.plano { background-color: #6a1b9a; color: #fff; }
+    .info-group p {
+        margin: 12px 0;
+        border-bottom: 1px solid #2d2d38;
+        padding-bottom: 8px;
+    }
+    .code-id {
+        background: #0e0e12;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: #ffb74d;
+        font-size: 0.9em;
+    }
+    .alert {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-top: 16px;
+        font-size: 0.95em;
+    }
+    .alert.success { background-color: rgba(46, 125, 50, 0.2); border: 1px solid #2e7d32; color: #a5d6a7; }
+    .alert.error { background-color: rgba(198, 40, 40, 0.2); border: 1px solid #c62828; color: #ef9a9a; }
+    .form-group {
+        margin-bottom: 16px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+        font-size: 0.9em;
+    }
+    .form-control {
+        width: 100%;
+        background: #0e0e12;
+        border: 1px solid #3d3d4e;
+        color: #fff;
+        padding: 10px;
+        border-radius: 6px;
+        box-sizing: border-box;
+    }
+    .form-control:focus {
+        border-color: #64b5f6;
+        outline: none;
+    }
+    .text-area {
+        font-family: monospace;
+        font-size: 0.85em;
+        resize: vertical;
+    }
+    .button-group {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+    }
+    .btn {
+        padding: 10px 16px;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: background 0.2s;
+    }
+    .btn-primary { background: #1976d2; color: #fff; }
+    .btn-primary:hover { background: #1565c0; }
+    .btn-secondary { background: #424242; color: #fff; }
+    .btn-secondary:hover { background: #303030; }
+    .btn-warning { background: #f57c00; color: #fff; }
+    .btn-warning:hover { background: #e65100; }
+    .divider {
+        border: 0;
+        border-top: 1px solid #2d2d38;
+        margin: 24px 0;
+    }
+    .dev-section {
+        background: rgba(255, 183, 77, 0.05);
+        border: 1px dashed rgba(255, 183, 77, 0.2);
+        padding: 16px;
+        border-radius: 8px;
+    }
+    .dev-section h4 {
+        margin-top: 0;
+        color: #ffb74d;
+    }
+    .licenca-warning {
+        background: #2e2f30;
+        padding: 16px;
+        border-radius: 8px;
+        margin-top: 24px;
+        border-left: 4px solid #fdd835;
+    }
+    .loading-box {
+        text-align: center;
+        padding: 40px;
+    }
+    .mt-2 { margin-top: 8px; }
+    .small-text { font-size: 0.85em; color: #b0b0b5; }
+    .row { display: flex; gap: 12px; }
+    .col { flex: 1; }
+</style>
+
 @code {
     private bool carregando = true;
     private LicencaStatusResp? statusLicenca;
+    
+    // Formulário de Assinatura Offline
+    private string formPayloadJson = string.Empty;
+    private string formAssinaturaHex = string.Empty;
+    private string formChavePublicaHex = string.Empty;
+    
+    // Formulário Dev
     private string formEmpresaId = "EMP-001";
     private string formTerminalNome = "CAIXA-01";
+
+    private string feedbackErro = string.Empty;
+    private string feedbackSucesso = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,6 +266,8 @@
     private async Task CarregarStatus()
     {
         carregando = true;
+        feedbackErro = string.Empty;
+        feedbackSucesso = string.Empty;
         try
         {
             statusLicenca = await Tauri.InvocarAsync<LicencaStatusResp>("obter_status_licenca", new { });
@@ -81,6 +275,7 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Erro ao carregar licença: {ex.Message}");
+            feedbackErro = $"Erro ao obter status: {ex.Message}";
         }
         finally
         {
@@ -88,8 +283,85 @@
         }
     }
 
+    private async Task VerificarLicencaAssinada()
+    {
+        feedbackErro = string.Empty;
+        feedbackSucesso = string.Empty;
+        
+        if (string.IsNullOrWhiteSpace(formPayloadJson) || string.IsNullOrWhiteSpace(formAssinaturaHex) || string.IsNullOrWhiteSpace(formChavePublicaHex))
+        {
+            feedbackErro = "Preencha o Payload, Assinatura e Chave Pública para verificar.";
+            return;
+        }
+
+        try
+        {
+            var req = new VerificarLicencaAssinadaReq
+            {
+                PayloadLicencaJson = formPayloadJson,
+                AssinaturaHex = formAssinaturaHex,
+                ChavePublicaHex = formChavePublicaHex
+            };
+
+            var resp = await Tauri.InvocarAsync<VerificarLicencaAssinadaResp>("verificar_licenca_assinada", new { req });
+            
+            if (resp.Valido)
+            {
+                feedbackSucesso = $"✓ Assinatura VÁLIDA! Licença emitida para: {resp.PayloadValido?.RazaoSocial} (Expira em: {resp.PayloadValido?.ValidadeFim})";
+            }
+            else
+            {
+                feedbackErro = $"✗ Assinatura INVÁLIDA: {resp.Erro}";
+            }
+        }
+        catch (Exception ex)
+        {
+            feedbackErro = $"Erro ao verificar: {ex.Message}";
+        }
+    }
+
+    private async Task AplicarLicencaAssinada()
+    {
+        feedbackErro = string.Empty;
+        feedbackSucesso = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(formPayloadJson) || string.IsNullOrWhiteSpace(formAssinaturaHex) || string.IsNullOrWhiteSpace(formChavePublicaHex))
+        {
+            feedbackErro = "Preencha todos os campos para aplicar a licença.";
+            return;
+        }
+
+        try
+        {
+            var req = new AplicarLicencaAssinadaReq
+            {
+                PayloadLicencaJson = formPayloadJson,
+                AssinaturaHex = formAssinaturaHex,
+                ChavePublicaHex = formChavePublicaHex
+            };
+
+            var resp = await Tauri.InvocarAsync<AplicarLicencaAssinadaResp>("aplicar_licenca_assinada", new { req });
+            
+            if (resp.Sucesso)
+            {
+                feedbackSucesso = $"✓ Licença offline aplicada e ativada com sucesso!";
+                await CarregarStatus();
+            }
+            else
+            {
+                feedbackErro = $"Erro ao aplicar licença: {resp.Mensagem}";
+            }
+        }
+        catch (Exception ex)
+        {
+            feedbackErro = $"Erro de execução: {ex.Message}";
+        }
+    }
+
     private async Task AtivarModoDev()
     {
+        feedbackErro = string.Empty;
+        feedbackSucesso = string.Empty;
         try
         {
             var req = new AtivarLicencaReq
@@ -99,10 +371,12 @@
                 Modo = "DEV"
             };
             statusLicenca = await Tauri.InvocarAsync<LicencaStatusResp>("ativar_licenca_dev", new { req });
+            feedbackSucesso = "✓ Modo de demonstração local ativado com sucesso!";
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Erro ao ativar licença: {ex.Message}");
+            feedbackErro = $"Erro ao ativar: {ex.Message}";
         }
     }
 }
+

@@ -1517,5 +1517,55 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("modo")]
         public string Modo { get; set; } = string.Empty;
     }
+
+    // === DTOs — Fase 20 Bloco 5: Assinatura Offline ===
+
+    public class VerificarLicencaAssinadaReq
+    {
+        [JsonPropertyName("payload_licenca_json")]
+        public string PayloadLicencaJson { get; set; } = string.Empty;
+
+        [JsonPropertyName("assinatura_hex")]
+        public string AssinaturaHex { get; set; } = string.Empty;
+
+        [JsonPropertyName("chave_publica_hex")]
+        public string ChavePublicaHex { get; set; } = string.Empty;
+    }
+
+    public class VerificarLicencaAssinadaResp
+    {
+        [JsonPropertyName("valido")]
+        public bool Valido { get; set; }
+
+        [JsonPropertyName("payload_valido")]
+        public LicencaPayloadResp? PayloadValido { get; set; }
+
+        [JsonPropertyName("erro")]
+        public string? Erro { get; set; }
+    }
+
+    public class AplicarLicencaAssinadaReq
+    {
+        [JsonPropertyName("payload_licenca_json")]
+        public string PayloadLicencaJson { get; set; } = string.Empty;
+
+        [JsonPropertyName("assinatura_hex")]
+        public string AssinaturaHex { get; set; } = string.Empty;
+
+        [JsonPropertyName("chave_publica_hex")]
+        public string ChavePublicaHex { get; set; } = string.Empty;
+    }
+
+    public class AplicarLicencaAssinadaResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
 }
 

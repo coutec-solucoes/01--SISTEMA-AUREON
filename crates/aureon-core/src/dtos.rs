@@ -1974,3 +1974,87 @@ pub struct StatusChavesResp {
     /// Aviso de seguranca se modo DEV
     pub warnings: Vec<String>,
 }
+
+// ================================================================
+// DTOs FASE 20 - BLOCO 5: APLICACAO LOCAL DE LICENCA ASSINADA (PDV)
+// ================================================================
+
+/// Requisicao para verificar payload assinado no PDV (sem aplicar).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VerificarLicencaAssinadaReq {
+    /// Payload canonico da licenca (string JSON)
+    pub payload_licenca_json: String,
+    /// Algoritmo: Ed25519
+    pub algoritmo_assinatura: String,
+    /// Identificador da chave usada
+    pub key_id: String,
+    /// Assinatura em base64
+    pub assinatura_licenca: String,
+    /// Hash SHA-256 do payload (opcional)
+    pub payload_hash: Option<String>,
+    /// Chave publica Ed25519 em base64 (obrigatorio para verificacao)
+    pub chave_publica_base64: String,
+}
+
+/// Resposta da verificacao local de payload assinado.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VerificarLicencaAssinadaResp {
+    /// true = assinatura valida e payload integro
+    pub valido: bool,
+    /// Hash SHA-256 calculado localmente
+    pub payload_hash_calculado: String,
+    /// key_id verificado
+    pub key_id: String,
+    /// Mensagem de resultado
+    pub mensagem: String,
+    /// Avisos nao bloqueantes
+    pub warnings: Vec<String>,
+}
+
+/// Requisicao para aplicar payload assinado no PDV (atualiza licenca_local).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AplicarLicencaAssinadaReq {
+    /// Payload canonico da licenca (string JSON)
+    pub payload_licenca_json: String,
+    /// Algoritmo: Ed25519
+    pub algoritmo_assinatura: String,
+    /// Identificador da chave usada
+    pub key_id: String,
+    /// Assinatura em base64
+    pub assinatura_licenca: String,
+    /// Hash SHA-256 do payload
+    pub payload_hash: Option<String>,
+    /// Chave publica Ed25519 em base64 (obrigatorio)
+    pub chave_publica_base64: String,
+}
+
+/// Resposta da aplicacao local de payload assinado.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AplicarLicencaAssinadaResp {
+    /// true = payload valido e aplicado com sucesso
+    pub sucesso: bool,
+    /// true = assinatura verificada com sucesso
+    pub assinatura_valida: bool,
+    /// Status da licenca apos aplicacao
+    pub status: String,
+    /// Modo da licenca (DEV | ATIVA | etc.)
+    pub modo: String,
+    /// Empresa da licenca
+    pub empresa_id: String,
+    /// ID da licenca
+    pub licenca_id: String,
+    /// Codigo do plano
+    pub plano_codigo: String,
+    /// Terminal registrado
+    pub terminal_id: Option<String>,
+    /// Data de validade (ISO-8601 ou null)
+    pub validade_fim: Option<String>,
+    /// Tolerancia offline em dias
+    pub tolerancia_offline_dias: i64,
+    /// true = pode operar
+    pub pode_operar: bool,
+    /// Mensagem descritiva
+    pub mensagem: String,
+    /// Avisos nao bloqueantes
+    pub warnings: Vec<String>,
+}

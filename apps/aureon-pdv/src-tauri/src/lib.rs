@@ -14,6 +14,7 @@ pub mod commands_impressao;
 pub mod commands_fiscal;
 pub mod commands_sync_fiscal;
 pub mod commands_licenciamento;
+pub mod licenca_crypto_local;
 pub mod estado;
 
 use aureon_shared::logging::inicializar_logs;
@@ -198,11 +199,16 @@ pub fn run() {
             commands_sync_fiscal::obter_status_versao_fiscal_local,
             commands_sync_fiscal::listar_logs_sync_fiscal,
             commands_sync_fiscal::validar_pacote_fiscal_local,
-            // Commands de Licenciamento (Fase 20 Bloco 1)
+            // Commands de Licenciamento (Fase 20 Blocos 1-2)
             commands_licenciamento::obter_status_licenca,
             commands_licenciamento::ativar_licenca_dev,
             commands_licenciamento::registrar_evento_licenca,
             commands_licenciamento::obter_identidade_instalacao,
+            // Commands de Licenciamento — Assinatura Offline (Fase 20 Bloco 5)
+            commands_licenciamento::verificar_licenca_assinada,
+            commands_licenciamento::aplicar_licenca_assinada,
+            commands_licenciamento::obter_chave_publica_licenca_local,
+            commands_licenciamento::atualizar_chave_publica_licenca_dev,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
