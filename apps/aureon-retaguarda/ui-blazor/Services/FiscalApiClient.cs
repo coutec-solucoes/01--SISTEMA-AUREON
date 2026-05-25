@@ -176,5 +176,84 @@ namespace AureonRetaguardaUi.Services
         {
             return await _http.GetFromJsonAsync<RespostaBase<List<FiscalAuditoria>>>("/fiscal/auditoria");
         }
+
+        // --- Certificado (Fase 18 - Bloco 1) ---
+        public async Task<CertificadoMetadados?> ValidarCertificadoAsync(ValidarCertificadoReq req)
+        {
+            var res = await _http.PostAsJsonAsync("/fiscal/certificado/validar", req);
+            return await res.Content.ReadFromJsonAsync<CertificadoMetadados>();
+        }
+
+        public async Task<CertificadoMetadados?> ObterStatusCertificadoAsync()
+        {
+            return await _http.GetFromJsonAsync<CertificadoMetadados>("/fiscal/certificado/status");
+        }
+
+        // --- Assinatura Preview (Fase 18 - Bloco 2) ---
+        public async Task<AssinarPreviewResp?> AssinarPreviewAsync(AssinarPreviewReq req)
+        {
+            var res = await _http.PostAsJsonAsync("/fiscal/assinatura/assinar-preview", req);
+            return await res.Content.ReadFromJsonAsync<AssinarPreviewResp>();
+        }
+
+        // --- NFC-e/NF-e Preview (Fase 18 - Bloco 3) ---
+        public async Task<NfcePreviewResp?> MontarNfcePreviewAsync(MontarNfcePreviewReq req)
+        {
+            var res = await _http.PostAsJsonAsync("/fiscal/nfce/preview/montar", req);
+            return await res.Content.ReadFromJsonAsync<NfcePreviewResp>();
+        }
+
+        public async Task<NfcePreviewResp?> MontarAssinarNfcePreviewAsync(MontarNfcePreviewReq req)
+        {
+            var reqComAssinar = new MontarNfcePreviewReq
+            {
+                VendaId = req.VendaId, Modelo = req.Modelo, Uf = req.Uf,
+                Ambiente = req.Ambiente, Assinar = true,
+                PfxBase64 = req.PfxBase64, Senha = req.Senha
+            };
+            var res = await _http.PostAsJsonAsync("/fiscal/nfce/preview/montar-assinar", reqComAssinar);
+            return await res.Content.ReadFromJsonAsync<NfcePreviewResp>();
+        }
+
+        public async Task<NfcePreviewResp?> ObterVendaNfcePreviewAsync(string vendaId)
+        {
+            return await _http.GetFromJsonAsync<NfcePreviewResp>($"/fiscal/nfce/preview/venda/{vendaId}");
+        }
+
+        // --- SIFEN Preview (Fase 18 - Bloco 4) ---
+        public async Task<SifenPreviewResp?> MontarSifenPreviewAsync(MontarSifenPreviewReq req)
+        {
+            var res = await _http.PostAsJsonAsync("/fiscal/sifen/preview/montar", req);
+            return await res.Content.ReadFromJsonAsync<SifenPreviewResp>();
+        }
+
+        public async Task<SifenPreviewResp?> ObterVendaSifenPreviewAsync(string vendaId)
+        {
+            return await _http.GetFromJsonAsync<SifenPreviewResp>($"/fiscal/sifen/preview/venda/{vendaId}");
+        }
+
+        // --- Validação Local (Fase 18 - Bloco 5) ---
+        public async Task<ValidacaoPreviewResp?> ValidarPreviewAsync(ValidarPreviewReq req)
+        {
+            var res = await _http.PostAsJsonAsync("/fiscal/preview/validar", req);
+            return await res.Content.ReadFromJsonAsync<ValidacaoPreviewResp>();
+        }
+
+        // --- QR Code Preview (Fase 18 - Bloco 6) ---
+        public async Task<QrCodePreviewResp?> GerarQrCodePreviewAsync(GerarQrCodePreviewReq req)
+        {
+            var res = await _http.PostAsJsonAsync("/fiscal/preview/qrcode", req);
+            return await res.Content.ReadFromJsonAsync<QrCodePreviewResp>();
+        }
+
+        public async Task<QrCodePreviewResp?> GerarQrCodeNfcePreviewAsync(string chavePreview)
+        {
+            return await _http.GetFromJsonAsync<QrCodePreviewResp>($"/fiscal/preview/qrcode/nfce/{chavePreview}");
+        }
+
+        public async Task<QrCodePreviewResp?> GerarQrCodeSifenPreviewAsync(string cdcPreview)
+        {
+            return await _http.GetFromJsonAsync<QrCodePreviewResp>($"/fiscal/preview/qrcode/sifen/{cdcPreview}");
+        }
     }
 }

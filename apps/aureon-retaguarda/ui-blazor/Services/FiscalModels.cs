@@ -180,4 +180,206 @@ namespace AureonRetaguardaUi.Services
         [JsonPropertyName("total_registros")]
         public long TotalRegistros { get; set; }
     }
+
+    // ─── DTOs de Certificado (Fase 18 - Bloco 1) ───────────────────────────────
+    public class ValidarCertificadoReq
+    {
+        [JsonPropertyName("caminho_pfx")]
+        public string? CaminhoPfx { get; set; }
+        [JsonPropertyName("pfx_base64")]
+        public string? PfxBase64 { get; set; }
+        [JsonPropertyName("senha")]
+        public string Senha { get; set; } = string.Empty;
+    }
+
+    public class CertificadoMetadados
+    {
+        [JsonPropertyName("valido")]
+        public bool Valido { get; set; }
+        [JsonPropertyName("cn")]
+        public string? Cn { get; set; }
+        [JsonPropertyName("cnpj")]
+        public string? Cnpj { get; set; }
+        [JsonPropertyName("numero_serie")]
+        public string? NumeroSerie { get; set; }
+        [JsonPropertyName("validade_inicio")]
+        public string? ValidadeInicio { get; set; }
+        [JsonPropertyName("validade_fim")]
+        public string? ValidadeFim { get; set; }
+        [JsonPropertyName("dias_para_expirar")]
+        public long? DiasParaExpirar { get; set; }
+        [JsonPropertyName("expirado")]
+        public bool Expirado { get; set; }
+        [JsonPropertyName("alerta_expiracao")]
+        public bool AlertaExpiracao { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+    }
+
+    // ─── DTOs de Assinatura Preview (Fase 18 - Bloco 2) ───────────────────────
+    public class AssinarPreviewReq
+    {
+        [JsonPropertyName("xml_conteudo")]
+        public string XmlConteudo { get; set; } = string.Empty;
+        [JsonPropertyName("pfx_base64")]
+        public string? PfxBase64 { get; set; }
+        [JsonPropertyName("senha")]
+        public string? Senha { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = "HOMOLOGACAO";
+    }
+
+    public class AssinarPreviewResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+        [JsonPropertyName("xml_assinado")]
+        public string? XmlAssinado { get; set; }
+        [JsonPropertyName("resumo")]
+        public string? Resumo { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string? Ambiente { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+        [JsonPropertyName("warnings")]
+        public List<string>? Warnings { get; set; }
+    }
+
+    // ─── DTOs de NFC-e/NF-e Preview (Fase 18 - Bloco 3) ──────────────────────
+    public class MontarNfcePreviewReq
+    {
+        [JsonPropertyName("venda_id")]
+        public string? VendaId { get; set; }
+        [JsonPropertyName("modelo")]
+        public string Modelo { get; set; } = "NFCE"; // NFCE ou NFE
+        [JsonPropertyName("uf")]
+        public string? Uf { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = "HOMOLOGACAO";
+        [JsonPropertyName("assinar")]
+        public bool Assinar { get; set; } = false;
+        [JsonPropertyName("pfx_base64")]
+        public string? PfxBase64 { get; set; }
+        [JsonPropertyName("senha")]
+        public string? Senha { get; set; }
+    }
+
+    public class NfcePreviewResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+        [JsonPropertyName("xml_preview")]
+        public string? XmlPreview { get; set; }
+        [JsonPropertyName("chave_preview")]
+        public string? ChavePreview { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string? Ambiente { get; set; }
+        [JsonPropertyName("assinado")]
+        public bool Assinado { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+        [JsonPropertyName("warnings")]
+        public List<string>? Warnings { get; set; }
+    }
+
+    // ─── DTOs de SIFEN Preview (Fase 18 - Bloco 4) ────────────────────────────
+    public class MontarSifenPreviewReq
+    {
+        [JsonPropertyName("venda_id")]
+        public string? VendaId { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = "HOMOLOGACAO";
+    }
+
+    public class SifenPreviewResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+        [JsonPropertyName("json_preview")]
+        public object? JsonPreview { get; set; }
+        [JsonPropertyName("cdc_preview")]
+        public string? CdcPreview { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string? Ambiente { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+        [JsonPropertyName("warnings")]
+        public List<string>? Warnings { get; set; }
+    }
+
+    // ─── DTOs de Validação Local (Fase 18 - Bloco 5) ──────────────────────────
+    public class ValidarPreviewReq
+    {
+        [JsonPropertyName("tipo")]
+        public string Tipo { get; set; } = "NFCE_XML"; // NFCE_XML, NFE_XML, SIFEN_JSON
+        [JsonPropertyName("conteudo")]
+        public string Conteudo { get; set; } = string.Empty;
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = "HOMOLOGACAO";
+    }
+
+    public class ValidacaoPreviewErro
+    {
+        [JsonPropertyName("codigo")]
+        public string? Codigo { get; set; }
+        [JsonPropertyName("campo")]
+        public string? Campo { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+        [JsonPropertyName("severidade")]
+        public string? Severidade { get; set; }
+    }
+
+    public class ValidacaoPreviewResp
+    {
+        [JsonPropertyName("valido")]
+        public bool Valido { get; set; }
+        [JsonPropertyName("tipo")]
+        public string? Tipo { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string? Ambiente { get; set; }
+        [JsonPropertyName("total_erros")]
+        public int TotalErros { get; set; }
+        [JsonPropertyName("erros")]
+        public List<ValidacaoPreviewErro>? Erros { get; set; }
+        [JsonPropertyName("warnings")]
+        public List<ValidacaoPreviewErro>? Warnings { get; set; }
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+    }
+
+    // ─── DTOs de QR Code Preview (Fase 18 - Bloco 6) ─────────────────────────
+    public class GerarQrCodePreviewReq
+    {
+        [JsonPropertyName("tipo")]
+        public string Tipo { get; set; } = "NFCE"; // NFCE, NFE, SIFEN
+        [JsonPropertyName("chave_preview")]
+        public string? ChavePreview { get; set; }
+        [JsonPropertyName("cdc_preview")]
+        public string? CdcPreview { get; set; }
+        [JsonPropertyName("uf")]
+        public string? Uf { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string Ambiente { get; set; } = "HOMOLOGACAO";
+        [JsonPropertyName("url_base_preview")]
+        public string? UrlBasePreview { get; set; }
+    }
+
+    public class QrCodePreviewResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+        [JsonPropertyName("tipo")]
+        public string? Tipo { get; set; }
+        [JsonPropertyName("ambiente")]
+        public string? Ambiente { get; set; }
+        [JsonPropertyName("conteudo_qr")]
+        public string? ConteudoQr { get; set; }
+        [JsonPropertyName("png_base64")]
+        public string? PngBase64 { get; set; } // Na verdade SVG base64
+        [JsonPropertyName("mensagem")]
+        public string? Mensagem { get; set; }
+        [JsonPropertyName("warnings")]
+        public List<string>? Warnings { get; set; }
+    }
 }

@@ -1,0 +1,713 @@
+@page "/fiscal/preview-assinado"
+@inject FiscalApiClient FiscalApi
+@using AureonRetaguardaUi.Services
+@using System.Text.Json
+
+<PageTitle>Preview Fiscal Técnico — Homologação | Aureon</PageTitle>
+
+<!-- BANNER OBRIGATÓRIO DE HOMOLOGAÇÃO -->
+<div class="preview-banner-homologacao">
+    <span class="preview-banner-icon">⚠️</span>
+    <div>
+        <strong>DOCUMENTO EM HOMOLOGAÇÃO — SEM VALIDADE FISCAL</strong><br />
+        <small>NÃO FOI TRANSMITIDO, AUTORIZADO OU VALIDADO POR ÓRGÃO FISCAL. Este módulo é exclusivamente para diagnóstico e preparação técnica.</small>
+    </div>
+</div>
+
+<div class="page-header">
+    <h1>Preview Fiscal Técnico</h1>
+    <p class="page-subtitulo">Homologação técnica — sem transmissão, sem autorização, sem validade jurídica.</p>
+</div>
+
+<!-- ABAS -->
+<div class="preview-tabs">
+    <button class="preview-tab @(AbaAtiva == "certificado" ? "ativo" : "")" @onclick='() => AbaAtiva = "certificado"'>🔐 Certificado A1</button>
+    <button class="preview-tab @(AbaAtiva == "nfce" ? "ativo" : "")" @onclick='() => AbaAtiva = "nfce"'>📄 NFC-e/NF-e Preview</button>
+    <button class="preview-tab @(AbaAtiva == "sifen" ? "ativo" : "")" @onclick='() => AbaAtiva = "sifen"'>🧾 SIFEN JSON Preview</button>
+    <button class="preview-tab @(AbaAtiva == "validacao" ? "ativo" : "")" @onclick='() => AbaAtiva = "validacao"'>✅ Validação Local</button>
+    <button class="preview-tab @(AbaAtiva == "qrcode" ? "ativo" : "")" @onclick='() => AbaAtiva = "qrcode"'>📷 QR Code Preview</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- ABA CERTIFICADO                                                -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+@if (AbaAtiva == "certificado")
+{
+    <div class="preview-card">
+        <h2>🔐 Certificado Digital A1 (PFX/P12)</h2>
+        <p class="preview-aviso">O certificado é carregado e validado apenas na Retaguarda. A chave privada não é enviada ao PDV e não é armazenada em disco.</p>
+
+        <div class="form-grupo">
+            <label>Caminho do arquivo PFX (no servidor)</label>
+            <input type="text" class="form-controle" @bind="CertCaminho" placeholder="Ex: C:\certs\empresa.pfx" />
+        </div>
+        <div class="form-grupo">
+            <label>Ou PFX em Base64</label>
+            <textarea class="form-controle" rows="3" @bind="CertBase64" placeholder="Cole o conteúdo PFX em base64..."></textarea>
+        </div>
+        <div class="form-grupo">
+            <label>Senha (apenas digitada, nunca exibida)</label>
+            <input type="password" class="form-controle" @bind="CertSenha" placeholder="Senha do certificado A1" />
+        </div>
+
+        <div class="preview-acoes">
+            <button class="btn btn-primario" @onclick="ValidarCertificado" disabled="@CarregandoCert">
+                @(CarregandoCert ? "Validando..." : "🔍 Validar Certificado Técnico")
+            </button>
+        </div>
+
+        @if (ResultadoCert != null)
+        {
+            <div class="preview-resultado @(ResultadoCert.Valido ? "resultado-ok" : "resultado-erro")">
+                <strong>@(ResultadoCert.Valido ? "✅ Certificado válido" : "❌ Certificado inválido ou erro")</strong>
+                @if (ResultadoCert.Expirado)
+                {
+                    <div class="alerta alerta-erro">⛔ Certificado EXPIRADO.</div>
+                }
+                else if (ResultadoCert.AlertaExpiracao)
+                {
+                    <div class="alerta alerta-aviso">⚠️ Certificado expira em @ResultadoCert.DiasParaExpirar dias. Renove em breve.</div>
+                }
+                <table class="preview-tabela">
+                    <tr><td>CN</td><td>@(ResultadoCert.Cn ?? "–")</td></tr>
+                    <tr><td>CNPJ</td><td>@(ResultadoCert.Cnpj ?? "–")</td></tr>
+                    <tr><td>Número de Série</td><td>@(ResultadoCert.NumeroSerie ?? "–")</td></tr>
+                    <tr><td>Válido de</td><td>@(ResultadoCert.ValidadeInicio ?? "–")</td></tr>
+                    <tr><td>Válido até</td><td>@(ResultadoCert.ValidadeFim ?? "–")</td></tr>
+                    <tr><td>Dias restantes</td><td>@(ResultadoCert.DiasParaExpirar?.ToString() ?? "–")</td></tr>
+                </table>
+                @if (!string.IsNullOrEmpty(ResultadoCert.Mensagem))
+                {
+                    <p class="preview-msg">@ResultadoCert.Mensagem</p>
+                }
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(ErroCert))
+        {
+            <div class="alerta alerta-erro">@ErroCert</div>
+        }
+    </div>
+}
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- ABA NFC-e/NF-e XML PREVIEW                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+@if (AbaAtiva == "nfce")
+{
+    <div class="preview-card">
+        <h2>📄 XML NFC-e/NF-e — Preview de Homologação</h2>
+        <p class="preview-aviso">Monta um XML técnico de preview. <strong>Não emite, não autoriza, não transmite para SEFAZ.</strong></p>
+
+        <div class="form-row">
+            <div class="form-grupo">
+                <label>Venda ID</label>
+                <input type="text" class="form-controle" @bind="NfceVendaId" placeholder="UUID da venda" />
+            </div>
+            <div class="form-grupo">
+                <label>Modelo</label>
+                <select class="form-controle" @bind="NfceModelo">
+                    <option value="NFCE">NFC-e (Modelo 65)</option>
+                    <option value="NFE">NF-e (Modelo 55)</option>
+                </select>
+            </div>
+            <div class="form-grupo">
+                <label>UF</label>
+                <input type="text" class="form-controle" @bind="NfceUf" placeholder="SP, PR, RJ..." maxlength="2" />
+            </div>
+        </div>
+        <div class="form-grupo">
+            <label>Ambiente</label>
+            <input type="text" class="form-controle" value="HOMOLOGACAO" disabled />
+        </div>
+
+        <div class="preview-acoes">
+            <button class="btn btn-secundario" @onclick="MontarXmlPreview" disabled="@CarregandoNfce">
+                @(CarregandoNfce ? "Montando..." : "📄 Montar XML Preview")
+            </button>
+            <button class="btn btn-primario" @onclick="MontarAssinarXmlPreview" disabled="@CarregandoNfce">
+                @(CarregandoNfce ? "Processando..." : "✍️ Montar + Assinar Preview Técnico")
+            </button>
+            @if (!string.IsNullOrEmpty(NfceVendaId))
+            {
+                <button class="btn btn-outline" @onclick="ObterXmlVenda" disabled="@CarregandoNfce">
+                    🔍 Buscar Preview por Venda
+                </button>
+            }
+        </div>
+
+        @if (ResultadoNfce != null)
+        {
+            <div class="preview-resultado @(ResultadoNfce.Sucesso ? "resultado-ok" : "resultado-erro")">
+                <strong>@(ResultadoNfce.Sucesso ? "✅ XML Preview montado" : "❌ Falha ao montar preview")</strong>
+                <span class="badge-homologacao">HOMOLOGAÇÃO — SEM VALIDADE FISCAL</span>
+                @if (ResultadoNfce.Assinado)
+                {
+                    <span class="badge-assinado">Assinado Tecnicamente (Preview)</span>
+                }
+                @if (!string.IsNullOrEmpty(ResultadoNfce.ChavePreview))
+                {
+                    <p><small>Chave preview: <code>@ResultadoNfce.ChavePreview</code></small></p>
+                }
+                @if (ResultadoNfce.Warnings?.Any() == true)
+                {
+                    <div class="preview-warnings">
+                        @foreach (var w in ResultadoNfce.Warnings)
+                        {
+                            <div class="warning-item">⚠️ @w</div>
+                        }
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(ResultadoNfce.XmlPreview))
+                {
+                    <div class="preview-xml-actions">
+                        <button class="btn btn-outline btn-sm" @onclick="() => UsarXmlNaValidacao(ResultadoNfce.XmlPreview!)">
+                            ✅ Usar na Validação Local
+                        </button>
+                        <button class="btn btn-outline btn-sm" @onclick="ExportarNfceXml">
+                            💾 Exportar XML Técnico
+                        </button>
+                    </div>
+                    <pre class="preview-xml-conteudo">@ResultadoNfce.XmlPreview</pre>
+                }
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(ErroNfce))
+        {
+            <div class="alerta alerta-erro">@ErroNfce</div>
+        }
+    </div>
+}
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- ABA SIFEN JSON PREVIEW                                        -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+@if (AbaAtiva == "sifen")
+{
+    <div class="preview-card">
+        <h2>🧾 JSON SIFEN/DTE — Preview de Homologação (Paraguai)</h2>
+        <p class="preview-aviso">Monta um JSON técnico de preview SIFEN. <strong>Não transmite para DNIT/SIFEN/SET. Não gera CDC oficial. Não gera KuDE Fiscal.</strong></p>
+
+        <div class="form-row">
+            <div class="form-grupo">
+                <label>Venda ID</label>
+                <input type="text" class="form-controle" @bind="SifenVendaId" placeholder="UUID da venda" />
+            </div>
+            <div class="form-grupo">
+                <label>Ambiente</label>
+                <input type="text" class="form-controle" value="HOMOLOGACAO" disabled />
+            </div>
+        </div>
+
+        <div class="preview-acoes">
+            <button class="btn btn-primario" @onclick="MontarSifenPreview" disabled="@CarregandoSifen">
+                @(CarregandoSifen ? "Montando..." : "🧾 Montar JSON Preview SIFEN")
+            </button>
+            @if (!string.IsNullOrEmpty(SifenVendaId))
+            {
+                <button class="btn btn-outline" @onclick="ObterJsonVendaSifen" disabled="@CarregandoSifen">
+                    🔍 Buscar Preview por Venda
+                </button>
+            }
+        </div>
+
+        @if (ResultadoSifen != null)
+        {
+            <div class="preview-resultado @(ResultadoSifen.Sucesso ? "resultado-ok" : "resultado-erro")">
+                <strong>@(ResultadoSifen.Sucesso ? "✅ JSON Preview SIFEN montado" : "❌ Falha ao montar preview SIFEN")</strong>
+                <span class="badge-homologacao">HOMOLOGAÇÃO — SEM VALIDADE FISCAL</span>
+                @if (!string.IsNullOrEmpty(ResultadoSifen.CdcPreview))
+                {
+                    <p><small>CDC Preview (técnico/simulado): <code>@ResultadoSifen.CdcPreview</code></small></p>
+                }
+                @if (ResultadoSifen.Warnings?.Any() == true)
+                {
+                    <div class="preview-warnings">
+                        @foreach (var w in ResultadoSifen.Warnings)
+                        {
+                            <div class="warning-item">⚠️ @w</div>
+                        }
+                    </div>
+                }
+                @if (ResultadoSifen.JsonPreview != null)
+                {
+                    _jsonSifenFormatado = JsonSerializer.Serialize(ResultadoSifen.JsonPreview, new JsonSerializerOptions { WriteIndented = true });
+                    <div class="preview-xml-actions">
+                        <button class="btn btn-outline btn-sm" @onclick="() => UsarJsonNaValidacao(_jsonSifenFormatado)">
+                            ✅ Usar na Validação Local
+                        </button>
+                        <button class="btn btn-outline btn-sm" @onclick="ExportarSifenJson">
+                            💾 Exportar JSON Técnico
+                        </button>
+                        @if (!string.IsNullOrEmpty(ResultadoSifen.CdcPreview))
+                        {
+                            <button class="btn btn-outline btn-sm" @onclick="() => GerarQrSifenDireto(ResultadoSifen.CdcPreview!)">
+                                📷 Gerar QR Preview deste CDC
+                            </button>
+                        }
+                    </div>
+                    <pre class="preview-xml-conteudo">@_jsonSifenFormatado</pre>
+                }
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(ErroSifen))
+        {
+            <div class="alerta alerta-erro">@ErroSifen</div>
+        }
+    </div>
+}
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- ABA VALIDAÇÃO LOCAL                                           -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+@if (AbaAtiva == "validacao")
+{
+    <div class="preview-card">
+        <h2>✅ Validação Estrutural Local</h2>
+        <p class="preview-aviso"><strong>Validação local não é autorização fiscal.</strong> Este validador verifica apenas estrutura mínima do preview. Não consulta SEFAZ/DNIT. Não afirma conformidade fiscal completa.</p>
+
+        <div class="form-grupo">
+            <label>Tipo de Preview</label>
+            <select class="form-controle" @bind="ValidacaoTipo">
+                <option value="NFCE_XML">NFC-e XML</option>
+                <option value="NFE_XML">NF-e XML</option>
+                <option value="SIFEN_JSON">SIFEN JSON</option>
+            </select>
+        </div>
+        <div class="form-grupo">
+            <label>Conteúdo (XML ou JSON do Preview)</label>
+            <textarea class="form-controle" rows="10" @bind="ValidacaoConteudo" placeholder="Cole aqui o XML ou JSON preview gerado..."></textarea>
+        </div>
+        <div class="form-grupo">
+            <label>Ambiente</label>
+            <input type="text" class="form-controle" value="HOMOLOGACAO" disabled />
+        </div>
+
+        <div class="preview-acoes">
+            <button class="btn btn-primario" @onclick="ValidarLocalPreview" disabled="@CarregandoValidacao">
+                @(CarregandoValidacao ? "Validando..." : "✅ Validar Localmente")
+            </button>
+        </div>
+
+        @if (ResultadoValidacao != null)
+        {
+            <div class="preview-resultado @(ResultadoValidacao.Valido ? "resultado-ok" : "resultado-erro")">
+                <strong>@(ResultadoValidacao.Valido ? "✅ Preview estruturalmente válido" : "❌ Preview com erros estruturais")</strong>
+                <p class="preview-aviso"><em>Validação local não representa autorização fiscal.</em></p>
+                <div class="validacao-resumo">
+                    <span>Tipo: <strong>@ResultadoValidacao.Tipo</strong></span>
+                    <span>Erros: <strong class="@(ResultadoValidacao.TotalErros > 0 ? "texto-erro" : "texto-ok")">@ResultadoValidacao.TotalErros</strong></span>
+                    <span>Warnings: <strong>@(ResultadoValidacao.Warnings?.Count ?? 0)</strong></span>
+                </div>
+                @if (ResultadoValidacao.Erros?.Any() == true)
+                {
+                    <h4>Erros</h4>
+                    @foreach (var e in ResultadoValidacao.Erros)
+                    {
+                        <div class="validacao-item erro">
+                            <code>[@e.Codigo] @(e.Campo != null ? $"[{e.Campo}]" : "")</code> @e.Mensagem
+                        </div>
+                    }
+                }
+                @if (ResultadoValidacao.Warnings?.Any() == true)
+                {
+                    <h4>Avisos</h4>
+                    @foreach (var w in ResultadoValidacao.Warnings)
+                    {
+                        <div class="validacao-item warning">
+                            <code>[@w.Codigo]</code> @w.Mensagem
+                        </div>
+                    }
+                }
+                <p>@ResultadoValidacao.Mensagem</p>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(ErroValidacao))
+        {
+            <div class="alerta alerta-erro">@ErroValidacao</div>
+        }
+    </div>
+}
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- ABA QR CODE PREVIEW                                           -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+@if (AbaAtiva == "qrcode")
+{
+    <div class="preview-card">
+        <h2>📷 QR Code Técnico de Preview</h2>
+        <p class="preview-aviso"><strong>QR Code preview não é QR fiscal oficial.</strong> Não há cHashQR real. Não há consulta em SEFAZ ou SET. O QR gerado é visual/técnico para homologação.</p>
+
+        <div class="form-row">
+            <div class="form-grupo">
+                <label>Tipo</label>
+                <select class="form-controle" @bind="QrTipo">
+                    <option value="NFCE">NFC-e (BR)</option>
+                    <option value="NFE">NF-e (BR)</option>
+                    <option value="SIFEN">SIFEN (PY)</option>
+                </select>
+            </div>
+            <div class="form-grupo">
+                <label>Chave Preview (BR)</label>
+                <input type="text" class="form-controle" @bind="QrChave" placeholder="44 dígitos de chave técnica" />
+            </div>
+            <div class="form-grupo">
+                <label>CDC Preview (PY)</label>
+                <input type="text" class="form-controle" @bind="QrCdc" placeholder="44 dígitos de CDC técnico" />
+            </div>
+        </div>
+        <div class="form-grupo">
+            <label>Ambiente</label>
+            <input type="text" class="form-controle" value="HOMOLOGACAO" disabled />
+        </div>
+
+        <div class="preview-acoes">
+            <button class="btn btn-primario" @onclick="GerarQrCodePreview" disabled="@CarregandoQr">
+                @(CarregandoQr ? "Gerando..." : "📷 Gerar QR Preview")
+            </button>
+        </div>
+
+        @if (ResultadoQr != null)
+        {
+            <div class="preview-resultado @(ResultadoQr.Sucesso ? "resultado-ok" : "resultado-erro")">
+                <strong>@(ResultadoQr.Sucesso ? "✅ QR Code Preview gerado" : "❌ Falha ao gerar QR Preview")</strong>
+                <span class="badge-homologacao">QR TÉCNICO — SEM VALIDADE FISCAL — NÃO É QR OFICIAL</span>
+                @if (!string.IsNullOrEmpty(ResultadoQr.PngBase64))
+                {
+                    <div class="qr-preview-container">
+                        <img src="data:image/svg+xml;base64,@ResultadoQr.PngBase64" alt="QR Code Preview Homologação" class="qr-imagem" />
+                        <p class="qr-legenda">⚠️ QR Code técnico de homologação. Não possui validade fiscal.</p>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(ResultadoQr.ConteudoQr))
+                {
+                    <div class="form-grupo">
+                        <label>Conteúdo textual do QR (preview)</label>
+                        <textarea class="form-controle" rows="3" readonly>@ResultadoQr.ConteudoQr</textarea>
+                    </div>
+                }
+                @if (ResultadoQr.Warnings?.Any() == true)
+                {
+                    <div class="preview-warnings">
+                        @foreach (var w in ResultadoQr.Warnings)
+                        {
+                            <div class="warning-item">⚠️ @w</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(ErroQr))
+        {
+            <div class="alerta alerta-erro">@ErroQr</div>
+        }
+    </div>
+}
+
+<style>
+    .preview-banner-homologacao {
+        background: linear-gradient(135deg, #b91c1c, #dc2626);
+        color: #fff;
+        border-radius: 10px;
+        padding: 14px 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        box-shadow: 0 4px 12px rgba(185,28,28,0.3);
+    }
+    .preview-banner-icon { font-size: 24px; flex-shrink: 0; }
+    .page-subtitulo { color: var(--cor-texto-secundario); margin-top: 4px; font-size: 13px; }
+    .preview-tabs {
+        display: flex;
+        gap: 4px;
+        background: var(--cor-superficie);
+        padding: 6px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .preview-tab {
+        padding: 8px 16px;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--cor-texto-secundario);
+        transition: all 0.2s;
+    }
+    .preview-tab.ativo, .preview-tab:hover {
+        background: var(--cor-primaria);
+        color: #fff;
+    }
+    .preview-card {
+        background: var(--cor-superficie);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 20px;
+        border: 1px solid var(--cor-borda);
+    }
+    .preview-card h2 { margin-bottom: 8px; font-size: 18px; }
+    .preview-aviso {
+        background: rgba(234, 179, 8, 0.1);
+        border-left: 4px solid #ca8a04;
+        padding: 10px 14px;
+        border-radius: 4px;
+        font-size: 13px;
+        color: #92400e;
+        margin-bottom: 16px;
+    }
+    .form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .preview-acoes { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+    .preview-resultado {
+        margin-top: 16px;
+        padding: 16px;
+        border-radius: 10px;
+        border: 1px solid var(--cor-borda);
+    }
+    .resultado-ok { border-color: #16a34a; background: rgba(22,163,74,0.07); }
+    .resultado-erro { border-color: #dc2626; background: rgba(220,38,38,0.07); }
+    .badge-homologacao {
+        display: inline-block;
+        background: #dc2626;
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        margin-left: 8px;
+    }
+    .badge-assinado {
+        display: inline-block;
+        background: #0369a1;
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        margin-left: 4px;
+    }
+    .preview-xml-conteudo {
+        background: #0f172a;
+        color: #7dd3fc;
+        padding: 16px;
+        border-radius: 8px;
+        font-size: 12px;
+        overflow-x: auto;
+        max-height: 400px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        margin-top: 12px;
+    }
+    .preview-xml-actions { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+    .btn-sm { padding: 4px 10px !important; font-size: 12px !important; }
+    .preview-warnings { margin-top: 10px; }
+    .warning-item {
+        background: rgba(234,179,8,0.1);
+        border-left: 3px solid #ca8a04;
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-bottom: 4px;
+        color: #78350f;
+    }
+    .preview-tabela { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+    .preview-tabela td { padding: 6px 10px; border-bottom: 1px solid var(--cor-borda); }
+    .preview-tabela td:first-child { font-weight: 600; width: 160px; color: var(--cor-texto-secundario); }
+    .validacao-resumo { display: flex; gap: 20px; margin: 10px 0; font-size: 13px; }
+    .validacao-item { padding: 6px 10px; border-radius: 4px; font-size: 12px; margin-bottom: 4px; }
+    .validacao-item.erro { background: rgba(220,38,38,0.1); border-left: 3px solid #dc2626; }
+    .validacao-item.warning { background: rgba(234,179,8,0.1); border-left: 3px solid #ca8a04; }
+    .texto-erro { color: #dc2626; }
+    .texto-ok { color: #16a34a; }
+    .alerta { padding: 10px 14px; border-radius: 6px; margin-top: 10px; font-size: 13px; }
+    .alerta-erro { background: rgba(220,38,38,0.1); border: 1px solid #dc2626; color: #b91c1c; }
+    .alerta-aviso { background: rgba(234,179,8,0.1); border: 1px solid #ca8a04; color: #78350f; }
+    .qr-preview-container { text-align: center; margin: 16px 0; }
+    .qr-imagem { max-width: 200px; border: 4px solid #dc2626; border-radius: 8px; }
+    .qr-legenda { font-size: 11px; color: #dc2626; font-weight: 600; margin-top: 8px; }
+    .preview-msg { margin-top: 8px; font-size: 12px; color: var(--cor-texto-secundario); }
+</style>
+
+@code {
+    private string AbaAtiva = "certificado";
+
+    // ─── Certificado ───
+    private string? CertCaminho;
+    private string? CertBase64;
+    private string? CertSenha;
+    private bool CarregandoCert = false;
+    private CertificadoMetadados? ResultadoCert;
+    private string? ErroCert;
+
+    private async Task ValidarCertificado()
+    {
+        ErroCert = null;
+        ResultadoCert = null;
+        if (string.IsNullOrWhiteSpace(CertSenha)) { ErroCert = "Informe a senha do certificado."; return; }
+        if (string.IsNullOrWhiteSpace(CertCaminho) && string.IsNullOrWhiteSpace(CertBase64))
+        { ErroCert = "Informe o caminho do PFX ou o conteúdo em base64."; return; }
+        CarregandoCert = true;
+        try
+        {
+            var req = new ValidarCertificadoReq { CaminhoPfx = CertCaminho, PfxBase64 = CertBase64, Senha = CertSenha! };
+            ResultadoCert = await FiscalApi.ValidarCertificadoAsync(req);
+        }
+        catch (Exception ex) { ErroCert = $"Erro ao validar certificado: {ex.Message}"; }
+        finally { CarregandoCert = false; CertSenha = null; }
+    }
+
+    // ─── NFC-e Preview ───
+    private string? NfceVendaId;
+    private string NfceModelo = "NFCE";
+    private string? NfceUf;
+    private bool CarregandoNfce = false;
+    private NfcePreviewResp? ResultadoNfce;
+    private string? ErroNfce;
+
+    private async Task MontarXmlPreview()
+    {
+        ErroNfce = null; ResultadoNfce = null; CarregandoNfce = true;
+        try
+        {
+            var req = new MontarNfcePreviewReq { VendaId = NfceVendaId, Modelo = NfceModelo, Uf = NfceUf, Ambiente = "HOMOLOGACAO" };
+            ResultadoNfce = await FiscalApi.MontarNfcePreviewAsync(req);
+        }
+        catch (Exception ex) { ErroNfce = $"Erro: {ex.Message}"; }
+        finally { CarregandoNfce = false; }
+    }
+
+    private async Task MontarAssinarXmlPreview()
+    {
+        ErroNfce = null; ResultadoNfce = null; CarregandoNfce = true;
+        try
+        {
+            var req = new MontarNfcePreviewReq { VendaId = NfceVendaId, Modelo = NfceModelo, Uf = NfceUf, Ambiente = "HOMOLOGACAO", Assinar = true };
+            ResultadoNfce = await FiscalApi.MontarAssinarNfcePreviewAsync(req);
+        }
+        catch (Exception ex) { ErroNfce = $"Erro: {ex.Message}"; }
+        finally { CarregandoNfce = false; }
+    }
+
+    private async Task ObterXmlVenda()
+    {
+        ErroNfce = null; ResultadoNfce = null; CarregandoNfce = true;
+        try { ResultadoNfce = await FiscalApi.ObterVendaNfcePreviewAsync(NfceVendaId!); }
+        catch (Exception ex) { ErroNfce = $"Erro: {ex.Message}"; }
+        finally { CarregandoNfce = false; }
+    }
+
+    private void UsarXmlNaValidacao(string xml)
+    {
+        ValidacaoConteudo = xml;
+        ValidacaoTipo = "NFCE_XML";
+        AbaAtiva = "validacao";
+    }
+
+    // ─── SIFEN Preview ───
+    private string? SifenVendaId;
+    private bool CarregandoSifen = false;
+    private SifenPreviewResp? ResultadoSifen;
+    private string? ErroSifen;
+
+    private async Task MontarSifenPreview()
+    {
+        ErroSifen = null; ResultadoSifen = null; CarregandoSifen = true;
+        try
+        {
+            var req = new MontarSifenPreviewReq { VendaId = SifenVendaId, Ambiente = "HOMOLOGACAO" };
+            ResultadoSifen = await FiscalApi.MontarSifenPreviewAsync(req);
+        }
+        catch (Exception ex) { ErroSifen = $"Erro: {ex.Message}"; }
+        finally { CarregandoSifen = false; }
+    }
+
+    private async Task ObterJsonVendaSifen()
+    {
+        ErroSifen = null; ResultadoSifen = null; CarregandoSifen = true;
+        try { ResultadoSifen = await FiscalApi.ObterVendaSifenPreviewAsync(SifenVendaId!); }
+        catch (Exception ex) { ErroSifen = $"Erro: {ex.Message}"; }
+        finally { CarregandoSifen = false; }
+    }
+
+    private void UsarJsonNaValidacao(string json)
+    {
+        ValidacaoConteudo = json;
+        ValidacaoTipo = "SIFEN_JSON";
+        AbaAtiva = "validacao";
+    }
+
+    private void GerarQrSifenDireto(string cdc)
+    {
+        QrCdc = cdc;
+        QrTipo = "SIFEN";
+        AbaAtiva = "qrcode";
+    }
+
+    // ─── Validação Local ───
+    private string ValidacaoTipo = "NFCE_XML";
+    private string? ValidacaoConteudo;
+    private bool CarregandoValidacao = false;
+    private ValidacaoPreviewResp? ResultadoValidacao;
+    private string? ErroValidacao;
+
+    private async Task ValidarLocalPreview()
+    {
+        ErroValidacao = null; ResultadoValidacao = null;
+        if (string.IsNullOrWhiteSpace(ValidacaoConteudo)) { ErroValidacao = "Informe o conteúdo do preview para validar."; return; }
+        CarregandoValidacao = true;
+        try
+        {
+            var req = new ValidarPreviewReq { Tipo = ValidacaoTipo, Conteudo = ValidacaoConteudo!, Ambiente = "HOMOLOGACAO" };
+            ResultadoValidacao = await FiscalApi.ValidarPreviewAsync(req);
+        }
+        catch (Exception ex) { ErroValidacao = $"Erro: {ex.Message}"; }
+        finally { CarregandoValidacao = false; }
+    }
+
+    // ─── QR Code Preview ───
+    private string QrTipo = "NFCE";
+    private string? QrChave;
+    private string? QrCdc;
+    private bool CarregandoQr = false;
+    private QrCodePreviewResp? ResultadoQr;
+    private string? ErroQr;
+
+    private async Task GerarQrCodePreview()
+    {
+        ErroQr = null; ResultadoQr = null; CarregandoQr = true;
+        try
+        {
+            var req = new GerarQrCodePreviewReq
+            {
+                Tipo = QrTipo, ChavePreview = QrChave, CdcPreview = QrCdc, Ambiente = "HOMOLOGACAO"
+            };
+            ResultadoQr = await FiscalApi.GerarQrCodePreviewAsync(req);
+        }
+        catch (Exception ex) { ErroQr = $"Erro: {ex.Message}"; }
+        finally { CarregandoQr = false; }
+    }
+
+    // ─── Exportação técnica ───
+    private string _jsonSifenFormatado = string.Empty;
+
+    private void ExportarNfceXml()
+    {
+        var conteudo = ResultadoNfce?.XmlPreview ?? string.Empty;
+        ExportarTexto(conteudo, "preview_homologacao_sem_validade_nfce.xml");
+    }
+
+    private void ExportarSifenJson()
+    {
+        ExportarTexto(_jsonSifenFormatado, "preview_homologacao_sem_validade_sifen.json");
+    }
+
+    private void ExportarTexto(string conteudo, string nomeArquivo)
+    {
+        // Exportação via JS não implementada nesta versão — placeholder técnico
+        // Na integração real, usaria JSRuntime para acionar download
+        _ = conteudo;
+        _ = nomeArquivo;
+    }
+}
