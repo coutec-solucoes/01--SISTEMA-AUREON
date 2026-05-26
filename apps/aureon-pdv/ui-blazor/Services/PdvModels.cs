@@ -1944,6 +1944,172 @@ namespace AureonPdvUi.Services
         public string Mensagem { get; set; } = "";
         public List<string> Warnings { get; set; } = new();
     }
+
+    // ==========================================
+    // DTOs de Segurança Operacional (Fase 21, Bloco 1)
+    // ==========================================
+
+    public class LoginLocalReq
+    {
+        [JsonPropertyName("login")]
+        public string Login { get; set; } = "";
+
+        [JsonPropertyName("senha_pura")]
+        public string SenhaPura { get; set; } = "";
+    }
+
+    public class LoginLocalResp
+    {
+        [JsonPropertyName("sucesso")]
+        public bool Sucesso { get; set; }
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; set; }
+
+        [JsonPropertyName("login")]
+        public string? Login { get; set; }
+
+        [JsonPropertyName("nome")]
+        public string? Nome { get; set; }
+
+        [JsonPropertyName("sessao_id")]
+        public string? SessaoId { get; set; }
+
+        [JsonPropertyName("perfis")]
+        public List<string> Perfis { get; set; } = new();
+
+        [JsonPropertyName("permissoes")]
+        public List<string> Permissoes { get; set; } = new();
+
+        [JsonPropertyName("exige_troca_senha")]
+        public bool ExigeTrocaSenha { get; set; }
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = "";
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
+
+    public class SessaoUsuarioResp
+    {
+        [JsonPropertyName("autenticado")]
+        public bool Autenticado { get; set; }
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; set; }
+
+        [JsonPropertyName("login")]
+        public string? Login { get; set; }
+
+        [JsonPropertyName("nome")]
+        public string? Nome { get; set; }
+
+        [JsonPropertyName("sessao_id")]
+        public string? SessaoId { get; set; }
+
+        [JsonPropertyName("perfis")]
+        public List<string> Perfis { get; set; } = new();
+
+        [JsonPropertyName("permissoes")]
+        public List<string> Permissoes { get; set; } = new();
+
+        [JsonPropertyName("aberta_em")]
+        public string? AbertaEm { get; set; }
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = "";
+    }
+
+    public class UsuarioLocalResp
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("nome")]
+        public string Nome { get; set; } = "";
+
+        [JsonPropertyName("login")]
+        public string Login { get; set; } = "";
+
+        [JsonPropertyName("ativo")]
+        public bool Ativo { get; set; }
+
+        [JsonPropertyName("perfis")]
+        public List<string> Perfis { get; set; } = new();
+
+        [JsonPropertyName("ultimo_login_em")]
+        public string? UltimoLoginEm { get; set; }
+    }
+
+    public class PerfilLocalResp
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("codigo")]
+        public string Codigo { get; set; } = "";
+
+        [JsonPropertyName("nome")]
+        public string Nome { get; set; } = "";
+
+        [JsonPropertyName("descricao")]
+        public string? Descricao { get; set; }
+
+        [JsonPropertyName("ativo")]
+        public bool Ativo { get; set; }
+    }
+
+    public class PermissaoLocalResp
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("codigo")]
+        public string Codigo { get; set; } = "";
+
+        [JsonPropertyName("modulo")]
+        public string Modulo { get; set; } = "";
+
+        [JsonPropertyName("acao")]
+        public string Acao { get; set; } = "";
+
+        [JsonPropertyName("descricao")]
+        public string? Descricao { get; set; }
+
+        [JsonPropertyName("risco")]
+        public string Risco { get; set; } = "";
+    }
+
+    public class UsuarioTemPermissaoReq
+    {
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; set; }
+
+        [JsonPropertyName("permissao_codigo")]
+        public string PermissaoCodigo { get; set; } = "";
+
+        [JsonPropertyName("modulo")]
+        public string? Modulo { get; set; }
+
+        [JsonPropertyName("acao")]
+        public string? Acao { get; set; }
+    }
+
+    public class UsuarioTemPermissaoResp
+    {
+        [JsonPropertyName("permitido")]
+        public bool Permitido { get; set; }
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; set; }
+
+        [JsonPropertyName("permissao_codigo")]
+        public string PermissaoCodigo { get; set; } = "";
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = "";
+    }
 }
 
 

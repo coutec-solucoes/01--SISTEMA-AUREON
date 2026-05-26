@@ -1,0 +1,182 @@
+@page "/seguranca"
+@using AureonPdvUi.Services
+@inject AureonPdvUi.Services.TauriService Tauri
+
+<div class="container-fluid mt-3">
+    <h3>Segurança Operacional</h3>
+    <hr />
+
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(TabAtiva == "Sessao" ? "active" : "")" @onclick="@(() => TabAtiva = "Sessao")">Sessão Atual</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(TabAtiva == "Usuarios" ? "active" : "")" @onclick="@(() => TabAtiva = "Usuarios")">Usuários Locais</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(TabAtiva == "Perfis" ? "active" : "")" @onclick="@(() => TabAtiva = "Perfis")">Perfis</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(TabAtiva == "Permissoes" ? "active" : "")" @onclick="@(() => TabAtiva = "Permissoes")">Permissões</button>
+        </li>
+    </ul>
+
+    @if (TabAtiva == "Sessao")
+    {
+        if (Sessao != null && Sessao.Autenticado)
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-success text-white">Usuário Logado</div>
+                <div class="card-body">
+                    <p><strong>Nome:</strong> @Sessao.Nome (@Sessao.Login)</p>
+                    <p><strong>Perfis:</strong> @string.Join(", ", Sessao.Perfis)</p>
+                    <p><strong>Desde:</strong> @Sessao.AbertaEm</p>
+                    <button class="btn btn-warning" @onclick="FazerLogout">Sair / Logout</button>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header">Permissões Efetivas</div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var p in Sessao.Permissoes)
+                        {
+                            <span class="badge bg-secondary">@p</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-warning">Nenhuma sessão ativa. <a href="/seguranca/login">Ir para Login</a></div>
+        }
+    }
+    else if (TabAtiva == "Usuarios")
+    {
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nome</th>
+                        <th>Login</th>
+                        <th>Status</th>
+                        <th>Perfis</th>
+                        <th>Último Acesso</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in Usuarios)
+                    {
+                        <tr>
+                            <td>@u.Nome</td>
+                            <td>@u.Login</td>
+                            <td>
+                                @if (u.Ativo) { <span class="badge bg-success">Ativo</span> }
+                                else { <span class="badge bg-danger">Inativo</span> }
+                            </td>
+                            <td>@string.Join(", ", u.Perfis)</td>
+                            <td>@u.UltimoLoginEm</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else if (TabAtiva == "Perfis")
+    {
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th>
+                        <th>Nome</th>
+                        <th>Status</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Perfis)
+                    {
+                        <tr>
+                            <td><strong>@p.Codigo</strong></td>
+                            <td>@p.Nome</td>
+                            <td>
+                                @if (p.Ativo) { <span class="badge bg-success">Ativo</span> }
+                                else { <span class="badge bg-danger">Inativo</span> }
+                            </td>
+                            <td>@p.Descricao</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else if (TabAtiva == "Permissoes")
+    {
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Módulo</th>
+                        <th>Ação</th>
+                        <th>Código (Tauri)</th>
+                        <th>Risco</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Permissoes)
+                    {
+                        <tr>
+                            <td>@p.Modulo</td>
+                            <td>@p.Acao</td>
+                            <td><code>@p.Codigo</code></td>
+                            <td>@p.Risco</td>
+                            <td>@p.Descricao</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+</div>
+
+@code {
+    private string TabAtiva = "Sessao";
+    
+    private SessaoUsuarioResp? Sessao;
+    private List<UsuarioLocalResp> Usuarios = new();
+    private List<PerfilLocalResp> Perfis = new();
+    private List<PermissaoLocalResp> Permissoes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarSessao();
+        await CarregarDadosExtras();
+    }
+
+    private async Task CarregarSessao()
+    {
+        Sessao = await Tauri.InvocarAsync<SessaoUsuarioResp>("obter_sessao_usuario_atual");
+    }
+
+    private async Task CarregarDadosExtras()
+    {
+        var usrs = await Tauri.InvocarAsync<List<UsuarioLocalResp>>("listar_usuarios_local");
+        if (usrs != null) Usuarios = usrs;
+
+        var prfs = await Tauri.InvocarAsync<List<PerfilLocalResp>>("listar_perfis_local");
+        if (prfs != null) Perfis = prfs;
+
+        var pms = await Tauri.InvocarAsync<List<PermissaoLocalResp>>("listar_permissoes_local");
+        if (pms != null) Permissoes = pms;
+    }
+
+    private async Task FazerLogout()
+    {
+        await Tauri.InvocarAsync<bool>("logout_local");
+        await CarregarSessao();
+    }
+}

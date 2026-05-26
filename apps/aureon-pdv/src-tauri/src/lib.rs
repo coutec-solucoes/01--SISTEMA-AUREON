@@ -16,6 +16,7 @@ pub mod commands_sync_fiscal;
 pub mod commands_licenciamento;
 pub mod commands_backup;
 pub mod commands_sistema;
+pub mod commands_seguranca;
 pub mod licenca_crypto_local;
 pub mod estado;
 
@@ -228,6 +229,14 @@ pub fn run() {
             commands_sistema::diagnosticar_instalacao_sistema,
             commands_sistema::garantir_pastas_sistema,
             commands_sistema::obter_versao_app,
+            // Commands de Seguranca (Fase 21 Bloco 1)
+            commands_seguranca::login_local,
+            commands_seguranca::logout_local,
+            commands_seguranca::obter_sessao_usuario_atual,
+            commands_seguranca::listar_usuarios_local,
+            commands_seguranca::listar_perfis_local,
+            commands_seguranca::listar_permissoes_local,
+            commands_seguranca::usuario_tem_permissao,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,0 +1,81 @@
+@page "/seguranca/login"
+@using AureonPdvUi.Services
+@inject AureonPdvUi.Services.TauriService Tauri
+@inject NavigationManager NavManager
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white text-center">
+                    <h4>Aureon PDV - Acesso</h4>
+                </div>
+                <div class="card-body p-4">
+                    @if (!string.IsNullOrEmpty(Erro))
+                    {
+                        <div class="alert alert-danger">@Erro</div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">Usuário</label>
+                        <input type="text" class="form-control" @bind="Req.Login" />
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">Senha</label>
+                        <input type="password" class="form-control" @bind="Req.SenhaPura" @onkeyup="CheckEnter" />
+                    </div>
+
+                    <button class="btn btn-primary w-100" @onclick="FazerLogin" disabled="@Carregando">
+                        @if (Carregando) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        Entrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginLocalReq Req = new();
+    private string Erro = "";
+    private bool Carregando = false;
+
+    private async Task CheckEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await FazerLogin();
+    }
+
+    private async Task FazerLogin()
+    {
+        if (string.IsNullOrWhiteSpace(Req.Login) || string.IsNullOrWhiteSpace(Req.SenhaPura))
+        {
+            Erro = "Informe usuário e senha.";
+            return;
+        }
+
+        Carregando = true;
+        Erro = "";
+        StateHasChanged();
+
+        var resp = await Tauri.InvocarAsync<LoginLocalResp>("login_local", new { req = Req });
+        if (resp != null)
+        {
+            if (resp.Sucesso)
+            {
+                NavManager.NavigateTo("/"); // Redireciona para o PDV / Home
+            }
+            else
+            {
+                Erro = resp.Mensagem;
+            }
+        }
+        else
+        {
+            Erro = "Falha ao conectar com o serviço de segurança.";
+        }
+
+        Carregando = false;
+        StateHasChanged();
+    }
+}

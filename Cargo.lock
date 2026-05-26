@@ -257,19 +257,23 @@ dependencies = [
 name = "aureon-infra"
 version = "0.0.1"
 dependencies = [
+ "argon2",
  "aureon-core",
  "aureon-domain",
  "chrono",
+ "rand 0.8.6",
  "rusqlite",
  "serde",
  "serde_json",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
 name = "aureon-pdv"
 version = "0.0.1"
 dependencies = [
+ "argon2",
  "aureon-core",
  "aureon-domain",
  "aureon-infra",

@@ -2258,3 +2258,85 @@ pub struct DiagnosticoSistemaResp {
     pub mensagem: String,
     pub warnings: Vec<String>,
 }
+
+// ==========================================
+// DTOs de Seguranca Operacional (Fase 21, Bloco 1)
+// ==========================================
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct LoginLocalReq {
+    pub login: String,
+    pub senha_pura: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct LoginLocalResp {
+    pub sucesso: bool,
+    pub usuario_id: Option<String>,
+    pub login: Option<String>,
+    pub nome: Option<String>,
+    pub sessao_id: Option<String>,
+    pub perfis: Vec<String>,
+    pub permissoes: Vec<String>,
+    pub exige_troca_senha: bool,
+    pub mensagem: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct SessaoUsuarioResp {
+    pub autenticado: bool,
+    pub usuario_id: Option<String>,
+    pub login: Option<String>,
+    pub nome: Option<String>,
+    pub sessao_id: Option<String>,
+    pub perfis: Vec<String>,
+    pub permissoes: Vec<String>,
+    pub aberta_em: Option<String>,
+    pub mensagem: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct UsuarioLocalResp {
+    pub id: String,
+    pub nome: String,
+    pub login: String,
+    pub ativo: bool,
+    pub perfis: Vec<String>,
+    pub ultimo_login_em: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct PerfilLocalResp {
+    pub id: String,
+    pub codigo: String,
+    pub nome: String,
+    pub descricao: Option<String>,
+    pub ativo: bool,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct PermissaoLocalResp {
+    pub id: String,
+    pub codigo: String,
+    pub modulo: String,
+    pub acao: String,
+    pub descricao: Option<String>,
+    pub risco: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct UsuarioTemPermissaoReq {
+    pub usuario_id: Option<String>,
+    pub permissao_codigo: String,
+    pub modulo: Option<String>,
+    pub acao: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct UsuarioTemPermissaoResp {
+    pub permitido: bool,
+    pub usuario_id: Option<String>,
+    pub permissao_codigo: String,
+    pub mensagem: String,
+}
