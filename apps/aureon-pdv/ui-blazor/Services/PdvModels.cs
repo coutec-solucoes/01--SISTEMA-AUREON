@@ -2110,6 +2110,48 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("mensagem")]
         public string Mensagem { get; set; } = "";
     }
+
+    public class VerificarPermissaoOperacaoReq
+    {
+        [JsonPropertyName("permissao_codigo")]
+        public string PermissaoCodigo { get; set; } = string.Empty;
+
+        [JsonPropertyName("modulo")]
+        public string? Modulo { get; set; }
+
+        [JsonPropertyName("acao")]
+        public string? Acao { get; set; }
+
+        [JsonPropertyName("contexto_id")]
+        public string? ContextoId { get; set; }
+
+        [JsonPropertyName("origem")]
+        public string? Origem { get; set; }
+    }
+
+    public class VerificarPermissaoOperacaoResp
+    {
+        [JsonPropertyName("permitido")]
+        public bool Permitido { get; set; }
+
+        [JsonPropertyName("usuario_id")]
+        public string? UsuarioId { get; set; }
+
+        [JsonPropertyName("login")]
+        public string? Login { get; set; }
+
+        [JsonPropertyName("permissao_codigo")]
+        public string PermissaoCodigo { get; set; } = string.Empty;
+
+        [JsonPropertyName("mensagem")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        [JsonPropertyName("motivo_negacao")]
+        public string? MotivoNegacao { get; set; }
+
+        [JsonPropertyName("warnings")]
+        public List<string> Warnings { get; set; } = new();
+    }
 }
 
 

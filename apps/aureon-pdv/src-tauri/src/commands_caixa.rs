@@ -104,6 +104,9 @@ pub async fn abrir_caixa(
     // GUARDA OPERACIONAL DE LICENCA - Bloqueio de abertura de caixa
     crate::commands_licenciamento::garantir_operacao_licenciada(&conn, "ABRIR_CAIXA", Some(&dto.registradora_id), None)?;
 
+    // GUARDA DE PERMISSÃO OPERACIONAL
+    crate::commands_seguranca::garantir_permissao_usuario(&conn, "CAIXA_ABRIR", Some(&dto.registradora_id), None)?;
+
     // Bloquear se ja houver caixa ABERTO nesta registradora
     let sessao_aberta: bool = conn.query_row(
         "SELECT COUNT(*) > 0 FROM sessoes_caixa WHERE registradora_id = ?1 AND status = 'ABERTO'",
@@ -201,6 +204,9 @@ pub async fn fechar_caixa(
     }
 
     let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    // GUARDA DE PERMISSÃO OPERACIONAL
+    crate::commands_seguranca::garantir_permissao_usuario(&conn, "CAIXA_FECHAR", Some(&dto.sessao_id), None)?;
 
     // Verificar sessao ativa
     let (registradora_id, usuario_id): (String, String) = conn.query_row(

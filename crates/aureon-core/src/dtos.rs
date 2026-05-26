@@ -2340,3 +2340,23 @@ pub struct UsuarioTemPermissaoResp {
     pub permissao_codigo: String,
     pub mensagem: String,
 }
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct VerificarPermissaoOperacaoReq {
+    pub permissao_codigo: String,
+    pub modulo: Option<String>,
+    pub acao: Option<String>,
+    pub contexto_id: Option<String>,
+    pub origem: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct VerificarPermissaoOperacaoResp {
+    pub permitido: bool,
+    pub usuario_id: Option<String>,
+    pub login: Option<String>,
+    pub permissao_codigo: String,
+    pub mensagem: String,
+    pub motivo_negacao: Option<String>,
+    pub warnings: Vec<String>,
+}

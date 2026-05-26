@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+﻿use std::sync::Mutex;
 use tauri::{command, State};
 use uuid::Uuid;
 use chrono::Utc;
@@ -27,7 +27,7 @@ pub fn login_local(
 
     let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
 
-    // 1. Busca usuário
+    // 1. Busca usuÃ¡rio
     let user_row: Option<(String, String, String, String, bool, bool)> = conn.query_row(
         "SELECT id, nome, login, senha_hash, ativo, exige_troca_senha FROM usuarios_local WHERE login = ?1",
         rusqlite::params![req.login],
@@ -46,7 +46,7 @@ pub fn login_local(
         None => {
             // Falha login (nao encontrado) - Registrar auditoria
             let _ = conn.execute(
-                "INSERT INTO auditoria_operacional_local (id, login, tipo_evento, sucesso, mensagem, criado_em) VALUES (?1, ?2, 'LOGIN_FALHA', 0, 'Usuário não encontrado', ?3)",
+                "INSERT INTO auditoria_operacional_local (id, login, tipo_evento, sucesso, mensagem, criado_em) VALUES (?1, ?2, 'LOGIN_FALHA', 0, 'UsuÃ¡rio nÃ£o encontrado', ?3)",
                 rusqlite::params![Uuid::new_v4().to_string(), req.login, Utc::now().to_rfc3339()]
             );
             return Ok(LoginLocalResp {
@@ -58,7 +58,7 @@ pub fn login_local(
                 perfis: vec![],
                 permissoes: vec![],
                 exige_troca_senha: false,
-                mensagem: "Usuário ou senha incorretos".to_string(),
+                mensagem: "UsuÃ¡rio ou senha incorretos".to_string(),
                 warnings: vec![],
             });
         }
@@ -66,7 +66,7 @@ pub fn login_local(
 
     if !ativo {
         let _ = conn.execute(
-            "INSERT INTO auditoria_operacional_local (id, usuario_id, login, tipo_evento, sucesso, mensagem, criado_em) VALUES (?1, ?2, ?3, 'LOGIN_FALHA', 0, 'Usuário inativo', ?4)",
+            "INSERT INTO auditoria_operacional_local (id, usuario_id, login, tipo_evento, sucesso, mensagem, criado_em) VALUES (?1, ?2, ?3, 'LOGIN_FALHA', 0, 'UsuÃ¡rio inativo', ?4)",
             rusqlite::params![Uuid::new_v4().to_string(), user_id, login, Utc::now().to_rfc3339()]
         );
         return Ok(LoginLocalResp {
@@ -78,7 +78,7 @@ pub fn login_local(
             perfis: vec![],
             permissoes: vec![],
             exige_troca_senha: false,
-            mensagem: "Usuário inativo".to_string(),
+            mensagem: "UsuÃ¡rio inativo".to_string(),
             warnings: vec![],
         });
     }
@@ -87,7 +87,7 @@ pub fn login_local(
     let parsed_hash = match PasswordHash::new(&hash_banco) {
         Ok(h) => h,
         Err(_) => {
-            error!("Hash armazenado inválido para o usuário {}", login);
+            error!("Hash armazenado invÃ¡lido para o usuÃ¡rio {}", login);
             return Err("Erro interno ao validar senha".to_string());
         }
     };
@@ -107,12 +107,12 @@ pub fn login_local(
             perfis: vec![],
             permissoes: vec![],
             exige_troca_senha: false,
-            mensagem: "Usuário ou senha incorretos".to_string(),
+            mensagem: "UsuÃ¡rio ou senha incorretos".to_string(),
             warnings: vec![],
         });
     }
 
-    // 3. Sucesso! Carregar Perfis e Permissões
+    // 3. Sucesso! Carregar Perfis e PermissÃµes
     let mut perfis = Vec::new();
     let mut stmt = conn.prepare("SELECT p.codigo FROM perfis_local p JOIN usuario_perfis_local up ON p.id = up.perfil_id WHERE up.usuario_id = ?1").unwrap();
     let rows = stmt.query_map(rusqlite::params![user_id], |row| row.get::<_, String>(0)).unwrap();
@@ -136,10 +136,10 @@ pub fn login_local(
     let now = Utc::now().to_rfc3339();
 
     // 4. Encerrar sessoes anteriores do mesmo terminal
-    // OBS: Como não temos terminal estrito neste bloco, vamos encerrar todas as ativas do user.
+    // OBS: Como nÃ£o temos terminal estrito neste bloco, vamos encerrar todas as ativas do user.
     let _ = conn.execute("UPDATE sessoes_usuario_local SET ativa = 0, encerrada_em = ?1 WHERE usuario_id = ?2 AND ativa = 1", rusqlite::params![now, user_id]);
 
-    // 5. Criar Sessão
+    // 5. Criar SessÃ£o
     let sessao_id = Uuid::new_v4().to_string();
     let _ = conn.execute("
         INSERT INTO sessoes_usuario_local (id, usuario_id, login, nome_usuario, aberta_em, ativa) 
@@ -172,7 +172,7 @@ pub fn logout_local(estado: State<'_, EstadoApp>) -> Result<bool, String> {
     info!(componente = "commands_seguranca", "Logout local");
     let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
     
-    // Pega a sessão ativa
+    // Pega a sessÃ£o ativa
     let sessao_row: Option<(String, String, String)> = conn.query_row(
         "SELECT id, usuario_id, login FROM sessoes_usuario_local WHERE ativa = 1 ORDER BY aberta_em DESC LIMIT 1",
         [],
@@ -183,7 +183,7 @@ pub fn logout_local(estado: State<'_, EstadoApp>) -> Result<bool, String> {
         let now = Utc::now().to_rfc3339();
         let _ = conn.execute("UPDATE sessoes_usuario_local SET ativa = 0, encerrada_em = ?1 WHERE id = ?2", rusqlite::params![now, sessao_id]);
         let _ = conn.execute(
-            "INSERT INTO auditoria_operacional_local (id, usuario_id, login, tipo_evento, sucesso, mensagem, criado_em) VALUES (?1, ?2, ?3, 'LOGOUT', 1, 'Sessão encerrada manualmente', ?4)",
+            "INSERT INTO auditoria_operacional_local (id, usuario_id, login, tipo_evento, sucesso, mensagem, criado_em) VALUES (?1, ?2, ?3, 'LOGOUT', 1, 'SessÃ£o encerrada manualmente', ?4)",
             rusqlite::params![Uuid::new_v4().to_string(), user_id, login, now]
         );
         Ok(true)
@@ -214,7 +214,7 @@ pub fn obter_sessao_usuario_atual(estado: State<'_, EstadoApp>) -> Result<Sessao
                 perfis: vec![],
                 permissoes: vec![],
                 aberta_em: None,
-                mensagem: "Nenhuma sessão ativa".to_string(),
+                mensagem: "Nenhuma sessÃ£o ativa".to_string(),
             });
         }
     };
@@ -237,7 +237,7 @@ pub fn obter_sessao_usuario_atual(estado: State<'_, EstadoApp>) -> Result<Sessao
 
     // Auditoria opcional
     let _ = conn.execute(
-        "INSERT INTO auditoria_operacional_local (id, usuario_id, login, tipo_evento, sucesso, mensagem, criado_em) VALUES (?1, ?2, ?3, 'SESSAO_CONSULTADA', 1, 'Sessão atual consultada', ?4)",
+        "INSERT INTO auditoria_operacional_local (id, usuario_id, login, tipo_evento, sucesso, mensagem, criado_em) VALUES (?1, ?2, ?3, 'SESSAO_CONSULTADA', 1, 'SessÃ£o atual consultada', ?4)",
         rusqlite::params![Uuid::new_v4().to_string(), user_id, login, Utc::now().to_rfc3339()]
     );
 
@@ -250,7 +250,7 @@ pub fn obter_sessao_usuario_atual(estado: State<'_, EstadoApp>) -> Result<Sessao
         perfis,
         permissoes,
         aberta_em: Some(aberta_em),
-        mensagem: "Sessão recuperada".to_string(),
+        mensagem: "SessÃ£o recuperada".to_string(),
     })
 }
 
@@ -274,7 +274,7 @@ pub fn listar_usuarios_local(estado: State<'_, EstadoApp>) -> Result<Vec<Usuario
     }).map_err(|e| e.to_string())?;
 
     for mut r in rows.flatten() {
-        // Buscar os perfis daquele usuário
+        // Buscar os perfis daquele usuÃ¡rio
         let mut p_stmt = conn.prepare("SELECT p.codigo FROM perfis_local p JOIN usuario_perfis_local up ON p.id = up.perfil_id WHERE up.usuario_id = ?1").unwrap();
         let p_rows = p_stmt.query_map(rusqlite::params![r.id], |row| row.get::<_, String>(0)).unwrap();
         for p in p_rows.flatten() {
@@ -353,7 +353,7 @@ pub fn usuario_tem_permissao(
                 permitido: false,
                 usuario_id: None,
                 permissao_codigo: req.permissao_codigo,
-                mensagem: "Nenhum usuário logado".to_string()
+                mensagem: "Nenhum usuÃ¡rio logado".to_string()
             })
         }
     };
@@ -370,12 +370,104 @@ pub fn usuario_tem_permissao(
     let permitido = p_row.is_some();
 
     // Opcional: registrar em auditoria_operacional se a consulta for muito importante
-    // Não faria isso para todo check para não floodar.
+    // NÃ£o faria isso para todo check para nÃ£o floodar.
 
     Ok(UsuarioTemPermissaoResp {
         permitido,
         usuario_id: Some(uid),
         permissao_codigo: req.permissao_codigo,
-        mensagem: if permitido { "Permissão concedida".into() } else { "Acesso negado".into() }
+        mensagem: if permitido { "PermissÃ£o concedida".into() } else { "Acesso negado".into() }
     })
+}
+
+pub fn avaliar_permissao_usuario(
+    conn: &rusqlite::Connection,
+    permissao_codigo: &str,
+    contexto: Option<&str>,
+    origem: Option<&str>,
+) -> Result<VerificarPermissaoOperacaoResp, String> {
+    let s_row: Option<(String, String, String)> = conn.query_row(
+        "SELECT id, usuario_id, login FROM sessoes_usuario_local WHERE ativa = 1 LIMIT 1",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+    ).optional().map_err(|e| e.to_string())?;
+
+    let (sessao_id, usuario_id, login) = match s_row {
+        Some(s) => s,
+        None => {
+            let msg = "Operação exige usuário logado.".to_string();
+            let _ = conn.execute(
+                "INSERT INTO auditoria_operacional_local (id, usuario_id, login, tipo_evento, sucesso, mensagem, criado_em, entidade_id, modulo) VALUES (?1, NULL, NULL, 'SESSAO_AUSENTE_OPERACAO_NEGADA', 0, ?2, ?3, ?4, ?5)",
+                rusqlite::params![Uuid::new_v4().to_string(), msg, Utc::now().to_rfc3339(), contexto, origem]
+            );
+            return Ok(VerificarPermissaoOperacaoResp {
+                permitido: false,
+                usuario_id: None,
+                login: None,
+                permissao_codigo: permissao_codigo.to_string(),
+                mensagem: msg,
+                motivo_negacao: Some("SESSAO_AUSENTE".to_string()),
+                warnings: vec![],
+            });
+        }
+    };
+
+    let p_row: Option<i32> = conn.query_row("
+        SELECT 1
+        FROM permissoes_local pm 
+        JOIN perfil_permissoes_local pp ON pm.id = pp.permissao_id 
+        JOIN usuario_perfis_local up ON pp.perfil_id = up.perfil_id 
+        WHERE up.usuario_id = ?1 AND pm.codigo = ?2 AND pp.permitido = 1
+        LIMIT 1
+    ", rusqlite::params![usuario_id, permissao_codigo], |r| r.get(0)).optional().map_err(|e| e.to_string())?;
+
+    let permitido = p_row.is_some();
+    
+    let (evento, sucesso, msg, motivo) = if permitido {
+        ("PERMISSAO_OPERACAO_PERMITIDA", 1, format!("Permissão {} concedida", permissao_codigo), None)
+    } else {
+        ("PERMISSAO_OPERACAO_NEGADA", 0, format!("Operação negada por falta de permissão: {}", permissao_codigo), Some("PERMISSAO_NEGADA".to_string()))
+    };
+
+    let _ = conn.execute(
+        "INSERT INTO auditoria_operacional_local (id, usuario_id, login, tipo_evento, sucesso, mensagem, criado_em, entidade_id, modulo) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![Uuid::new_v4().to_string(), usuario_id, login, evento, sucesso, msg, Utc::now().to_rfc3339(), contexto, origem]
+    );
+
+    Ok(VerificarPermissaoOperacaoResp {
+        permitido,
+        usuario_id: Some(usuario_id),
+        login: Some(login),
+        permissao_codigo: permissao_codigo.to_string(),
+        mensagem: msg,
+        motivo_negacao: motivo,
+        warnings: vec![],
+    })
+}
+
+pub fn garantir_permissao_usuario(
+    conn: &rusqlite::Connection,
+    permissao_codigo: &str,
+    contexto: Option<&str>,
+    origem: Option<&str>,
+) -> Result<(), String> {
+    let resp = avaliar_permissao_usuario(conn, permissao_codigo, contexto, origem)?;
+    if resp.permitido {
+        Ok(())
+    } else {
+        let _ = conn.execute(
+            "INSERT INTO auditoria_operacional_local (id, usuario_id, login, tipo_evento, sucesso, mensagem, criado_em, entidade_id, modulo) VALUES (?1, ?2, ?3, 'OPERACAO_BLOQUEADA_PERMISSAO', 0, ?4, ?5, ?6, ?7)",
+            rusqlite::params![Uuid::new_v4().to_string(), resp.usuario_id, resp.login, resp.mensagem.clone(), Utc::now().to_rfc3339(), contexto, origem]
+        );
+        Err(resp.mensagem)
+    }
+}
+
+#[command]
+pub fn verificar_permissao_operacao(
+    req: aureon_core::dtos::VerificarPermissaoOperacaoReq,
+    estado: State<'_, EstadoApp>
+) -> Result<VerificarPermissaoOperacaoResp, String> {
+    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+    avaliar_permissao_usuario(&conn, &req.permissao_codigo, req.contexto_id.as_deref(), req.origem.as_deref())
 }

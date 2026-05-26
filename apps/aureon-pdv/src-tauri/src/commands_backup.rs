@@ -263,6 +263,12 @@ pub async fn restaurar_backup_local(
 ) -> Result<RespostaBase<RestaurarBackupResp>, String> {
     info!("Chamada: restaurar_backup_local");
 
+    // GUARDA DE PERMISSÃO OPERACIONAL
+    {
+        let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+        crate::commands_seguranca::garantir_permissao_usuario(&conn, "BACKUP_RESTAURAR", None, None)?;
+    }
+
     if req.confirmacao_texto != "RESTAURAR" {
         return Err("Confirmacao invalida. Digite RESTAURAR para prosseguir.".into());
     }

@@ -237,6 +237,7 @@ pub fn run() {
             commands_seguranca::listar_perfis_local,
             commands_seguranca::listar_permissoes_local,
             commands_seguranca::usuario_tem_permissao,
+            commands_seguranca::verificar_permissao_operacao,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

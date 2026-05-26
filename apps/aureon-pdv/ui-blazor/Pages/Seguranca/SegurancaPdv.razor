@@ -46,6 +46,20 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card shadow-sm mt-3">
+                <div class="card-header">Testar Permissão (Verificar Guarda)</div>
+                <div class="card-body">
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" placeholder="Ex: CAIXA_ABRIR" @bind="PermissaoTeste">
+                        <button class="btn btn-primary" @onclick="TestarGuardaPermissao">Testar</button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(TesteResultado))
+                    {
+                        <div class="alert @TesteClasse">@TesteResultado</div>
+                    }
+                </div>
+            </div>
         }
         else
         {
@@ -151,25 +165,67 @@
     private List<PerfilLocalResp> Perfis = new();
     private List<PermissaoLocalResp> Permissoes = new();
 
+    private string PermissaoTeste = "";
+    private string TesteResultado = "";
+    private string TesteClasse = "";
+
     protected override async Task OnInitializedAsync()
     {
         await CarregarSessao();
-        await CarregarDadosExtras();
+        await CarregarUsuarios();
+        await CarregarPerfis();
+        await CarregarPermissoes();
     }
 
     private async Task CarregarSessao()
     {
-        Sessao = await Tauri.InvocarAsync<SessaoUsuarioResp>("obter_sessao_usuario_atual");
+        try
+        {
+            var res = await Tauri.InvocarAsync<SessaoUsuarioResp>("obter_sessao_usuario_atual", null);
+            if (res != null) Sessao = res;
+        }
+        catch { /* ignora erro */ }
     }
 
-    private async Task CarregarDadosExtras()
+    private async Task TestarGuardaPermissao()
+    {
+        if (string.IsNullOrWhiteSpace(PermissaoTeste)) return;
+        try
+        {
+            var req = new VerificarPermissaoOperacaoReq { PermissaoCodigo = PermissaoTeste };
+            var res = await Tauri.InvocarAsync<VerificarPermissaoOperacaoResp>("verificar_permissao_operacao", new { req });
+            if (res != null && res.Permitido)
+            {
+                TesteResultado = $"Permitido! {res.Mensagem}";
+                TesteClasse = "alert-success";
+            }
+            else
+            {
+                TesteResultado = $"Negado. {res?.Mensagem}";
+                TesteClasse = "alert-danger";
+            }
+        }
+        catch (Exception ex)
+        {
+            TesteResultado = $"Erro/Negado: {ex.Message}";
+            TesteClasse = "alert-danger";
+        }
+    }
+
+    private async Task CarregarUsuarios()
     {
         var usrs = await Tauri.InvocarAsync<List<UsuarioLocalResp>>("listar_usuarios_local");
         if (usrs != null) Usuarios = usrs;
+    }
 
+    private async Task CarregarPerfis()
+    {
         var prfs = await Tauri.InvocarAsync<List<PerfilLocalResp>>("listar_perfis_local");
         if (prfs != null) Perfis = prfs;
+    }
 
+    private async Task CarregarPermissoes()
+    {
         var pms = await Tauri.InvocarAsync<List<PermissaoLocalResp>>("listar_permissoes_local");
         if (pms != null) Permissoes = pms;
     }
