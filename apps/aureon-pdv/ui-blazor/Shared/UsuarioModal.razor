@@ -91,7 +91,7 @@
             if (IsEdicao)
             {
                 var req = new EditarUsuarioLocalReq(UsuarioEdicao!.Id, Nome, Ativo, perfisList);
-                resp = await Tauri.InvokeAsync<UsuarioOperacaoResp>("editar_usuario_local", req);
+                resp = await Tauri.InvocarAsync<UsuarioOperacaoResp>("editar_usuario_local", req);
             }
             else
             {
@@ -102,7 +102,7 @@
                 }
 
                 var req = new CriarUsuarioLocalReq(Nome, Login, Senha, perfisList, Ativo, ExigeTrocaSenha);
-                resp = await Tauri.InvokeAsync<UsuarioOperacaoResp>("criar_usuario_local", req);
+                resp = await Tauri.InvocarAsync<UsuarioOperacaoResp>("criar_usuario_local", req);
             }
 
             // LIMPAR MEMÓRIA LOGO APÓS O USO

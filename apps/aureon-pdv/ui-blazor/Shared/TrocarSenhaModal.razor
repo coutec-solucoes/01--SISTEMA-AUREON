@@ -46,7 +46,7 @@
             }
 
             var req = new TrocarSenhaPropriaReq(SenhaAtual, NovaSenha);
-            var resp = await Tauri.InvokeAsync<UsuarioOperacaoResp>("trocar_senha_propria", new { usuarioId = UsuarioId, req });
+            var resp = await Tauri.InvocarAsync<UsuarioOperacaoResp>("trocar_senha_propria", new { usuarioId = UsuarioId, req });
 
             // LIMPAR DADOS SENSÍVEIS LOGO APÓS ENVIO
             SenhaAtual = "";

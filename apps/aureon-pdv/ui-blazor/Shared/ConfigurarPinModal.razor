@@ -5,24 +5,24 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Redefinir Senha do Usuário</h5>
+                <h5 class="modal-title">Configurar PIN (Supervisor)</h5>
                 <button type="button" class="btn-close" @onclick="OnClose"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">Nova Senha</label>
-                    <input type="password" class="form-control" @bind="NovaSenha" />
-                    <div class="form-text">Mínimo 8 caracteres.</div>
+                    <label class="form-label">Senha Atual (Para confirmação)</label>
+                    <input type="password" class="form-control" @bind="SenhaConfirmacao" />
+                    <div class="form-text">Necessário confirmar a senha atual para cadastrar o PIN.</div>
                 </div>
-                
-                <div class="mb-3 form-check">
-                    <input type="checkbox" class="form-check-input" id="exigeTrocaSenha" @bind="ExigeTrocaSenha" />
-                    <label class="form-check-label" for="exigeTrocaSenha">Exigir que o usuário troque a senha no próximo login</label>
+                <div class="mb-3">
+                    <label class="form-label">Novo PIN (Numérico)</label>
+                    <input type="password" class="form-control" @bind="PinNovo" inputmode="numeric" pattern="[0-9]*" maxlength="6" />
+                    <div class="form-text">Mínimo 4 dígitos numéricos.</div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" @onclick="OnClose">Cancelar</button>
-                <button type="button" class="btn btn-warning" @onclick="Salvar">Redefinir</button>
+                <button type="button" class="btn btn-primary" @onclick="Salvar">Configurar PIN</button>
             </div>
         </div>
     </div>
@@ -33,24 +33,25 @@
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public string UsuarioId { get; set; } = "";
 
-    private string NovaSenha { get; set; } = "";
-    private bool ExigeTrocaSenha { get; set; } = true;
+    private string SenhaConfirmacao { get; set; } = "";
+    private string PinNovo { get; set; } = "";
 
     private async Task Salvar()
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(NovaSenha) || NovaSenha.Length < 8)
+            if (string.IsNullOrWhiteSpace(PinNovo) || PinNovo.Length < 4)
             {
-                Toast.ShowError("A nova senha deve ter no mínimo 8 caracteres.");
+                Toast.ShowError("O PIN deve ter no mínimo 4 dígitos.");
                 return;
             }
 
-            var req = new RedefinirSenhaUsuarioReq(UsuarioId, NovaSenha, ExigeTrocaSenha);
-            var resp = await Tauri.InvocarAsync<UsuarioOperacaoResp>("redefinir_senha_usuario", new { req });
+            var req = new ConfigurarPinUsuarioReq(UsuarioId, PinNovo, string.IsNullOrWhiteSpace(SenhaConfirmacao) ? null : SenhaConfirmacao);
+            var resp = await Tauri.InvocarAsync<UsuarioOperacaoResp>("configurar_pin_usuario", new { req });
 
             // LIMPAR DADOS SENSÍVEIS LOGO APÓS ENVIO
-            NovaSenha = "";
+            SenhaConfirmacao = "";
+            PinNovo = "";
 
             if (resp != null && resp.Sucesso)
             {
@@ -59,7 +60,7 @@
             }
             else
             {
-                Toast.ShowError(resp?.Mensagem ?? "Falha ao redefinir senha.");
+                Toast.ShowError(resp?.Mensagem ?? "Falha ao configurar PIN.");
             }
         }
         catch (Exception ex)

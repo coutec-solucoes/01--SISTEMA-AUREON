@@ -10,6 +10,7 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // Registra o serviço de interoperabilidade com o Tauri
 builder.Services.AddScoped<TauriService>();
+builder.Services.AddScoped<NotificationService>();
 
 // HTTP client base (para chamadas futuras à API Local)
 builder.Services.AddScoped(sp =>

@@ -327,7 +327,7 @@
     {
         try
         {
-            var res = await Tauri.InvokeAsync<UsuarioOperacaoResp>("inativar_usuario_local", new { usuarioId = id });
+            var res = await Tauri.InvocarAsync<UsuarioOperacaoResp>("inativar_usuario_local", new { usuarioId = id });
             if (res != null && res.Sucesso)
             {
                 Toast.ShowSuccess(res.Mensagem);
@@ -342,7 +342,7 @@
     {
         try
         {
-            var res = await Tauri.InvokeAsync<UsuarioOperacaoResp>("ativar_usuario_local", new { usuarioId = id });
+            var res = await Tauri.InvocarAsync<UsuarioOperacaoResp>("ativar_usuario_local", new { usuarioId = id });
             if (res != null && res.Sucesso)
             {
                 Toast.ShowSuccess(res.Mensagem);
