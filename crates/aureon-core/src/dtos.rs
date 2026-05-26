@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+﻿use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Retorno do command obter_status_local
@@ -18,14 +18,14 @@ pub struct GravarLogDto {
     pub mensagem:   String,
 }
 
-/// Retorno de teste de conexão SQLite
+/// Retorno de teste de conexÃ£o SQLite
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TesteConexaoDto {
     pub sqlite_ok: bool,
     pub mensagem:  String,
 }
 
-/// Retorno de configuração local (sem expor valor puro)
+/// Retorno de configuraÃ§Ã£o local (sem expor valor puro)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConfiguracaoLocalDto {
     pub chave:               String,
@@ -33,7 +33,7 @@ pub struct ConfiguracaoLocalDto {
     pub atualizado_em:       DateTime<Utc>,
 }
 
-/// Entrada para salvar configuração local
+/// Entrada para salvar configuraÃ§Ã£o local
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SalvarConfiguracaoDto {
     pub chave:       String,
@@ -570,7 +570,7 @@ pub struct ComandaDetalheResp {
     pub itens: Vec<GourmetItemResp>,
 }
 
-// --- DTOs Bloco 3 Fase 9: Transferências, Produção e Fechamento em Venda ---
+// --- DTOs Bloco 3 Fase 9: TransferÃªncias, ProduÃ§Ã£o e Fechamento em Venda ---
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TransferirTotalReq {
@@ -1027,7 +1027,7 @@ pub struct CancelarContaReceberReq {
     pub usuario_id: String,
 }
 
-// --- DTOs da Fase 14: Relatórios Operacionais e Dashboard ---
+// --- DTOs da Fase 14: RelatÃ³rios Operacionais e Dashboard ---
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FiltrosRelatorio {
@@ -1205,7 +1205,7 @@ pub struct RelatorioGourmetDeliveryResp {
 
 
 // ==========================================
-// DTOs de Impressão Operacional (Fase 15)
+// DTOs de ImpressÃ£o Operacional (Fase 15)
 // ==========================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1288,7 +1288,7 @@ pub struct ImprimirSessaoCaixaReq {
     pub numero_via: Option<i32>,
 }
 
-// --- DTOs Fase 15 Bloco 4: Produção, Delivery e Gaveta ---
+// --- DTOs Fase 15 Bloco 4: ProduÃ§Ã£o, Delivery e Gaveta ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImprimirProducaoReq {
@@ -1451,11 +1451,11 @@ pub struct FiscalEventoLogResp {
 }
 
 // =========================================
-// FASE 16 BLOCO 3 — DTOs ESPELHO FISCAL
-// Preview técnico sem emissão ou transmissão
+// FASE 16 BLOCO 3 â€” DTOs ESPELHO FISCAL
+// Preview tÃ©cnico sem emissÃ£o ou transmissÃ£o
 // =========================================
 
-/// Item individual de validação cadastral fiscal
+/// Item individual de validaÃ§Ã£o cadastral fiscal
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ValidacaoFiscalItemResp {
     /// "empresa" | "produto:{id}" | "cliente:{id}"
@@ -1465,7 +1465,7 @@ pub struct ValidacaoFiscalItemResp {
     pub mensagem: String,
 }
 
-/// Resultado completo da validação cadastral fiscal
+/// Resultado completo da validaÃ§Ã£o cadastral fiscal
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ValidacaoFiscalResp {
     pub valido: bool,
@@ -1476,7 +1476,7 @@ pub struct ValidacaoFiscalResp {
     pub itens: Vec<ValidacaoFiscalItemResp>,
 }
 
-/// Espelho fiscal de um item da venda (preview técnico)
+/// Espelho fiscal de um item da venda (preview tÃ©cnico)
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EspelhoFiscalItemResp {
     pub venda_item_id: String,
@@ -1486,16 +1486,16 @@ pub struct EspelhoFiscalItemResp {
     pub cfop_id: Option<String>,
     pub cst_csosn_id: Option<String>,
     pub iva_id: Option<String>,
-    /// Base de cálculo em minor unit (centavos/guaranis)
+    /// Base de cÃ¡lculo em minor unit (centavos/guaranis)
     pub base_minor: i64,
-    /// Alíquota em escala 6 (ex: 10% = 100000)
+    /// AlÃ­quota em escala 6 (ex: 10% = 100000)
     pub aliquota_escala6: i64,
     /// Imposto calculado = base * aliquota / 1_000_000
     pub imposto_minor: i64,
     pub origem_regra: String, // "REGRA_TRIBUTARIA" | "VINCULO_PRODUTO" | "SEM_DADOS"
 }
 
-/// Espelho fiscal da venda completa (preview técnico)
+/// Espelho fiscal da venda completa (preview tÃ©cnico)
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EspelhoFiscalVendaResp {
     pub venda_id: String,
@@ -1510,25 +1510,25 @@ pub struct EspelhoFiscalVendaResp {
     pub alertas: Vec<String>,
 }
 
-/// Requisição para calcular o espelho fiscal de uma venda
+/// RequisiÃ§Ã£o para calcular o espelho fiscal de uma venda
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CalcularEspelhoFiscalVendaReq {
     pub venda_id: String,
-    /// Tipo de operação para busca de regras: ex. "VENDA_BALCAO", "VENDA_ENTREGA"
+    /// Tipo de operaÃ§Ã£o para busca de regras: ex. "VENDA_BALCAO", "VENDA_ENTREGA"
     pub tipo_operacao: Option<String>,
 }
 
-/// Requisição para obter o espelho fiscal já calculado
+/// RequisiÃ§Ã£o para obter o espelho fiscal jÃ¡ calculado
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ObterEspelhoFiscalVendaReq {
     pub venda_id: String,
 }
 
 // =========================================
-// FASE 17 BLOCO 2 — DTOs MESTRE FISCAL (RETAGUARDA)
+// FASE 17 BLOCO 2 â€” DTOs MESTRE FISCAL (RETAGUARDA)
 // =========================================
 
-// --- Configurações ---
+// --- ConfiguraÃ§Ãµes ---
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FiscalEmpresaConfigMestreReq {
     pub empresa_id: Option<String>,
@@ -1551,7 +1551,7 @@ pub struct FiscalEmpresaConfigMestreResp {
     pub ativo: bool,
 }
 
-// --- Dicionários ---
+// --- DicionÃ¡rios ---
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DicionarioNcmReq {
     pub codigo: String,
@@ -1616,7 +1616,7 @@ pub struct DicionarioIvaResp {
     pub ativo: bool,
 }
 
-// --- Regras Tributárias ---
+// --- Regras TributÃ¡rias ---
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RegraTributariaMestreReq {
     pub empresa_id: Option<String>,
@@ -2358,5 +2358,30 @@ pub struct VerificarPermissaoOperacaoResp {
     pub permissao_codigo: String,
     pub mensagem: String,
     pub motivo_negacao: Option<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutorizarOperacaoSupervisorReq {
+    pub permissao_codigo: String,
+    pub supervisor_login: String,
+    pub supervisor_senha: Option<String>,
+    pub contexto_id: Option<String>,
+    pub entidade_tipo: Option<String>,
+    pub entidade_id: Option<String>,
+    pub motivo_obrigatorio: Option<bool>,
+    pub motivo: Option<String>,
+    pub origem: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutorizarOperacaoSupervisorResp {
+    pub autorizado: bool,
+    pub supervisor_usuario_id: Option<String>,
+    pub supervisor_login: Option<String>,
+    pub permissao_codigo: String,
+    pub contexto_id: Option<String>,
+    pub mensagem: String,
+    pub autorizacao_id: Option<String>,
     pub warnings: Vec<String>,
 }

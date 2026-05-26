@@ -147,7 +147,7 @@ namespace AureonPdvUi.Services
         bool Quitado
     );
 
-    // === DTOs da Fase 8 (Operacional, Supervisor, Reimpressão, Pré-Venda, Orçamento, Cliente) ===
+    // === DTOs da Fase 8 (Operacional, Supervisor, ReimpressÃ£o, PrÃ©-Venda, OrÃ§amento, Cliente) ===
 
     public record ResumoCaixaResp(
         string MoedaCodigo,
@@ -440,7 +440,7 @@ namespace AureonPdvUi.Services
     );
 
     // ========================================================================
-    // BLOCO 3: TRANSFERÊNCIAS, PRODUÇÃO E FECHAMENTO
+    // BLOCO 3: TRANSFERÃŠNCIAS, PRODUÃ‡ÃƒO E FECHAMENTO
     // ========================================================================
 
     public record TransferirTotalReq(
@@ -490,7 +490,7 @@ namespace AureonPdvUi.Services
     );
 
     // ========================================================================
-    // DELIVERY OPERACIONAL — DTOs
+    // DELIVERY OPERACIONAL â€” DTOs
     // ========================================================================
 
     public record DeliveryItemResp(
@@ -835,7 +835,7 @@ namespace AureonPdvUi.Services
         string usuario_id
     );
 
-    // === DTOs da Fase 14 (Relatórios e Dashboard) ===
+    // === DTOs da Fase 14 (RelatÃ³rios e Dashboard) ===
 
     public record TotalPorMoeda(
         string MoedaCodigo,
@@ -990,7 +990,7 @@ namespace AureonPdvUi.Services
     );
 
     // ==========================================
-    // DTOs de Impressão Operacional (Fase 15)
+    // DTOs de ImpressÃ£o Operacional (Fase 15)
     // ==========================================
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -1143,7 +1143,7 @@ namespace AureonPdvUi.Services
         public int? NumeroVia { get; init; }
     }
 
-    // --- DTOs Fase 15 Bloco 4: Produção, Delivery e Gaveta ---
+    // --- DTOs Fase 15 Bloco 4: ProduÃ§Ã£o, Delivery e Gaveta ---
 
     public record ImprimirProducaoReq
     {
@@ -1322,8 +1322,8 @@ namespace AureonPdvUi.Services
     }
 
     // =========================================
-    // FASE 16 BLOCO 3 — DTOs ESPELHO FISCAL
-    // Preview técnico sem emissão ou transmissão
+    // FASE 16 BLOCO 3 â€” DTOs ESPELHO FISCAL
+    // Preview tÃ©cnico sem emissÃ£o ou transmissÃ£o
     // =========================================
 
     public class ValidacaoFiscalItemResp {
@@ -1365,10 +1365,10 @@ namespace AureonPdvUi.Services
         public string? CstCsosnId { get; set; }
         [JsonPropertyName("iva_id")]
         public string? IvaId { get; set; }
-        /// <summary>Base de cálculo em minor unit (centavos/guaranis)</summary>
+        /// <summary>Base de cÃ¡lculo em minor unit (centavos/guaranis)</summary>
         [JsonPropertyName("base_minor")]
         public long BaseMinor { get; set; }
-        /// <summary>Alíquota escala 6 (10% = 100000)</summary>
+        /// <summary>AlÃ­quota escala 6 (10% = 100000)</summary>
         [JsonPropertyName("aliquota_escala6")]
         public long AliquotaEscala6 { get; set; }
         /// <summary>Imposto = base * aliquota / 1_000_000 (sem float)</summary>
@@ -1518,7 +1518,7 @@ namespace AureonPdvUi.Services
         public string Modo { get; set; } = string.Empty;
     }
 
-    // === DTOs — Fase 20 Bloco 5: Assinatura Offline ===
+    // === DTOs â€” Fase 20 Bloco 5: Assinatura Offline ===
 
     public class VerificarLicencaAssinadaReq
     {
@@ -1569,7 +1569,7 @@ namespace AureonPdvUi.Services
         public List<string> Warnings { get; set; } = new();
     }
 
-    // === DTOs — Fase 20 Bloco 6: Sincronização Online ===
+    // === DTOs â€” Fase 20 Bloco 6: SincronizaÃ§Ã£o Online ===
 
     public class SincronizarLicencaReq
     {
@@ -1661,7 +1661,7 @@ namespace AureonPdvUi.Services
         public List<string> Warnings { get; set; } = new();
     }
 
-    // === DTOs — Fase 20 Bloco 7: Politica Operacional ===
+    // === DTOs â€” Fase 20 Bloco 7: Politica Operacional ===
 
     public class LicencaPoliticaResp
     {
@@ -1708,7 +1708,7 @@ namespace AureonPdvUi.Services
         public List<string> Warnings { get; set; } = new();
     }
 
-    // === DTOs — Fase 20 Bloco 8: Guarda Operacional ===
+    // === DTOs â€” Fase 20 Bloco 8: Guarda Operacional ===
 
     public class VerificarOperacaoLicencaReq
     {
@@ -1752,7 +1752,7 @@ namespace AureonPdvUi.Services
         public List<string> Warnings { get; set; } = new();
     }
 
-    // === DTOs — Fase 20 Bloco 9: Backup Local ===
+    // === DTOs â€” Fase 20 Bloco 9: Backup Local ===
 
     public class CriarBackupReq
     {
@@ -1923,7 +1923,7 @@ namespace AureonPdvUi.Services
     }
 
     // ==========================================
-    // DTOs de Diagnóstico de Sistema (Fase 20, Bloco 10)
+    // DTOs de DiagnÃ³stico de Sistema (Fase 20, Bloco 10)
     // ==========================================
     public class DiagnosticoSistemaResp
     {
@@ -1946,7 +1946,7 @@ namespace AureonPdvUi.Services
     }
 
     // ==========================================
-    // DTOs de Segurança Operacional (Fase 21, Bloco 1)
+    // DTOs de SeguranÃ§a Operacional (Fase 21, Bloco 1)
     // ==========================================
 
     public class LoginLocalReq
@@ -2152,7 +2152,27 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("warnings")]
         public List<string> Warnings { get; set; } = new();
     }
+
+    public record AutorizarOperacaoSupervisorReq(
+        string permissao_codigo,
+        string supervisor_login,
+        string? supervisor_senha,
+        string? contexto_id,
+        string? entidade_tipo,
+        string? entidade_id,
+        bool? motivo_obrigatorio,
+        string? motivo,
+        string? origem
+    );
+
+    public record AutorizarOperacaoSupervisorResp(
+        bool autorizado,
+        string? supervisor_usuario_id,
+        string? supervisor_login,
+        string permissao_codigo,
+        string? contexto_id,
+        string mensagem,
+        string? autorizacao_id,
+        List<string> warnings
+    );
 }
-
-
-

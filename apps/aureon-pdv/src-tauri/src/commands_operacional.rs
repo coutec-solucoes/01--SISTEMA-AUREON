@@ -88,11 +88,24 @@ fn registrar_movimentacao_interna(
 pub async fn registrar_suprimento(
     db: State<'_, Arc<Mutex<Connection>>>,
     dto: CaixaMovimentacaoReq,
+    req_sup: Option<aureon_core::dtos::AutorizarOperacaoSupervisorReq>,
 ) -> Result<RespostaBase<CaixaMovimentacaoResp>, String> {
     let mut conn = db.lock().unwrap();
     let mut req = dto;
     req.tipo_movimentacao = "SUPRIMENTO".to_string();
     
+    // GUARDA DE PERMISSÃO / SUPERVISOR
+    if let Err(e) = crate::commands_seguranca::garantir_permissao_ou_supervisor(
+        &conn, 
+        "SUPRIMENTO_REALIZAR", 
+        Some(&req.sessao_caixa_id), 
+        Some("commands_operacional::registrar_suprimento"), 
+        req.motivo.as_deref(), 
+        req_sup.as_ref()
+    ) {
+        return Ok(RespostaBase::falha_manual(&e, "ERR_OP", ""));
+    }
+
     match registrar_movimentacao_interna(&mut conn, req) {
         Ok(resp) => Ok(RespostaBase::ok("", resp)),
         Err(e) => Ok(RespostaBase::falha_manual(e, "ERR_OP", "")),
@@ -103,6 +116,7 @@ pub async fn registrar_suprimento(
 pub async fn registrar_sangria(
     db: State<'_, Arc<Mutex<Connection>>>,
     dto: CaixaMovimentacaoReq,
+    req_sup: Option<aureon_core::dtos::AutorizarOperacaoSupervisorReq>,
 ) -> Result<RespostaBase<CaixaMovimentacaoResp>, String> {
     let mut conn = db.lock().unwrap();
     let mut req = dto;
@@ -110,6 +124,19 @@ pub async fn registrar_sangria(
     if req.motivo.is_none() || req.motivo.as_ref().unwrap().trim().is_empty() {
         return Ok(RespostaBase::falha_manual("Motivo é obrigatório para sangria", "ERR_OP", ""));
     }
+
+    // GUARDA DE PERMISSÃO / SUPERVISOR
+    if let Err(e) = crate::commands_seguranca::garantir_permissao_ou_supervisor(
+        &conn, 
+        "SANGRIA_REALIZAR", 
+        Some(&req.sessao_caixa_id), 
+        Some("commands_operacional::registrar_sangria"), 
+        req.motivo.as_deref(), 
+        req_sup.as_ref()
+    ) {
+        return Ok(RespostaBase::falha_manual(&e, "ERR_OP", ""));
+    }
+
     match registrar_movimentacao_interna(&mut conn, req) {
         Ok(resp) => Ok(RespostaBase::ok("", resp)),
         Err(e) => Ok(RespostaBase::falha_manual(e, "ERR_OP", "")),
@@ -304,101 +331,6 @@ pub async fn obter_resumo_caixa(
     }
 
     Ok(RespostaBase::ok("", serde_json::Value::Array(lista_resumo)))
-}
-
-// --- Supervisor ---
-
-#[tauri::command]
-pub async fn solicitar_autorizacao_supervisor(
-    db: State<'_, Arc<Mutex<Connection>>>,
-    terminal_id: String,
-    dto: SolicitarAutorizacaoReq,
-) -> Result<RespostaBase<AutorizacaoResp>, String> {
-    // A validação real usaria um cache local e hash. Como não temos supervisores_cache populado ainda,
-    // vamos simular a validação falhando apenas se pin for vazio.
-    let mut conn = db.lock().unwrap();
-    
-    let (aprovado, supervisor_id) = {
-        let mut stmt = conn.prepare("SELECT id, pin_hash, ativo FROM supervisores_cache").map_err(|e| e.to_string())?;
-        
-        let rows = stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, bool>(2)?,
-            ))
-        }).map_err(|e| e.to_string())?;
-
-        let mut ap = false;
-        let mut sid = "SUP-000".to_string();
-
-        for res in rows {
-            if let Ok((id, ph, ativo)) = res {
-                if ativo && bcrypt::verify(&dto.pin_supervisor, &ph).unwrap_or(false) {
-                    ap = true;
-                    sid = id;
-                    break;
-                }
-            }
-        }
-        (ap, sid)
-    };
-
-    let aprovado = aprovado;
-    let supervisor_id = supervisor_id;
-
-    let auth_id = Uuid::new_v4().to_string();
-    let agora = chrono::Utc::now().to_rfc3339();
-
-    // Inicia transação para gravação
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-
-    tx.execute(
-        "INSERT INTO supervisor_autorizacoes_local (
-            id, operacao, usuario_solicitante_id, supervisor_id, motivo, aprovado,
-            criado_em, terminal_id, sessao_caixa_id, entidade_tipo, entidade_id
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-        params![
-            auth_id, dto.operacao, dto.usuario_solicitante_id, supervisor_id, dto.motivo, aprovado,
-            agora, terminal_id, dto.sessao_caixa_id, dto.entidade_tipo, dto.entidade_id
-        ],
-    ).map_err(|e| e.to_string())?;
-
-    let resp = AutorizacaoResp {
-        id: auth_id.clone(),
-        operacao: dto.operacao,
-        usuario_solicitante_id: dto.usuario_solicitante_id,
-        supervisor_id,
-        aprovado,
-        motivo: dto.motivo,
-        criado_em: agora.clone(),
-    };
-
-    let evento = if aprovado { "SUPERVISOR_AUTORIZACAO_APROVADA" } else { "SUPERVISOR_AUTORIZACAO_NEGADA" };
-    outbox_inserir(
-        &tx,
-        evento,
-        serde_json::to_value(&resp).unwrap(),
-    ).map_err(|e| e.to_string())?;
-
-    tx.commit().map_err(|e| e.to_string())?;
-
-    if aprovado {
-        Ok(RespostaBase::ok("", resp))
-    } else {
-        Ok(RespostaBase::falha_manual("PIN inválido ou supervisor não autorizado", "ERR_OP", ""))
-    }
-}
-
-#[tauri::command]
-pub async fn validar_autorizacao_supervisor() -> Result<RespostaBase<bool>, String> {
-    Ok(RespostaBase::ok("", true))
-}
-
-#[tauri::command]
-pub async fn listar_autorizacoes_local() -> Result<RespostaBase<Vec<AutorizacaoResp>>, String> {
-    // Stub
-    Ok(RespostaBase::ok("", vec![]))
 }
 
 // --- Historico e Reimpressão ---

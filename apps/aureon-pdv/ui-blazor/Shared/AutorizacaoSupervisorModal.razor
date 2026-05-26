@@ -1,0 +1,141 @@
+@using AureonPdvUi.Services
+@inject AureonPdvUi.Services.TauriService Tauri
+
+@if (Show)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title"><i class="bi bi-shield-lock-fill me-2"></i>Autorização Necessária</h5>
+                    <button type="button" class="btn-close" @onclick="Cancelar"></button>
+                </div>
+                <div class="modal-body">
+                    <p>A operação requer liberação de um supervisor.</p>
+                    @if (!string.IsNullOrEmpty(PermissaoCodigo))
+                    {
+                        <p class="small text-muted mb-3">Permissão solicitada: <strong>@PermissaoCodigo</strong></p>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">Login do Supervisor</label>
+                        <input type="text" class="form-control" @bind="SupervisorLogin" @bind:event="oninput" placeholder="admin" autofocus />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Senha</label>
+                        <input type="password" class="form-control" @bind="SupervisorSenha" @bind:event="oninput" placeholder="***" />
+                    </div>
+
+                    @if (ExigirMotivo)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Motivo</label>
+                            <textarea class="form-control" @bind="Motivo" @bind:event="oninput" rows="2" placeholder="Descreva o motivo da operação..."></textarea>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(MensagemErro))
+                    {
+                        <div class="alert alert-danger p-2 small mt-2">@MensagemErro</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Cancelar" disabled="@IsLoading">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="Confirmar" disabled="@(IsLoading || string.IsNullOrWhiteSpace(SupervisorLogin) || string.IsNullOrWhiteSpace(SupervisorSenha) || (ExigirMotivo && string.IsNullOrWhiteSpace(Motivo)))">
+                        @if (IsLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>Validando...</span>
+                        }
+                        else
+                        {
+                            <span>Autorizar</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public EventCallback<bool> ShowChanged { get; set; }
+    [Parameter] public string PermissaoCodigo { get; set; } = "";
+    [Parameter] public string? ContextoId { get; set; }
+    [Parameter] public bool ExigirMotivo { get; set; } = true;
+
+    // Evento disparado quando o supervisor autoriza
+    [Parameter] public EventCallback<AutorizarOperacaoSupervisorReq> OnAutorizado { get; set; }
+
+    private string SupervisorLogin = "";
+    private string SupervisorSenha = "";
+    private string Motivo = "";
+    private string MensagemErro = "";
+    private bool IsLoading = false;
+
+    protected override void OnParametersSet()
+    {
+        if (Show && !IsLoading)
+        {
+            // Resetar form sempre que abrir
+            SupervisorLogin = "";
+            SupervisorSenha = "";
+            Motivo = "";
+            MensagemErro = "";
+        }
+    }
+
+    private async Task Confirmar()
+    {
+        MensagemErro = "";
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var req = new AutorizarOperacaoSupervisorReq(
+                permissao_codigo: PermissaoCodigo,
+                supervisor_login: SupervisorLogin,
+                supervisor_senha: SupervisorSenha,
+                contexto_id: ContextoId,
+                entidade_tipo: null,
+                entidade_id: null,
+                motivo_obrigatorio: ExigirMotivo,
+                motivo: Motivo,
+                origem: "AutorizacaoSupervisorModal"
+            );
+
+            // Validar credenciais online/local via Tauri
+            var resp = await Tauri.InvocarAsync<AutorizarOperacaoSupervisorResp>("autorizar_operacao_supervisor", new { req });
+
+            if (resp != null && resp.autorizado)
+            {
+                // Devolve a requisicao para quem chamou prosseguir
+                SupervisorSenha = ""; // Limpar senha imediatamente da memoria
+                await ShowChanged.InvokeAsync(false);
+                await OnAutorizado.InvokeAsync(req);
+            }
+            else
+            {
+                MensagemErro = resp?.mensagem ?? "Falha na autorização.";
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagemErro = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Cancelar()
+    {
+        SupervisorSenha = "";
+        await ShowChanged.InvokeAsync(false);
+    }
+}

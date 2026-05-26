@@ -235,6 +235,7 @@ pub async fn adicionar_item_venda(
 #[tauri::command]
 pub async fn cancelar_item_venda(
     dto: CancelarItemReq,
+    req_sup: Option<aureon_core::dtos::AutorizarOperacaoSupervisorReq>,
     estado: State<'_, EstadoApp>,
 ) -> Result<RespostaBase<VendaResumoResp>, String> {
     info!(
@@ -245,6 +246,16 @@ pub async fn cancelar_item_venda(
     );
 
     let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    // GUARDA DE PERMISSÃO / SUPERVISOR
+    crate::commands_seguranca::garantir_permissao_ou_supervisor(
+        &conn, 
+        "ITEM_CANCELAR", 
+        Some(&dto.item_id), 
+        Some("commands_venda::cancelar_item_venda"), 
+        Some(&dto.motivo_cancelamento), 
+        req_sup.as_ref()
+    )?;
 
     let venda_id: String = conn.query_row(
         "SELECT venda_id FROM venda_itens WHERE id = ?1 AND cancelado = 0",
@@ -323,6 +334,7 @@ pub async fn cancelar_item_venda(
 #[tauri::command]
 pub async fn cancelar_venda(
     dto: CancelarVendaReq,
+    req_sup: Option<aureon_core::dtos::AutorizarOperacaoSupervisorReq>,
     estado: State<'_, EstadoApp>,
 ) -> Result<RespostaBase<bool>, String> {
     info!(
@@ -333,6 +345,16 @@ pub async fn cancelar_venda(
     );
 
     let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+
+    // GUARDA DE PERMISSÃO / SUPERVISOR
+    crate::commands_seguranca::garantir_permissao_ou_supervisor(
+        &conn, 
+        "VENDA_CANCELAR", 
+        Some(&dto.venda_id), 
+        Some("commands_venda::cancelar_venda"), 
+        Some(&dto.motivo_cancelamento), 
+        req_sup.as_ref()
+    )?;
 
     let status_venda: String = conn.query_row(
         "SELECT status FROM vendas WHERE id = ?1 AND status IN ('EM_ANDAMENTO', 'FINALIZADA')",

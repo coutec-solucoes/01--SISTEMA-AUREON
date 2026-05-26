@@ -72,9 +72,6 @@ pub fn run() {
             commands_operacional::cancelar_movimentacao_caixa,
             commands_operacional::listar_movimentacoes_caixa,
             commands_operacional::obter_resumo_caixa,
-            commands_operacional::solicitar_autorizacao_supervisor,
-            commands_operacional::validar_autorizacao_supervisor,
-            commands_operacional::listar_autorizacoes_local,
             commands_operacional::listar_vendas_pdv,
             commands_operacional::buscar_venda_por_numero,
             commands_operacional::gerar_comprovante_nao_fiscal,
@@ -238,6 +235,7 @@ pub fn run() {
             commands_seguranca::listar_permissoes_local,
             commands_seguranca::usuario_tem_permissao,
             commands_seguranca::verificar_permissao_operacao,
+            commands_seguranca::autorizar_operacao_supervisor,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
