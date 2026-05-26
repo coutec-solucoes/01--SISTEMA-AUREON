@@ -13,3 +13,9 @@ Criar a camada de controle de acesso do Aureon, permitindo login local/offline, 
 - DTOs e endpoint `login_local`, `logout_local` no Tauri (`commands_seguranca.rs`).
 - CriaÃ§Ã£o do frontend Blazor `LoginPdv.razor` e painel `SegurancaPdv.razor`.
 - SeguranÃ§a passiva/informativa (ainda nÃ£o bloqueamos recursos do sistema para nÃ£o impactar o desenvolvimento).
+### Bloco 4: Gestão de Usuários e PIN (Concluído)
+- Tabelas e colunas exige_troca_senha e pin_hash.
+- Commands Tauri para criar, editar, ativar, inativar, trocar senha e PIN.
+- DTOs C# e Blazor Modals para gestão visual de Credenciais.
+- Proteção da auditoria: Nunca logar senhas na base.
+- Validação mínima de 8 caracteres em senhas com salt criptográfico de Argon2id.

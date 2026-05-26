@@ -236,6 +236,17 @@ pub fn run() {
             commands_seguranca::usuario_tem_permissao,
             commands_seguranca::verificar_permissao_operacao,
             commands_seguranca::autorizar_operacao_supervisor,
+            commands_seguranca::criar_usuario_local,
+            commands_seguranca::editar_usuario_local,
+            commands_seguranca::inativar_usuario_local,
+            commands_seguranca::ativar_usuario_local,
+            commands_seguranca::redefinir_senha_usuario,
+            commands_seguranca::trocar_senha_propria,
+            commands_seguranca::configurar_pin_usuario,
+            commands_seguranca::validar_pin_usuario,
+            commands_seguranca::vincular_perfil_usuario,
+            commands_seguranca::desvincular_perfil_usuario,
+            commands_seguranca::listar_perfis_usuario,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

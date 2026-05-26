@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -147,7 +147,7 @@ namespace AureonPdvUi.Services
         bool Quitado
     );
 
-    // === DTOs da Fase 8 (Operacional, Supervisor, ReimpressÃ£o, PrÃ©-Venda, OrÃ§amento, Cliente) ===
+    // === DTOs da Fase 8 (Operacional, Supervisor, ReimpressÃƒÂ£o, PrÃƒÂ©-Venda, OrÃƒÂ§amento, Cliente) ===
 
     public record ResumoCaixaResp(
         string MoedaCodigo,
@@ -440,7 +440,7 @@ namespace AureonPdvUi.Services
     );
 
     // ========================================================================
-    // BLOCO 3: TRANSFERÃŠNCIAS, PRODUÃ‡ÃƒO E FECHAMENTO
+    // BLOCO 3: TRANSFERÃƒÅ NCIAS, PRODUÃƒâ€¡ÃƒÆ’O E FECHAMENTO
     // ========================================================================
 
     public record TransferirTotalReq(
@@ -490,7 +490,7 @@ namespace AureonPdvUi.Services
     );
 
     // ========================================================================
-    // DELIVERY OPERACIONAL â€” DTOs
+    // DELIVERY OPERACIONAL Ã¢â‚¬â€ DTOs
     // ========================================================================
 
     public record DeliveryItemResp(
@@ -835,7 +835,7 @@ namespace AureonPdvUi.Services
         string usuario_id
     );
 
-    // === DTOs da Fase 14 (RelatÃ³rios e Dashboard) ===
+    // === DTOs da Fase 14 (RelatÃƒÂ³rios e Dashboard) ===
 
     public record TotalPorMoeda(
         string MoedaCodigo,
@@ -990,7 +990,7 @@ namespace AureonPdvUi.Services
     );
 
     // ==========================================
-    // DTOs de ImpressÃ£o Operacional (Fase 15)
+    // DTOs de ImpressÃƒÂ£o Operacional (Fase 15)
     // ==========================================
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -1143,7 +1143,7 @@ namespace AureonPdvUi.Services
         public int? NumeroVia { get; init; }
     }
 
-    // --- DTOs Fase 15 Bloco 4: ProduÃ§Ã£o, Delivery e Gaveta ---
+    // --- DTOs Fase 15 Bloco 4: ProduÃƒÂ§ÃƒÂ£o, Delivery e Gaveta ---
 
     public record ImprimirProducaoReq
     {
@@ -1322,8 +1322,8 @@ namespace AureonPdvUi.Services
     }
 
     // =========================================
-    // FASE 16 BLOCO 3 â€” DTOs ESPELHO FISCAL
-    // Preview tÃ©cnico sem emissÃ£o ou transmissÃ£o
+    // FASE 16 BLOCO 3 Ã¢â‚¬â€ DTOs ESPELHO FISCAL
+    // Preview tÃƒÂ©cnico sem emissÃƒÂ£o ou transmissÃƒÂ£o
     // =========================================
 
     public class ValidacaoFiscalItemResp {
@@ -1365,10 +1365,10 @@ namespace AureonPdvUi.Services
         public string? CstCsosnId { get; set; }
         [JsonPropertyName("iva_id")]
         public string? IvaId { get; set; }
-        /// <summary>Base de cÃ¡lculo em minor unit (centavos/guaranis)</summary>
+        /// <summary>Base de cÃƒÂ¡lculo em minor unit (centavos/guaranis)</summary>
         [JsonPropertyName("base_minor")]
         public long BaseMinor { get; set; }
-        /// <summary>AlÃ­quota escala 6 (10% = 100000)</summary>
+        /// <summary>AlÃƒÂ­quota escala 6 (10% = 100000)</summary>
         [JsonPropertyName("aliquota_escala6")]
         public long AliquotaEscala6 { get; set; }
         /// <summary>Imposto = base * aliquota / 1_000_000 (sem float)</summary>
@@ -1518,7 +1518,7 @@ namespace AureonPdvUi.Services
         public string Modo { get; set; } = string.Empty;
     }
 
-    // === DTOs â€” Fase 20 Bloco 5: Assinatura Offline ===
+    // === DTOs Ã¢â‚¬â€ Fase 20 Bloco 5: Assinatura Offline ===
 
     public class VerificarLicencaAssinadaReq
     {
@@ -1569,7 +1569,7 @@ namespace AureonPdvUi.Services
         public List<string> Warnings { get; set; } = new();
     }
 
-    // === DTOs â€” Fase 20 Bloco 6: SincronizaÃ§Ã£o Online ===
+    // === DTOs Ã¢â‚¬â€ Fase 20 Bloco 6: SincronizaÃƒÂ§ÃƒÂ£o Online ===
 
     public class SincronizarLicencaReq
     {
@@ -1661,7 +1661,7 @@ namespace AureonPdvUi.Services
         public List<string> Warnings { get; set; } = new();
     }
 
-    // === DTOs â€” Fase 20 Bloco 7: Politica Operacional ===
+    // === DTOs Ã¢â‚¬â€ Fase 20 Bloco 7: Politica Operacional ===
 
     public class LicencaPoliticaResp
     {
@@ -1708,7 +1708,7 @@ namespace AureonPdvUi.Services
         public List<string> Warnings { get; set; } = new();
     }
 
-    // === DTOs â€” Fase 20 Bloco 8: Guarda Operacional ===
+    // === DTOs Ã¢â‚¬â€ Fase 20 Bloco 8: Guarda Operacional ===
 
     public class VerificarOperacaoLicencaReq
     {
@@ -1752,7 +1752,7 @@ namespace AureonPdvUi.Services
         public List<string> Warnings { get; set; } = new();
     }
 
-    // === DTOs â€” Fase 20 Bloco 9: Backup Local ===
+    // === DTOs Ã¢â‚¬â€ Fase 20 Bloco 9: Backup Local ===
 
     public class CriarBackupReq
     {
@@ -1923,7 +1923,7 @@ namespace AureonPdvUi.Services
     }
 
     // ==========================================
-    // DTOs de DiagnÃ³stico de Sistema (Fase 20, Bloco 10)
+    // DTOs de DiagnÃƒÂ³stico de Sistema (Fase 20, Bloco 10)
     // ==========================================
     public class DiagnosticoSistemaResp
     {
@@ -1946,7 +1946,7 @@ namespace AureonPdvUi.Services
     }
 
     // ==========================================
-    // DTOs de SeguranÃ§a Operacional (Fase 21, Bloco 1)
+    // DTOs de SeguranÃƒÂ§a Operacional (Fase 21, Bloco 1)
     // ==========================================
 
     public class LoginLocalReq
@@ -2176,3 +2176,56 @@ namespace AureonPdvUi.Services
         List<string> warnings
     );
 }
+
+// --- FASE 21 BLOCO 4: GESTAO DE USUARIOS ---
+
+public record CriarUsuarioLocalReq(
+    [property: JsonPropertyName("nome")] string Nome,
+    [property: JsonPropertyName("login")] string Login,
+    [property: JsonPropertyName("senha_inicial")] string SenhaInicial,
+    [property: JsonPropertyName("perfis_codigos")] List<string> PerfisCodigos,
+    [property: JsonPropertyName("ativo")] bool Ativo,
+    [property: JsonPropertyName("exige_troca_senha")] bool ExigeTrocaSenha
+);
+
+public record EditarUsuarioLocalReq(
+    [property: JsonPropertyName("usuario_id")] string UsuarioId,
+    [property: JsonPropertyName("nome")] string Nome,
+    [property: JsonPropertyName("ativo")] bool Ativo,
+    [property: JsonPropertyName("perfis_codigos")] List<string> PerfisCodigos
+);
+
+public record RedefinirSenhaUsuarioReq(
+    [property: JsonPropertyName("usuario_id")] string UsuarioId,
+    [property: JsonPropertyName("nova_senha")] string NovaSenha,
+    [property: JsonPropertyName("exige_troca_senha")] bool ExigeTrocaSenha
+);
+
+public record TrocarSenhaPropriaReq(
+    [property: JsonPropertyName("senha_atual")] string SenhaAtual,
+    [property: JsonPropertyName("nova_senha")] string NovaSenha
+);
+
+public record ConfigurarPinUsuarioReq(
+    [property: JsonPropertyName("usuario_id")] string? UsuarioId,
+    [property: JsonPropertyName("pin_novo")] string PinNovo,
+    [property: JsonPropertyName("senha_confirmacao")] string? SenhaConfirmacao
+);
+
+public record ValidarPinUsuarioReq(
+    [property: JsonPropertyName("login")] string Login,
+    [property: JsonPropertyName("pin")] string Pin
+);
+
+public record UsuarioOperacaoResp(
+    [property: JsonPropertyName("sucesso")] bool Sucesso,
+    [property: JsonPropertyName("usuario_id")] string? UsuarioId,
+    [property: JsonPropertyName("mensagem")] string Mensagem,
+    [property: JsonPropertyName("warnings")] List<string> Warnings
+);
+
+public record UsuarioPerfilReq(
+    [property: JsonPropertyName("usuario_id")] string UsuarioId,
+    [property: JsonPropertyName("perfil_codigo")] string PerfilCodigo
+);
+

@@ -1,6 +1,8 @@
 @page "/seguranca"
 @using AureonPdvUi.Services
+@using AureonPdvUi.Shared
 @inject AureonPdvUi.Services.TauriService Tauri
+@inject NotificationService Toast
 
 <div class="container-fluid mt-3">
     <h3>Segurança Operacional</h3>
@@ -32,6 +34,7 @@
                     <p><strong>Perfis:</strong> @string.Join(", ", Sessao.Perfis)</p>
                     <p><strong>Desde:</strong> @Sessao.AbertaEm</p>
                     <button class="btn btn-warning" @onclick="FazerLogout">Sair / Logout</button>
+                    <button class="btn btn-outline-secondary ms-2" @onclick="AbrirTrocarSenhaMinha">Trocar Minha Senha</button>
                 </div>
             </div>
 
@@ -68,8 +71,11 @@
     }
     else if (TabAtiva == "Usuarios")
     {
+        <div class="mb-3">
+            <button class="btn btn-primary" @onclick="AbrirNovoUsuario">Novo Usuário</button>
+        </div>
         <div class="table-responsive">
-            <table class="table table-bordered table-striped">
+            <table class="table table-bordered table-striped align-middle">
                 <thead class="table-light">
                     <tr>
                         <th>Nome</th>
@@ -77,6 +83,7 @@
                         <th>Status</th>
                         <th>Perfis</th>
                         <th>Último Acesso</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -91,6 +98,18 @@
                             </td>
                             <td>@string.Join(", ", u.Perfis)</td>
                             <td>@u.UltimoLoginEm</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => AbrirEditarUsuario(u)">Editar</button>
+                                <button class="btn btn-sm btn-outline-warning ms-1" @onclick="() => AbrirRedefinirSenha(u)">Redefinir Senha</button>
+                                @if (u.Ativo)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger ms-1" @onclick="() => InativarUsuario(u.Id)">Inativar</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-success ms-1" @onclick="() => AtivarUsuario(u.Id)">Ativar</button>
+                                }
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -157,6 +176,27 @@
 
 </div>
 
+@if (ExibirUsuarioModal)
+{
+    <UsuarioModal UsuarioEdicao="UsuarioSendoEditado"
+                  OnClose="() => ExibirUsuarioModal = false"
+                  OnSaved="AoSalvarUsuario" />
+}
+
+@if (ExibirTrocaSenhaModal && Sessao != null)
+{
+    <TrocarSenhaModal UsuarioId="@Sessao.UsuarioId"
+                      OnClose="() => ExibirTrocaSenhaModal = false"
+                      OnSaved="AoSalvarTrocaSenha" />
+}
+
+@if (ExibirRedefinirSenhaModal && UsuarioSendoEditado != null)
+{
+    <RedefinirSenhaModal UsuarioId="@UsuarioSendoEditado.Id"
+                         OnClose="() => ExibirRedefinirSenhaModal = false"
+                         OnSaved="AoSalvarRedefinicaoSenha" />
+}
+
 @code {
     private string TabAtiva = "Sessao";
     
@@ -168,6 +208,12 @@
     private string PermissaoTeste = "";
     private string TesteResultado = "";
     private string TesteClasse = "";
+
+    // Controle de Modais
+    private bool ExibirUsuarioModal = false;
+    private bool ExibirTrocaSenhaModal = false;
+    private bool ExibirRedefinirSenhaModal = false;
+    private UsuarioLocalResp? UsuarioSendoEditado = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -214,25 +260,96 @@
 
     private async Task CarregarUsuarios()
     {
-        var usrs = await Tauri.InvocarAsync<List<UsuarioLocalResp>>("listar_usuarios_local");
+        var usrs = await Tauri.InvocarAsync<List<UsuarioLocalResp>>("listar_usuarios_local", null);
         if (usrs != null) Usuarios = usrs;
     }
 
     private async Task CarregarPerfis()
     {
-        var prfs = await Tauri.InvocarAsync<List<PerfilLocalResp>>("listar_perfis_local");
+        var prfs = await Tauri.InvocarAsync<List<PerfilLocalResp>>("listar_perfis_local", null);
         if (prfs != null) Perfis = prfs;
     }
 
     private async Task CarregarPermissoes()
     {
-        var pms = await Tauri.InvocarAsync<List<PermissaoLocalResp>>("listar_permissoes_local");
+        var pms = await Tauri.InvocarAsync<List<PermissaoLocalResp>>("listar_permissoes_local", null);
         if (pms != null) Permissoes = pms;
     }
 
     private async Task FazerLogout()
     {
-        await Tauri.InvocarAsync<bool>("logout_local");
+        await Tauri.InvocarAsync<bool>("logout_local", null);
         await CarregarSessao();
+    }
+
+    // Modal Handlers
+    private void AbrirNovoUsuario()
+    {
+        UsuarioSendoEditado = null;
+        ExibirUsuarioModal = true;
+    }
+
+    private void AbrirEditarUsuario(UsuarioLocalResp u)
+    {
+        UsuarioSendoEditado = u;
+        ExibirUsuarioModal = true;
+    }
+
+    private void AbrirRedefinirSenha(UsuarioLocalResp u)
+    {
+        UsuarioSendoEditado = u;
+        ExibirRedefinirSenhaModal = true;
+    }
+
+    private void AbrirTrocarSenhaMinha()
+    {
+        ExibirTrocaSenhaModal = true;
+    }
+
+    private async Task AoSalvarUsuario()
+    {
+        ExibirUsuarioModal = false;
+        await CarregarUsuarios();
+    }
+
+    private void AoSalvarTrocaSenha()
+    {
+        ExibirTrocaSenhaModal = false;
+    }
+
+    private async Task AoSalvarRedefinicaoSenha()
+    {
+        ExibirRedefinirSenhaModal = false;
+        await CarregarUsuarios();
+    }
+
+    private async Task InativarUsuario(string id)
+    {
+        try
+        {
+            var res = await Tauri.InvokeAsync<UsuarioOperacaoResp>("inativar_usuario_local", new { usuarioId = id });
+            if (res != null && res.Sucesso)
+            {
+                Toast.ShowSuccess(res.Mensagem);
+                await CarregarUsuarios();
+            }
+            else Toast.ShowError(res?.Mensagem ?? "Erro ao inativar.");
+        }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task AtivarUsuario(string id)
+    {
+        try
+        {
+            var res = await Tauri.InvokeAsync<UsuarioOperacaoResp>("ativar_usuario_local", new { usuarioId = id });
+            if (res != null && res.Sucesso)
+            {
+                Toast.ShowSuccess(res.Mensagem);
+                await CarregarUsuarios();
+            }
+            else Toast.ShowError(res?.Mensagem ?? "Erro ao ativar.");
+        }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
     }
 }

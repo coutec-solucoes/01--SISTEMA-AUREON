@@ -444,3 +444,8 @@ Estabelecer um diretÃ³rio comercial padrÃ£o e fixo, adotando `C:/Aureon`, para p
 - **Decisao**: Hashes de senhas usam Argon2id gerados via crate nativo. A autenticação é 100% resolvida via SQLite local com tabelas próprias de sessão e auditoria.
 - **Consequencia**: Permite trancar rotinas de caixa no PDV (offline) mesmo durante quedas de link.
 
+
+## [2026-05-25] ADR: Gestão de Credenciais Offline-First
+**Contexto**: O PDV precisava permitir a administração de usuários de forma puramente local, sem depender de sincronização online para trocas de senha.
+**Decisão**: Empregamos Argon2id no Rust e salvamos em usuarios_local as senhas e os hashes de PINs locais. O frontend Blazor envia em texto plano apenas durante a submissão (em IPC localhost estrito), sem armazená-las no C#. A auditoria captura eventos críticos (ex: SENHA_REDEFINIDA) omitindo o conteúdo da senha em favor do respeito estrito aos mandamentos de log. O PIN complementa a segurança permitindo aprovação ágil.
+**Consequências**: Gestão flexível sem internet, porém o usuário não possui recursos cloud de "Esqueci minha senha" - sendo necessário redefinir localmente através do administrador do PDV.

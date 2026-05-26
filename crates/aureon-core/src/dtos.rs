@@ -2385,3 +2385,64 @@ pub struct AutorizarOperacaoSupervisorResp {
     pub autorizacao_id: Option<String>,
     pub warnings: Vec<String>,
 }
+
+// --- FASE 21 BLOCO 4: GESTAO DE USUARIOS ---
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CriarUsuarioLocalReq {
+    pub nome: String,
+    pub login: String,
+    pub senha_inicial: String,
+    pub perfis_codigos: Vec<String>,
+    pub ativo: bool,
+    pub exige_troca_senha: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EditarUsuarioLocalReq {
+    pub usuario_id: String,
+    pub nome: String,
+    pub ativo: bool,
+    pub perfis_codigos: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RedefinirSenhaUsuarioReq {
+    pub usuario_id: String,
+    pub nova_senha: String,
+    pub exige_troca_senha: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrocarSenhaPropriaReq {
+    pub senha_atual: String,
+    pub nova_senha: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConfigurarPinUsuarioReq {
+    pub usuario_id: Option<String>,
+    pub pin_novo: String,
+    pub senha_confirmacao: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ValidarPinUsuarioReq {
+    pub login: String,
+    pub pin: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UsuarioOperacaoResp {
+    pub sucesso: bool,
+    pub usuario_id: Option<String>,
+    pub mensagem: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UsuarioPerfilReq {
+    pub usuario_id: String,
+    pub perfil_codigo: String,
+}
+
