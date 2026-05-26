@@ -1,163 +1,223 @@
-# Fase 20 — Instalação, Licenciamento, Backup e Atualização
+# FASE 20 — Instalação, Licenciamento, Backup e Atualização Base
 
-## Objetivo Geral
-Transformar o Aureon de um sistema tecnicamente avançado em um produto instalável, licenciável, recuperável e operável em cliente real.
+**Status Final Esperado**: APROVADA E ENCERRADA COM RESSALVAS CONTROLADAS
+**Data de Encerramento**: 2026-05-25
 
-## Blocos Planejados (Iniciais)
-1. **Bloco 1**: Arquitetura Base de Licenciamento Local, Identidade da Instalação e Estado Comercial da Empresa.
-2. (Próximos blocos focarão em validação cloud, instalador, rotinas de backup, etc.)
+## Resumo Geral da Fase
+A Fase 20 teve como foco garantir que o sistema AUREON pudesse ser executado localmente de forma segura, com restrições comerciais auditáveis (licenciamento) operando no modelo "offline-first". A fase cobriu a arquitetura do licenciamento (da retaguarda à verificação local criptográfica), a guarda operacional, a segurança dos dados por meio de backup integrado no PDV e o preparo do ambiente físico de distribuição para Windows, formando a base de instalação do sistema.
 
-## Escopo do Bloco 1
-Foi construída a fundação "offline-first" do licenciamento.
-O PDV agora consegue identificar-se via `installation_id` e consultar uma licença local contendo o modo (`DEV`, `MANUAL`) e o status.
+Nenhuma mudança no escopo de negócio fim (finanças, faturamento online) foi feita nesta fase, respeitando as restrições impostas.
 
-### Tabelas Criadas
-- `instalacao_local`: Dados de identidade do terminal e empresa.
-- `licenca_local`: Dados da licença, com suporte a tolerância offline.
-- `licenca_eventos`: Auditoria técnica de ativação e consultas.
+## Lista de Blocos Implementados
 
-### Commands Tauri Criados
+- **Bloco 1**: Entidades e Fluxo na Retaguarda Mestre
+- **Bloco 2**: Endpoints de Gestão e Check-in na Retaguarda Mestre
+- **Bloco 3**: Identidade, Base Local e Tolerância Offline (PDV)
+- **Bloco 4**: Assinatura Criptográfica de Licença (Ed25519)
+- **Bloco 5**: Aplicação Local de Licença Assinada (PDV)
+- **Bloco 6**: Sincronização Manual/Online da Licença (PDV -> Retaguarda)
+- **Bloco 7**: Política de Bloqueio Suave e Alertas
+- **Bloco 8**: Guarda Operacional de Licença (Bloqueio Controlado)
+- **Bloco 9**: Backup Local e Restauração Controlada
+- **Bloco 10**: Empacotamento Windows, Estrutura de Instalação e Diagnóstico de Ambiente
+- **Bloco 11**: Documentação Final, Checklist de Homologação e Encerramento da Fase 20
+
+## Commits por Bloco
+
+- Bloco 1: `b5fa15e`
+- Bloco 2: `ec9d06e`
+- Bloco 3: `1bb3cd4`
+- Bloco 4: `7211251`
+- Bloco 5: `04fecc6`
+- Bloco 6: `17dc500`
+- Bloco 7: `d69be40`
+- Bloco 8: `5422f25`
+- Bloco 9: `128749d`
+- Bloco 10: `12287c7`
+- Bloco 11 (este): `[PENDENTE APLICAÇÃO]`
+
+## Tabelas PostgreSQL Criadas (Retaguarda Mestre)
+- `planos`: Definição comercial de capacidades.
+- `empresas_licenciadas`: Entidade cliente vinculada à empresa do ecossistema.
+- `licencas`: Registro de instâncias de uso geradas.
+- `terminais`: Pontos físicos/lógicos que utilizam a licença.
+- `eventos_licenciamento`: Registro inalterável de ciclo de vida.
+
+## Tabelas SQLite Criadas (PDV Local)
+- `instalacao_local`: Identificação do dispositivo local e empresa.
+- `licenca_local`: Dados de validade, chave e restrição aplicáveis localmente.
+- `licenca_eventos`: Histórico de ações com a licença no terminal.
+- `licenca_config`: URL de check-in e chaves de conexão à retaguarda.
+
+## Commands Tauri Criados
 - `obter_status_licenca`
 - `ativar_licenca_dev`
 - `registrar_evento_licenca`
 - `obter_identidade_instalacao`
+- `configurar_licenciamento_online`
+- `obter_config_licenciamento_online`
+- `sincronizar_licenca_online`
+- `obter_politica_licenca`
+- `verificar_operacao_permitida_licenca`
+- `criar_backup_local`
+- `listar_backups_locais`
+- `validar_backup_local`
+- `restaurar_backup_local`
+- `diagnosticar_banco_local`
+- `diagnosticar_instalacao_sistema`
+- `garantir_pastas_sistema`
+- `obter_versao_app`
 
-### Regras Offline-First
-- Tolerância padrão de 10 dias.
-- PDV consulta o banco local (SQLite) para tomar decisão comercial (`pode_operar`), garantindo fluidez mesmo sem internet.
+## Endpoints API Criados (aureon-api-local simulando Retaguarda)
+- `POST /licenciamento/check-in`
+- `GET /licenciamento/licencas/{id}/payload-assinado`
+- `POST /licenciamento/licencas/verificar-payload`
+- `GET /licenciamento/chaves/status`
+*(Endpoints CRUD via services/aureon-api-local/src/routes/master_licenciamento.rs)*
 
-### Limitações (Por Design)
-- **Nenhum bloqueio automático em vendas ainda.**
-- **Nenhum servidor cloud de licenças implementado.**
-- Criptografia estrutural, assinatura real virá nas próximas etapas.
+## Telas Blazor Criadas / Atualizadas
+- `LicencaPdv.razor` (Renovada, suporte a colagem, sync e alertas de bloqueio)
+- `BackupPdv.razor` (Criada do zero)
+- `DiagnosticoSistemaPdv.razor` (Criada do zero)
+- `MainLayout.razor` (Links de menu atualizados)
 
-## Bloco 4 — Assinatura Criptografica de Licenca (Ed25519)
-**Status**: IMPLEMENTADO
-**Data**: 2026-05-25
+## Scripts Criados
+- `scripts/build-pdv-windows.ps1`
+- `scripts/check-pdv-environment.ps1`
+- `scripts/create-aureon-dirs.ps1`
 
-### Objetivo
-Criar camada de assinatura criptografica do payload de licenca, permitindo que o PDV valide autenticidade offline futuramente sem depender de internet permanente.
+## Regras Implementadas
 
-### Algoritmo
-Ed25519 via crate ed25519-dalek v2. Assinatura de 64 bytes em base64.
+### Licenciamento Offline-First
+O PDV utiliza as propriedades em `licenca_local` para tomar decisões sobre disponibilidade comercial. Ao expirar a `validade`, o sistema acrescenta a `tolerancia_offline_dias`. Até esse limite estendido ser alcançado, o sistema funciona plenamente (Status = `TOLERANCIA_OFFLINE`), absorvendo falhas de conexão à internet ou ausência de sync. O PDV nâo deleta a licença caso a checagem falhe.
 
-### Modulo Criado
-- services/aureon-api-local/src/licenca_crypto.rs
-  - ChaveLicenca: gerencia chave privada/publica
-  - assinar_payload(): gera assinatura Ed25519 real
-  - verificar_payload(): verifica com chave publica
-  - PayloadCanonicoLicenca: canonicalizacao deterministica
+### Assinatura Ed25519
+Toda licença é submetida a uma função de hash SHA-256 de forma canônica determinística no Backend Mestre (retaguarda). Com esse Hash, a Retaguarda assina o payload com a Chave Privada.
+O PDV apenas guarda a Chave Pública, validando a assinatura criptograficamente a cada sync ou aplicação de payload manual. Payload forjado ou inconsistente com a assinatura é imediatamente rejeitado.
 
-### Endpoints Adicionados
-- GET /licenciamento/licencas/{id}/payload-assinado
-- POST /licenciamento/licencas/verificar-payload
-- GET /licenciamento/chaves/status
+### Sincronização Online / Manual
+O usuário (ou o sistema futuramente via cron) pode engatilhar uma sincronização manual chamando o check-in na retaguarda. Em caso de sucesso, o novo payload assinado é salvo. Em caso de falha (timeout, 500, no route to host), a exceção é engolida silenciosamente em termos de interrupção operacional, mantendo a licença local exatamente como estava (offline-first).
 
-### DTOs Criados
-- LicencaPayloadAssinadoResp
-- VerificarLicencaPayloadReq
-- VerificarLicencaPayloadResp
-- StatusChavesResp
+### Guarda Operacional
+Aplicada restrição explícita (bloqueio rígido) somente em:
+- `ABRIR_CAIXA`
+- `FINALIZAR_VENDA`
+- `FECHAR_VENDA_PAGAMENTO`
 
-### Dependencias Adicionadas
-- ed25519-dalek = { version = 2, features = [rand_core] }
-- hex = 0.4
+Caso a licença esteja `BLOQUEADA` ou `EXPIRADA` (fora da tolerância), a ação retorna Erro/Bloqueio e é auditada. A tela de licença, de backup e leitura seguem funcionando.
 
-### Canonicalizacao
-Campos em ordem fixa: empresa_id, licenca_id, plano_codigo, status, validade, terminal, tolerancia_offline_dias, emitido_em. Sem floats. SHA-256 e objeto assinado.
+### Backup / Restauração
+Isentos de bloqueio por licença, operam com permissões do Host base.
+O SQLite Backup API nativo é usado (VACUUM INTO/Backup struct).
+A restauração exige checagem de hash SHA-256 e `PRAGMA integrity_check`, cria um backup prévio obrigatório de rollback, e o usuário deve digitar "RESTAURAR" na interface para confirmar a exclusão e sobreposição da base de dados local atual.
 
-### Seguranca
-- Chave privada NUNCA sai da Retaguarda
-- Chave DEV efemera em modo sem env configurado (warning explicito)
-- Chave de producao via AUREON_LICENSE_PRIVATE_KEY_B64
+### Diagnóstico de Instalação
+O app obrigatoriamente espera (ou cria, caso autorizado) a estrutura `C:/Aureon/data`, `C:/Aureon/backups`, `C:/Aureon/logs` etc.
+Scripts PS1 preparam o ambiente, e o PDV (no `/diagnostico-sistema`) checa se a leitura/escrita na pasta está operacional e mapeia propriedades base do host, como arquitetura, SO e tamanho disponível, ajudando o suporte técnico.
 
-### Build
-cargo check -p aureon-api-local: APROVADO (9 warnings pre-existentes, zero erros)
+## Escopo Proibido (O que NÃO foi feito)
+- Sem gateway de pagamento / cobrança de clientes.
+- Sem recorrência automatizada de pagamentos.
+- Sem auto-update remoto do executável do Tauri no momento.
+- Sem assinatura de código (Code Signing Certificate) nativa do Windows no release final (requer infra futura).
+- Nenhuma operação diagnóstica apaga dados operacionais de vendas.
+- Rotinas de Backup e Atualização Licença são ilesas às validações de Guarda Operacional (nunca são bloqueadas).
+- Nenhuma alteração no fluxo fiscal real com Sefaz.
 
-### Pendencias / Limitacoes
-1. PDV ainda nao consome payload assinado (proximo bloco)
-2. Chave publica ainda nao e distribuida ao PDV
-3. Verificacao offline no PDV ainda nao implementada
-4. Payload usa dados mock (aguarda banco real)
+## Pendências Futuras
+1. Automação de auto-update (Tauri Updater ou serviço de Windows).
+2. Agendamento em background da sincronização da licença (Check-in diário silencioso).
+3. Integração com Gateway de Pagamento para emissão de cobranças na retaguarda.
+4. Assinatura do instalador via certificado EV.
+5. Upload de Backups para ambiente Cloud.
 
-## Bloco 5 — Aplicação Local de Licença Assinada (PDV)
-**Status**: APROVADO
-**Data**: 2026-05-25
+---
 
-### Objetivo
-Capacitar o PDV a receber, verificar usando criptografia Ed25519 offline e aplicar payloads de licença assinados.
+## Checklist Final de Homologação
 
-### Entregas
-- `licenca_crypto_local.rs`: Módulo de verificação Ed25519 no PDV.
-- Integração de DTOs Rust compartilhados e classes C# (`PdvModels.cs`).
-- UI `LicencaPdv.razor` atualizada com suporte a colagem de Payload e Assinatura com validação local.
-- Build verificado com sucesso para `aureon-pdv` e `aureon-api-local`.
+### 1. Licenciamento local:
+- [x] instalação local criada;
+- [x] licença local criada;
+- [x] eventos locais criados;
+- [x] modo DEV funcional;
+- [x] status de licença consultável offline.
 
-## Bloco 6 — Sincronização Manual/Online da Licença (PDV -> Retaguarda)
-**Status**: CONCLUÍDO (Pronto para Homologação)
-**Data**: 2026-05-25
+### 2. Retaguarda mestre:
+- [x] planos;
+- [x] empresas licenciadas;
+- [x] licenças;
+- [x] terminais;
+- [x] eventos.
 
-### Objetivo
-Permitir que o PDV sincronize de forma automática/manual consultando a URL da Retaguarda, enviando um check-in, obtendo o payload criptográfico assinado e aplicando localmente.
+### 3. Check-in:
+- [x] endpoint de check-in;
+- [x] payload para PDV;
+- [x] validação conceitual de empresa/licença/terminal.
 
-### Entregas
-- Commands Tauri: `configurar_licenciamento_online`, `obter_config_licenciamento_online` e `sincronizar_licenca_online`.
-- Tabela SQLite local `licenca_config` criada sob demanda para persistência das configurações de URL e chaves do licenciamento.
-- Regra de tolerância a falhas de rede (Offline-First): se houver erro HTTP ou falha de conexão, a licença local nunca é apagada nem a operação bloqueada. É registrado o evento `LICENCA_SYNC_FALHOU` e exibida mensagem de contingência.
-- UI do Blazor atualizada com campos de URL da retaguarda, Empresa ID e botões funcionais de "Salvar Configuração" e "Sincronizar com Retaguarda".
+### 4. Assinatura:
+- [x] Ed25519 implementado;
+- [x] SHA-256 payload_hash;
+- [x] key_id;
+- [x] endpoint de payload assinado;
+- [x] endpoint de verificação;
+- [x] chave privada restrita à Retaguarda.
 
-## Bloco 7 — Política de Bloqueio Suave e Alertas
-**Status**: APROVADO
-**Data**: 2026-05-25
+### 5. PDV offline:
+- [x] verificação local de assinatura;
+- [x] aplicação de payload assinado;
+- [x] chave pública no PDV;
+- [x] payload inválido não aplicado.
 
-### Objetivo
-Construir a política operacional e alertas para a licença, calculando o nível atual baseado na tolerância offline e dias restantes, sem aplicar bloqueio duro de caixa/venda.
+### 6. Sync licença:
+- [x] URL Retaguarda;
+- [x] sincronizar com Retaguarda;
+- [x] falha de rede sem apagar licença local;
+- [x] offline-first preservado.
 
-### Entregas
-- Command `obter_politica_licenca` que calcula o nível (`OK`, `ALERTA_VENCIMENTO`, `TOLERANCIA_OFFLINE`, `EXPIRADA`, `BLOQUEADA`, `MODO_DEV`, `SEM_LICENCA`).
-- UI `LicencaPdv.razor` atualizada com exibição clara do status, cores e recomendações operacionais.
+### 7. Política:
+- [x] OK;
+- [x] ALERTA_VENCIMENTO;
+- [x] TOLERANCIA_OFFLINE;
+- [x] EXPIRADA;
+- [x] BLOQUEADA;
+- [x] MODO_DEV;
+- [x] SEM_LICENCA.
 
-## Bloco 8 — Guarda Operacional de Licença (Bloqueio Controlado)
-**Status**: CONCLUÍDO
-**Data**: 2026-05-25
+### 8. Guarda operacional:
+- [x] ABRIR_CAIXA protegido;
+- [x] FINALIZAR_VENDA protegido;
+- [x] FECHAR_VENDA_PAGAMENTO protegido;
+- [x] tela Licença não bloqueada;
+- [x] backup não bloqueado;
+- [x] sincronização não bloqueada;
+- [x] consulta não bloqueada.
 
-### Objetivo
-Implementar bloqueio operacional real para operações críticas com base na política de licença, de forma limitada, auditável e reversível. A regularização nunca pode ser travada.
+### 9. Backup:
+- [x] criar backup;
+- [x] listar backup;
+- [x] validar backup;
+- [x] restaurar com confirmação RESTAURAR;
+- [x] backup preventivo antes de restauração;
+- [x] SHA-256;
+- [x] PRAGMA integrity_check.
 
-### Entregas
-- DTOs `VerificarOperacaoLicencaReq` e `VerificarOperacaoLicencaResp` adicionados em `aureon-core` e `PdvModels.cs`.
-- Módulo e functions `avaliar_operacao_licenca` e `garantir_operacao_licenciada` criados no Tauri.
-- Inserção da guarda em `commands_caixa` (`abrir_caixa`) e `commands_pagamento` (`finalizar_venda` e `registrar_pagamento`).
-- Eventos de auditoria gravados: `LICENCA_OPERACAO_PERMITIDA`, `LICENCA_OPERACAO_BLOQUEADA`, `LICENCA_BLOQUEIO_SUAVE_APLICADO`.
-- Nenhuma operação de leitura, backup ou sincronização foi afetada, garantindo total regularização.
+### 10. Instalação/diagnóstico:
+- [x] C:/Aureon;
+- [x] data;
+- [x] backups;
+- [x] logs;
+- [x] print-sim;
+- [x] diagnostics;
+- [x] scripts PowerShell;
+- [x] tela de diagnóstico;
+- [x] diagnóstico de permissão e pastas.
 
-## Bloco 9 — Backup Local e Restauração Controlada
-**Status**: CONCLUÍDO
-**Data**: 2026-05-25
-
-### Objetivo
-Criar a base de backup e restauração local do PDV Aureon, permitindo gerar cópias seguras do SQLite local, validar integridade, listar backups existentes e restaurar de forma controlada, sem depender de internet e sem bloqueios de licença.
-
-### Entregas
-- Commands Tauri: `criar_backup_local`, `listar_backups_locais`, `validar_backup_local`, `restaurar_backup_local`, `diagnosticar_banco_local`.
-- DTOs em `dtos.rs` e `PdvModels.cs`.
-- Página Blazor `BackupPdv.razor` para gerenciamento seguro.
-- Proteção de Restauração: a restauração gera um backup prévio obrigatório, exige confirmação estrita "RESTAURAR" na tela e recusa restaurar arquivos com integridade corrompida.
-- Validação SQLite: uso do `PRAGMA integrity_check` tanto no banco atual quanto nos arquivos de backup.
-- **Isenção de Licença**: As rotinas de backup e restauração são blindadas contra bloqueios comerciais (não usam guarda operacional).
-
-## Bloco 10 — Empacotamento Windows, Estrutura de Instalação e Diagnóstico de Ambiente
-**Status**: CONCLUÍDO
-**Data**: 2026-05-25
-
-### Objetivo
-Preparar o Aureon PDV para distribuição instalável em Windows, organizando diretórios padrão (`C:/Aureon/`), scripts de build/diagnóstico e documentação de instalação, focando exclusivamente no ambiente técnico, sem funcionalidades de auto-update automáticas ainda.
-
-### Entregas
-- **Scripts PowerShell**: `build-pdv-windows.ps1` (compilação completa de Release), `create-aureon-dirs.ps1` (cria as árvores vazias com permissões necessárias) e `check-pdv-environment.ps1` (inspeciona o estado do ambiente e do banco via terminal).
-- **Backend (Tauri)**: Novos comandos `diagnosticar_instalacao_sistema`, `garantir_pastas_sistema` e `obter_versao_app` injetados em `commands_sistema.rs`.
-- **Frontend (Blazor)**: Página `/diagnostico-sistema` acessível do menu com visualização imediata da capacidade de escrita da instalação.
-- **Estrutura Segregada**: A base garante separação entre código binário e os dados sagrados de uso do sistema (`data`, `backups`, `logs`).
-- Nenhuma rotina da área financeira, operação e PDV foi impactada.
-
-
+### 11. Escopo proibido confirmado:
+- [x] sem gateway de pagamento;
+- [x] sem cobrança recorrente;
+- [x] sem auto-update remoto;
+- [x] sem assinatura de código oficial;
+- [x] sem apagar dados operacionais;
+- [x] sem bloquear backup/licença/sync;
+- [x] sem alteração fiscal real;
+- [x] sem alteração de estoque/financeiro/delivery/gourmet fora dos pontos autorizados.
