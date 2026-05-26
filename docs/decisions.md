@@ -313,7 +313,7 @@ Decisões de arquitetura adotadas na Fase 18 — Homologação Técnica Fiscal: 
 
 ---
 
-## ?? ADR 30: Certificado A1 Exclusivo na Retaguarda
+## ADR 30: Certificado A1 Exclusivo na Retaguarda
 - **Contexto**: Para assinar documentos fiscais, é necessário ler certificados digitais (A1, A3, HSM).
 - **Decisão**: Apenas certificados A1 (arquivos PFX/P12) são suportados, e eles residem exclusivamente na Retaguarda. Certificados A3/HSM ficaram fora de escopo. A chave privada e a senha nunca são persistidas em banco de dados ou logadas.
 - **Consequência**: Simplifica a gestão e evita problemas complexos de drivers locais. A Retaguarda vira um hub centralizado de assinatura. A chave não viaja pela rede para o PDV local.
@@ -437,4 +437,10 @@ Estabelecer um diretório comercial padrão e fixo, adotando `C:/Aureon`, para p
 
 ### Consequências
 - Não usaremos o `%APPDATA%` local padrão sugerido pelo sistema operacional, pois dificulta a criação de rotinas rápidas de recuperação ou transferência de banco (backup offline) por usuários menos técnicos. O caminho na raiz `C:` facilita suporte.
+
+
+## ADR: Autenticacao Progressiva Offline-First e Argon2id (Fase 21, Bloco 1)
+- **Contexto**: Seguran�a operacional (RBAC) no PDV deve sobreviver � falta de conectividade e garantir hashing forte.
+- **Decisao**: Hashes de senhas usam Argon2id gerados via crate nativo. A autentica��o � 100% resolvida via SQLite local com tabelas pr�prias de sess�o e auditoria.
+- **Consequencia**: Permite trancar rotinas de caixa no PDV (offline) mesmo durante quedas de link.
 
