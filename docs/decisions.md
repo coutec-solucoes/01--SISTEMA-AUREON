@@ -427,3 +427,14 @@ A rotina de criação, listagem, validação e restauração de backups locais d
 - A interface de backup e os commands de backup no Tauri não têm validações de `garantir_operacao_licenciada`.
 - O cliente sempre tem o direito e a habilidade de salvar seus dados localmente e recuperar o PDV se algo der errado (ex: atualização falha, corrupção).
 
+## ADR: Estrutura de Diretórios e Persistência no Windows (Fase 20, Bloco 10)
+
+### Contexto
+O Aureon PDV, sendo operado como um software Desktop (Tauri), precisa ter independência entre os binários (o instalador `.exe`) e os dados críticos do usuário.
+
+### Decisão
+Estabelecer um diretório comercial padrão e fixo, adotando `C:/Aureon`, para persistência, logs e backups. As validações foram inseridas por scripts e tela dedicada de diagnóstico. A atualização comercial futura deve respeitar esta pasta e tratar `data/aureon-local.db` como sagrado.
+
+### Consequências
+- Não usaremos o `%APPDATA%` local padrão sugerido pelo sistema operacional, pois dificulta a criação de rotinas rápidas de recuperação ou transferência de banco (backup offline) por usuários menos técnicos. O caminho na raiz `C:` facilita suporte.
+

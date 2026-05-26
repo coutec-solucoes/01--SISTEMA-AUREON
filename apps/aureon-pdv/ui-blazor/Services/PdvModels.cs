@@ -1921,6 +1921,29 @@ namespace AureonPdvUi.Services
         [JsonPropertyName("warnings")]
         public List<string> Warnings { get; set; } = new();
     }
+
+    // ==========================================
+    // DTOs de Diagnóstico de Sistema (Fase 20, Bloco 10)
+    // ==========================================
+    public class DiagnosticoSistemaResp
+    {
+        public bool Sucesso { get; set; }
+        public string SistemaOperacional { get; set; } = "";
+        public string Arquitetura { get; set; } = "";
+        public string AppVersao { get; set; } = "";
+        public string CaminhoBase { get; set; } = "";
+        public string CaminhoBanco { get; set; } = "";
+        public string CaminhoBackups { get; set; } = "";
+        public string CaminhoLogs { get; set; } = "";
+        public string CaminhoPrintSim { get; set; } = "";
+        public long? EspacoLivreBytes { get; set; }
+        public bool PodeEscreverBase { get; set; }
+        public bool PodeEscreverBackups { get; set; }
+        public bool BancoExiste { get; set; }
+        public bool PastasOk { get; set; }
+        public string Mensagem { get; set; } = "";
+        public List<string> Warnings { get; set; } = new();
+    }
 }
 
 

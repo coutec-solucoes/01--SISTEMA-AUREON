@@ -131,7 +131,7 @@ pub async fn criar_backup_local(
 
     Ok(RespostaBase {
         sucesso: true,
-        mensagem: Some("Backup gerado com sucesso".to_string()),
+        mensagem: "Backup gerado com sucesso".to_string(),
         dados: Some(resp),
         erro: None,
     })
@@ -141,7 +141,7 @@ pub async fn criar_backup_local(
 pub async fn listar_backups_locais() -> Result<RespostaBase<Vec<BackupInfoResp>>, String> {
     let dir = obter_dir_backups();
     if !dir.exists() {
-        return Ok(RespostaBase { sucesso: true, mensagem: Some("".to_string()), dados: Some(vec![]), erro: None });
+        return Ok(RespostaBase { sucesso: true, mensagem: "".to_string(), dados: Some(vec![]), erro: None });
     }
 
     let mut lista = vec![];
@@ -183,14 +183,14 @@ pub async fn listar_backups_locais() -> Result<RespostaBase<Vec<BackupInfoResp>>
                 terminal_id,
                 app_versao: None,
                 valido: None,
-                mensagem: None,
+                mensagem: Some("Concluido".to_string()),
             });
         }
     }
 
     Ok(RespostaBase {
         sucesso: true,
-        mensagem: Some("".to_string()),
+        mensagem: "".to_string(),
         dados: Some(lista),
         erro: None,
     })
@@ -250,7 +250,7 @@ pub async fn validar_backup_local(
 
     Ok(RespostaBase {
         sucesso: true,
-        mensagem: Some(msg.to_string()),
+        mensagem: msg.to_string(),
         dados: Some(resp),
         erro: None,
     })
@@ -295,7 +295,7 @@ pub async fn restaurar_backup_local(
         }
     }
 
-    let conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
+    let mut conn = estado.conn_sqlite.lock().map_err(|e| e.to_string())?;
     
     // Close and overwrite... Actually we can't overwrite an open file in Windows easily, 
     // or SQLite might be locked. 
@@ -328,8 +328,9 @@ pub async fn restaurar_backup_local(
 
     Ok(RespostaBase {
         sucesso: true,
-        mensagem: Some("Restauracao concluida com sucesso.".to_string()),
-        erro: Some(e),
+        mensagem: "Restauracao concluida com sucesso.".to_string(),
+        dados: Some(resp),
+        erro: None,
     })
 }
 
@@ -355,7 +356,7 @@ pub async fn diagnosticar_banco_local(
 
     Ok(RespostaBase {
         sucesso: true,
-        mensagem: None,
+        mensagem: "Concluido".to_string(),
         dados: Some(DiagnosticoBancoResp {
             sqlite_integrity_ok,
             tamanho_bytes: meta.len(),
@@ -365,6 +366,9 @@ pub async fn diagnosticar_banco_local(
             mensagem: "Diagnostico concluido".to_string(),
             warnings,
         }),
-        erro: Some(e),
+        erro: None,
     })
 }
+
+
+

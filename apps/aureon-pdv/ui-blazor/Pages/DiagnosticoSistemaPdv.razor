@@ -1,0 +1,211 @@
+@page "/diagnostico-sistema"
+@using AureonPdvUi.Services
+@inject TauriService Tauri
+
+<div class="padrao-container" style="max-width: 900px; margin: 0 auto;">
+    <h2 style="color: #4db6ac; margin-bottom: 5px;">Diagnóstico de Instalação do Sistema</h2>
+    <p style="color: #aaa; margin-bottom: 20px;">
+        Verifique as permissões de pastas, integridade da instalação e recursos do sistema. 
+        <strong>Este diagnóstico não altera dados operacionais.</strong>
+    </p>
+
+    <!-- Alertas -->
+    @if (!string.IsNullOrEmpty(mensagemAviso))
+    {
+        <div style="background-color: #333; color: #ffeb3b; padding: 12px; border-left: 4px solid #ffeb3b; margin-bottom: 20px; border-radius: 4px;">
+            @mensagemAviso
+            <button @onclick="() => mensagemAviso = null" style="float: right; background: none; border: none; color: white; cursor: pointer;">X</button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(mensagemErro))
+    {
+        <div style="background-color: #b71c1c; color: white; padding: 12px; border-left: 4px solid #f44336; margin-bottom: 20px; border-radius: 4px;">
+            @mensagemErro
+            <button @onclick="() => mensagemErro = null" style="float: right; background: none; border: none; color: white; cursor: pointer;">X</button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(mensagemSucesso))
+    {
+        <div style="background-color: #1b5e20; color: white; padding: 12px; border-left: 4px solid #4caf50; margin-bottom: 20px; border-radius: 4px;">
+            @mensagemSucesso
+            <button @onclick="() => mensagemSucesso = null" style="float: right; background: none; border: none; color: white; cursor: pointer;">X</button>
+        </div>
+    }
+
+    <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+        <button class="btn btn-primary" @onclick="ExecutarDiagnostico" disabled="@processando">
+            @(processando ? "Analisando..." : "Executar Diagnóstico")
+        </button>
+        <button class="btn btn-secondary" @onclick="GarantirPastas" disabled="@processando">
+            Garantir Pastas Padrão
+        </button>
+    </div>
+
+    @if (diagnostico != null)
+    {
+        <div class="card" style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+            <h3 style="margin-top: 0; color: #fff;">Visão Geral do Ambiente</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                <div style="background: #2a2a2a; padding: 15px; border-radius: 6px;">
+                    <strong style="color: #4db6ac;">Sistema Operacional:</strong>
+                    <div style="color: #ccc; margin-top: 5px;">@diagnostico.SistemaOperacional</div>
+                </div>
+                <div style="background: #2a2a2a; padding: 15px; border-radius: 6px;">
+                    <strong style="color: #4db6ac;">Arquitetura:</strong>
+                    <div style="color: #ccc; margin-top: 5px;">@diagnostico.Arquitetura</div>
+                </div>
+                <div style="background: #2a2a2a; padding: 15px; border-radius: 6px;">
+                    <strong style="color: #4db6ac;">Versão do PDV:</strong>
+                    <div style="color: #ccc; margin-top: 5px;">@diagnostico.AppVersao</div>
+                </div>
+                <div style="background: #2a2a2a; padding: 15px; border-radius: 6px;">
+                    <strong style="color: #4db6ac;">Status Global:</strong>
+                    <div style="margin-top: 5px; font-weight: bold; color: @(diagnostico.Warnings.Any() ? "#f44336" : "#4caf50")">
+                        @(diagnostico.Warnings.Any() ? "Com Alertas" : "Tudo OK")
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="color: #fff; margin-top: 30px;">Caminhos e Permissões</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #444; text-align: left; color: #aaa;">
+                        <th style="padding: 10px;">Item</th>
+                        <th style="padding: 10px;">Caminho</th>
+                        <th style="padding: 10px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px; color: #ddd;"><strong>Estrutura Base</strong></td>
+                        <td style="padding: 10px; color: #aaa;">@diagnostico.CaminhoBase</td>
+                        <td style="padding: 10px; font-weight: bold; color: @(diagnostico.PastasOk ? "#4caf50" : "#f44336")">
+                            @(diagnostico.PastasOk ? "OK" : "Faltam Pastas")
+                        </td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px; color: #ddd;"><strong>Permissão Escrita (Base)</strong></td>
+                        <td style="padding: 10px; color: #aaa;">Criação de arquivos em data/, logs/ etc.</td>
+                        <td style="padding: 10px; font-weight: bold; color: @(diagnostico.PodeEscreverBase ? "#4caf50" : "#f44336")">
+                            @(diagnostico.PodeEscreverBase ? "Permitido" : "Negado")
+                        </td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px; color: #ddd;"><strong>Permissão Escrita (Backups)</strong></td>
+                        <td style="padding: 10px; color: #aaa;">@diagnostico.CaminhoBackups</td>
+                        <td style="padding: 10px; font-weight: bold; color: @(diagnostico.PodeEscreverBackups ? "#4caf50" : "#f44336")">
+                            @(diagnostico.PodeEscreverBackups ? "Permitido" : "Negado")
+                        </td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px; color: #ddd;"><strong>Banco de Dados</strong></td>
+                        <td style="padding: 10px; color: #aaa;">@diagnostico.CaminhoBanco</td>
+                        <td style="padding: 10px; font-weight: bold; color: @(diagnostico.BancoExiste ? "#4caf50" : "#ff9800")">
+                            @(diagnostico.BancoExiste ? "Encontrado" : "Não Criado")
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            @if (diagnostico.Warnings != null && diagnostico.Warnings.Any())
+            {
+                <div style="margin-top: 20px; background-color: #3e2723; padding: 15px; border-radius: 6px; border-left: 4px solid #f44336;">
+                    <h4 style="color: #ff8a80; margin-top: 0;">Atenção Necessária</h4>
+                    <ul style="color: #ffcdd2; margin-bottom: 0;">
+                        @foreach (var w in diagnostico.Warnings)
+                        {
+                            <li>@w</li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: opacity 0.2s;
+    }
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .btn-primary { background-color: #4db6ac; color: #004d40; }
+    .btn-primary:hover:not(:disabled) { background-color: #26a69a; }
+    .btn-secondary { background-color: #555; color: white; }
+    .btn-secondary:hover:not(:disabled) { background-color: #666; }
+</style>
+
+@code {
+    private bool processando = false;
+    private string? mensagemAviso;
+    private string? mensagemErro;
+    private string? mensagemSucesso;
+    private DiagnosticoSistemaResp? diagnostico;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ExecutarDiagnostico();
+    }
+
+    private void LimparMensagens()
+    {
+        mensagemAviso = null;
+        mensagemErro = null;
+        mensagemSucesso = null;
+    }
+
+    private async Task ExecutarDiagnostico()
+    {
+        processando = true;
+        LimparMensagens();
+        StateHasChanged();
+
+        try
+        {
+            diagnostico = await Tauri.InvocarAsync<DiagnosticoSistemaResp>("diagnosticar_instalacao_sistema", new { });
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = "Erro ao executar diagnóstico: " + ex.Message;
+        }
+        finally
+        {
+            processando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GarantirPastas()
+    {
+        processando = true;
+        LimparMensagens();
+        StateHasChanged();
+
+        try
+        {
+            var ok = await Tauri.InvocarAsync<bool>("garantir_pastas_sistema", new { });
+            if (ok)
+            {
+                mensagemSucesso = "Estrutura de pastas validada e garantida.";
+                await ExecutarDiagnostico();
+            }
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = "Erro ao tentar garantir pastas: " + ex.Message;
+        }
+        finally
+        {
+            processando = false;
+            StateHasChanged();
+        }
+    }
+}

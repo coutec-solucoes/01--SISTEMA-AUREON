@@ -146,4 +146,18 @@ Criar a base de backup e restauração local do PDV Aureon, permitindo gerar có
 - Validação SQLite: uso do `PRAGMA integrity_check` tanto no banco atual quanto nos arquivos de backup.
 - **Isenção de Licença**: As rotinas de backup e restauração são blindadas contra bloqueios comerciais (não usam guarda operacional).
 
+## Bloco 10 — Empacotamento Windows, Estrutura de Instalação e Diagnóstico de Ambiente
+**Status**: CONCLUÍDO
+**Data**: 2026-05-25
+
+### Objetivo
+Preparar o Aureon PDV para distribuição instalável em Windows, organizando diretórios padrão (`C:/Aureon/`), scripts de build/diagnóstico e documentação de instalação, focando exclusivamente no ambiente técnico, sem funcionalidades de auto-update automáticas ainda.
+
+### Entregas
+- **Scripts PowerShell**: `build-pdv-windows.ps1` (compilação completa de Release), `create-aureon-dirs.ps1` (cria as árvores vazias com permissões necessárias) e `check-pdv-environment.ps1` (inspeciona o estado do ambiente e do banco via terminal).
+- **Backend (Tauri)**: Novos comandos `diagnosticar_instalacao_sistema`, `garantir_pastas_sistema` e `obter_versao_app` injetados em `commands_sistema.rs`.
+- **Frontend (Blazor)**: Página `/diagnostico-sistema` acessível do menu com visualização imediata da capacidade de escrita da instalação.
+- **Estrutura Segregada**: A base garante separação entre código binário e os dados sagrados de uso do sistema (`data`, `backups`, `logs`).
+- Nenhuma rotina da área financeira, operação e PDV foi impactada.
+
 

@@ -15,6 +15,7 @@ pub mod commands_fiscal;
 pub mod commands_sync_fiscal;
 pub mod commands_licenciamento;
 pub mod commands_backup;
+pub mod commands_sistema;
 pub mod licenca_crypto_local;
 pub mod estado;
 
@@ -223,6 +224,10 @@ pub fn run() {
             commands_backup::validar_backup_local,
             commands_backup::restaurar_backup_local,
             commands_backup::diagnosticar_banco_local,
+            // Commands de Sistema (Fase 20 Bloco 10)
+            commands_sistema::diagnosticar_instalacao_sistema,
+            commands_sistema::garantir_pastas_sistema,
+            commands_sistema::obter_versao_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

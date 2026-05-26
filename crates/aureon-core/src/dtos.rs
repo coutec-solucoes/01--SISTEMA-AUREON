@@ -2234,3 +2234,27 @@ pub struct DiagnosticoBancoResp {
     pub mensagem: String,
     pub warnings: Vec<String>,
 }
+
+// ==========================================
+// DTOs de Diagnostico de Sistema (Fase 20, Bloco 10)
+// ==========================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DiagnosticoSistemaResp {
+    pub sucesso: bool,
+    pub sistema_operacional: String,
+    pub arquitetura: String,
+    pub app_versao: String,
+    pub caminho_base: String,
+    pub caminho_banco: String,
+    pub caminho_backups: String,
+    pub caminho_logs: String,
+    pub caminho_print_sim: String,
+    pub espaco_livre_bytes: Option<u64>,
+    pub pode_escrever_base: bool,
+    pub pode_escrever_backups: bool,
+    pub banco_existe: bool,
+    pub pastas_ok: bool,
+    pub mensagem: String,
+    pub warnings: Vec<String>,
+}
